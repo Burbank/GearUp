@@ -10,7 +10,6 @@ const { getMetar } = require("./lib/metar");
 const { getAirport } = require("./lib/airport");
 const { findLiveAtis } = require("./lib/liveatc");
 const { getBriefWx } = require("./lib/briefwx");
-const { bump, summary } = require("./lib/usage");
 const { tooMany } = require("./lib/limit");
 const { isIcao, jsonHeaders } = require("./lib/icao");
 
@@ -31,7 +30,6 @@ const MIME = {
 
 const PUBLIC_ROOT = new Set([
   "index.html",
-  "use.html",
   "sw.js",
   "manifest.webmanifest",
   "robots.txt",
@@ -130,14 +128,6 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname.startsWith("/api/")) {
     if (tooMany(req)) {
       sendJson(res, 429, { error: "Slow down" });
-      return;
-    }
-    if (url.pathname === "/api/hit" && (req.method === "POST" || req.method === "GET")) {
-      sendJson(res, 200, bump());
-      return;
-    }
-    if (url.pathname === "/api/usage" && req.method === "GET") {
-      sendJson(res, 200, summary());
       return;
     }
     if (req.method !== "GET" && req.method !== "HEAD") {

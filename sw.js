@@ -1,10 +1,11 @@
-const CACHE = "gearup-v5";
+const CACHE = "gearup-v20";
 const PRECACHE = [
   "/",
   "/index.html",
   "/css/app.css",
   "/js/app.js",
   "/js/sun.js",
+  "/js/hl.js",
   "/fonts/AtkinsonHyperlegible-Regular.woff2",
   "/fonts/AtkinsonHyperlegible-Bold.woff2",
   "/manifest.webmanifest",
@@ -27,17 +28,28 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  const url = new URL(event.request.url);
   if (event.request.method !== "GET") return;
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return;
+  const dest = event.request.destination;
+  if (dest === "audio" || dest === "video") return;
 
   event.respondWith(
     fetch(event.request)
       .then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then((cache) => cache.put(event.request, copy));
+        }
         return res;
       })
-      .catch(() => caches.match(event.request).then((hit) => hit || caches.match("/index.html")))
+      .catch(() =>
+        caches.match(event.request).then((hit) => {
+          if (hit) return hit;
+          if (event.request.mode === "navigate") return caches.match("/index.html");
+          return Response.error();
+        })
+      )
   );
 });

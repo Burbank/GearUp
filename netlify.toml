@@ -74,16 +74,6 @@
   to = "/.netlify/functions/briefwx?icao=:icao"
   status = 200
 
-[[redirects]]
-  from = "/api/hit"
-  to = "/.netlify/functions/hit"
-  status = 200
-
-[[redirects]]
-  from = "/api/usage"
-  to = "/.netlify/functions/usage"
-  status = 200
-
 [[headers]]
   for = "/*"
   [headers.values]

@@ -32,10 +32,10 @@
     <link
       rel="apple-touch-icon"
       sizes="180x180"
-      href="/icons/apple-touch-icon.png"
+      href="/icons/apple-touch-icon.png?v=16"
     />
-    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon.png" />
-    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon.png?v=16" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png?v=16" />
     <link rel="stylesheet" href="/css/app.css" />
   </head>
   <body>
@@ -90,13 +90,10 @@
             aircraft in the area.
           </p>
           <p>
-            The author assumes no responsibility. Opens are counted as one
-            number; no identity, airport, or location is stored.
-          </p>
-          <p>
-            <a href="/use.html">Opens</a>
+            The author assumes no responsibility.
           </p>
         </div>
+        <p class="home-version" aria-label="Version 1.0">1.0</p>
       </section>
 
       <section id="detail" class="view view-detail" hidden>
@@ -148,6 +145,7 @@
         <audio id="atis-audio" preload="none" playsinline></audio>
         <p class="kind-row">
           <span id="kind-label" class="kind-label"></span>
+          <span id="atis-age" class="atis-age" hidden></span>
         </p>
         <div id="atis-body" class="atis-body"></div>
       </section>
@@ -223,6 +221,7 @@
       </section>
     </div>
     <script src="/js/sun.js"></script>
+    <script src="/js/hl.js"></script>
     <script src="/js/app.js" defer></script>
   </body>
 </html>

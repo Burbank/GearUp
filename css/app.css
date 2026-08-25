@@ -37,6 +37,7 @@
   --border-w: 2px;
   --radius: 10px;
   --touch: 48px;
+  --tab-line: #000000;
   --sans: "Atkinson Hyperlegible", -apple-system, BlinkMacSystemFont, "Segoe UI",
     system-ui, sans-serif;
   --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
@@ -63,6 +64,7 @@
     --placeholder: #6b7f96;
     --ok: #3db88a;
     --border-w: 1px;
+    --tab-line: #8aa0b8;
   }
 }
 
@@ -85,6 +87,8 @@ body {
 button,
 input {
   font-family: inherit;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 :focus-visible {
@@ -118,9 +122,9 @@ body {
 .tab {
   flex: 1;
   min-height: 44px;
-  border: var(--border-w) solid transparent;
+  border: 2px solid var(--tab-line);
   border-radius: var(--radius);
-  background: transparent;
+  background: var(--bg);
   color: var(--muted);
   font-size: 0.88rem;
   font-weight: 700;
@@ -129,6 +133,13 @@ body {
   line-height: 1.15;
   padding: 0.2rem 0.25rem;
   white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tab.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--btn-text);
 }
 
 .tab[hidden] {
@@ -285,8 +296,13 @@ body {
   margin-top: 0.6rem;
 }
 
-.disclaimer a {
-  color: inherit;
+.home-version {
+  margin-top: 0.45rem;
+  text-align: right;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .view-detail {
@@ -386,6 +402,16 @@ body {
   white-space: nowrap;
 }
 
+.kind-row .atis-age {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--kind);
+}
+
+.kind-row .atis-age.zulu-old {
+  color: var(--stale);
+}
+
 .atis-age[hidden] {
   display: none !important;
 }
@@ -481,9 +507,10 @@ body {
 .atis-body {
   margin-top: 0.45rem;
   padding: 0.7rem 0.8rem;
-  font-family: var(--mono);
-  font-size: 1.28rem;
-  line-height: 1.42;
+  font-family: var(--sans);
+  font-size: 1.12rem;
+  line-height: 1.4;
+  font-weight: 400;
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--fg);
@@ -492,9 +519,15 @@ body {
   border-radius: var(--radius);
 }
 
-.zulu-time.zulu-old {
+.zulu-old {
   color: var(--stale);
   font-weight: 750;
+  font-size: calc(1em + 2pt);
+}
+
+.hl-ops {
+  font-weight: 700;
+  font-size: calc(1em + 2pt);
 }
 
 .atis-body.empty,

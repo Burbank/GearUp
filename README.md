@@ -13,5 +13,3 @@ Open `http://127.0.0.1:8787/`
 ## Hosting
 
 GitHub Pages cannot run the weather proxies. Use this repo with **Netlify** (free HTTPS) so `/api/*` works and Add to Home Screen is reliable.
-
-Opens are counted as a single number at `/use.html`. No identity, airport, or location is stored.

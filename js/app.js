@@ -14,6 +14,7 @@
   ];
   const DEFAULT_NO_DATIS = ["EDFH", "HECA"];
   const STALE_MS = 60 * 60 * 1000;
+  const TAF_STALE_MS = 6 * 60 * 60 * 1000;
   const LS_PINS = "atis.pins";
   const LS_NODATIS = "atis.nodatis";
   const LS_CACHE = "atis.cache";
@@ -31,6 +32,7 @@
   const pinBtn = document.getElementById("pin-btn");
   const refreshBtn = document.getElementById("refresh-btn");
   const kindLabel = document.getElementById("kind-label");
+  const atisAgeEl = document.getElementById("atis-age");
   const identEl = document.getElementById("ident");
   const iataEl = document.getElementById("iata");
   const utcClockEl = document.getElementById("utc-clock");
@@ -295,7 +297,9 @@
   function setTab(name) {
     currentTab = name;
     for (const btn of tabButtons) {
-      btn.classList.toggle("active", btn.dataset.tab === name);
+      const on = btn.dataset.tab === name;
+      btn.classList.toggle("active", on);
+      btn.setAttribute("aria-selected", on ? "true" : "false");
     }
   }
 
@@ -437,6 +441,8 @@
     tickBriefSun(d);
     tickTafRemain();
     tickZuluColors();
+    tickAges();
+    tickTafIssuedAge();
   }
 
   function tickBriefSun(now) {
@@ -493,24 +499,66 @@
   }
 
   let lastMetarObserved = "";
+  let lastMetarRaw = "";
+  let lastTafRaw = "";
+  let lastTafIssued = "";
+  let lastDepRunways = [];
+  let lastAtisIssued = "";
 
   function formatAge(issued) {
     const t = Date.parse(issued);
     if (Number.isNaN(t)) return "";
     const ms = Date.now() - t;
     if (ms < 0) return "";
-    const min = Math.round(ms / 60000);
+    const min = Math.floor(ms / 60000);
     if (min < 1) return "just now";
     if (min < 60) return `${min} min ago`;
-    const hr = Math.round(min / 60);
-    if (hr < 48) return `${hr}h ago`;
-    const days = Math.round(hr / 24);
-    return `${days}d ago`;
+    const hr = Math.floor(min / 60);
+    const rem = min % 60;
+    if (!rem) return `${hr} h ago`;
+    return `${hr} h ${rem} min ago`;
+  }
+
+  function formatAtisAge(issued) {
+    const t = Date.parse(issued);
+    if (Number.isNaN(t)) return "";
+    const ms = Date.now() - t;
+    if (ms < 0) return "";
+    const min = Math.floor(ms / 60000);
+    if (min < 1) return "just now";
+    if (min < 60) {
+      return min === 1 ? "1 minute ago" : `${min} minutes ago`;
+    }
+    const hr = Math.floor(min / 60);
+    const rem = min % 60;
+    const hours = hr === 1 ? "1 hour" : `${hr} hours`;
+    if (!rem) return `${hours} ago`;
+    const mins = rem === 1 ? "1 minute" : `${rem} minutes`;
+    return `${hours} ${mins} ago`;
+  }
+
+  function setAgeEl(el, issued, fmt) {
+    if (!el) return;
+    const text = issued ? (fmt || formatAge)(issued) : "";
+    el.textContent = text;
+    el.hidden = !text;
+  }
+
+  function tickAges() {
+    if (!metarBox.hidden) setAgeEl(metarAgeEl, lastMetarObserved);
+    setAgeEl(atisAgeEl, lastAtisIssued, formatAtisAge);
+    if (atisAgeEl && lastAtisIssued) {
+      const t = Date.parse(lastAtisIssued);
+      atisAgeEl.classList.toggle("zulu-old", isZuluOld(t));
+    } else if (atisAgeEl) {
+      atisAgeEl.classList.remove("zulu-old");
+    }
   }
 
   function hideMetar() {
     metarToken += 1;
     lastMetarObserved = "";
+    lastMetarRaw = "";
     metarBox.hidden = true;
     metarText.textContent = "";
     metarAgeEl.hidden = true;
@@ -530,6 +578,7 @@
   function showMetar(m) {
     if (!m || !m.text) {
       lastMetarObserved = "";
+      lastMetarRaw = "";
       metarBox.hidden = true;
       metarText.textContent = "";
       metarAgeEl.hidden = true;
@@ -537,11 +586,11 @@
       return;
     }
     lastMetarObserved = parseObservedAt(m);
-    paintZuluInto(metarText, m.text);
-    const age = formatAge(lastMetarObserved);
-    metarAgeEl.textContent = age;
-    metarAgeEl.hidden = !age;
+    const Hl = typeof GearUpHl !== "undefined" ? GearUpHl : null;
+    lastMetarRaw = Hl && Hl.formatMetar ? Hl.formatMetar(m.text) : m.text;
+    paintOpsInto(metarText, lastMetarRaw, { runways: lastDepRunways });
     metarBox.hidden = false;
+    tickAges();
   }
 
   async function fetchMetar(icao) {
@@ -641,7 +690,37 @@
 
   function zuluTokenToMs(token) {
     const now = Date.now();
-    if (/^\d{4}Z$/.test(token)) {
+    const clock = String(token || "")
+      .trim()
+      .toUpperCase();
+    const pretty = clock.match(/^(\d{2})\s+(\d{2}):(\d{2})Z$/);
+    if (pretty) {
+      const dd = Number(pretty[1]);
+      const hh = Number(pretty[2]);
+      const mm = Number(pretty[3]);
+      const n = new Date();
+      let t = Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), dd, hh, mm, 0);
+      if (t > now + 5 * 60 * 1000) {
+        t = Date.UTC(n.getUTCFullYear(), n.getUTCMonth() - 1, dd, hh, mm, 0);
+      }
+      return t;
+    }
+    if (/^\d{2}:\d{2}Z$/.test(clock)) {
+      const hh = Number(clock.slice(0, 2));
+      const mm = Number(clock.slice(3, 5));
+      const n = new Date();
+      let t = Date.UTC(
+        n.getUTCFullYear(),
+        n.getUTCMonth(),
+        n.getUTCDate(),
+        hh,
+        mm,
+        0
+      );
+      if (t > now + 5 * 60 * 1000) t -= 24 * 3600 * 1000;
+      return t;
+    }
+    if (/^\d{4}Z$/.test(clock)) {
       const hh = Number(token.slice(0, 2));
       const mm = Number(token.slice(2, 4));
       const n = new Date();
@@ -670,14 +749,43 @@
     return NaN;
   }
 
-  function isZuluOld(ms) {
-    return Number.isFinite(ms) && Date.now() - ms > STALE_MS;
+  function isZuluOld(ms, staleMs) {
+    const limit = Number.isFinite(staleMs) ? staleMs : STALE_MS;
+    return Number.isFinite(ms) && Date.now() - ms > limit;
   }
 
-  function paintZuluInto(el, text) {
+  function zuluRanges(text, staleMs) {
     const raw = String(text || "");
+    const limit = Number.isFinite(staleMs) ? staleMs : STALE_MS;
+    const out = [];
+    const re = /\b(?:\d{2}\s\d{2}:\d{2}Z|\d{2}:\d{2}Z|\d{4}(?:\d{2})?Z)\b/g;
+    let m = re.exec(raw);
+    while (m) {
+      const ms = zuluTokenToMs(m[0]);
+      out.push({
+        start: m.index,
+        end: m.index + m[0].length,
+        cls: "zulu-time",
+        ms: Number.isFinite(ms) ? ms : undefined,
+        staleMs: limit,
+        old: Number.isFinite(ms) && isZuluOld(ms, limit),
+      });
+      m = re.exec(raw);
+    }
+    return out;
+  }
+
+  function paintOpsInto(el, text, opts) {
+    const raw = String(text || "");
+    const o = opts || {};
+    const staleMs = o.zuluStaleMs;
+    const Hl = typeof GearUpHl !== "undefined" ? GearUpHl : null;
+    if (Hl) {
+      Hl.paint(el, raw, Hl.ranges(raw, o).concat(zuluRanges(raw, staleMs)));
+      return;
+    }
     el.replaceChildren();
-    const re = /\b\d{4}(?:\d{2})?Z\b/g;
+    const re = /\b(?:\d{2}\s\d{2}:\d{2}Z|\d{2}:\d{2}Z|\d{4}(?:\d{2})?Z)\b/g;
     let last = 0;
     let m = re.exec(raw);
     while (m) {
@@ -690,7 +798,8 @@
       mark.textContent = m[0];
       if (Number.isFinite(ms)) {
         mark.dataset.ms = String(ms);
-        if (isZuluOld(ms)) mark.classList.add("zulu-old");
+        mark.dataset.staleMs = String(Number.isFinite(staleMs) ? staleMs : STALE_MS);
+        if (isZuluOld(ms, staleMs)) mark.classList.add("zulu-old");
       }
       el.appendChild(mark);
       last = m.index + m[0].length;
@@ -704,13 +813,30 @@
   function tickZuluColors() {
     const nodes = document.querySelectorAll(".zulu-time[data-ms]");
     for (const span of nodes) {
-      span.classList.toggle("zulu-old", isZuluOld(Number(span.dataset.ms)));
+      const limit = Number(span.dataset.staleMs);
+      span.classList.toggle(
+        "zulu-old",
+        isZuluOld(Number(span.dataset.ms), Number.isFinite(limit) ? limit : STALE_MS)
+      );
     }
+  }
+
+  function tickTafIssuedAge() {
+    if (!tafIssued) return;
+    if (!lastTafIssued) {
+      tafIssued.classList.remove("zulu-old");
+      return;
+    }
+    const age = formatAge(lastTafIssued);
+    tafIssued.textContent = age ? `issued ${age}` : "";
+    tafIssued.hidden = !age;
+    const t = Date.parse(lastTafIssued);
+    tafIssued.classList.toggle("zulu-old", isZuluOld(t, TAF_STALE_MS));
   }
 
   function zuluIssuedFromText(text) {
     const head = String(text || "").slice(0, 280);
-    const m = head.match(/\b(\d{4})Z\b/);
+    const m = head.match(/\b(\d{4}(?:\d{2})?Z)\b/);
     if (!m) return null;
     const ms = zuluTokenToMs(m[0]);
     return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
@@ -734,7 +860,9 @@
     updateAdsbLink(icao);
 
     if (loading) {
+      lastAtisIssued = "";
       kindLabel.textContent = "Departure ATIS";
+      setAgeEl(atisAgeEl, "");
       if (!listening) hideStaleBanner();
       bodyEl.className = "atis-body loading";
       bodyEl.textContent = data.text || "Loading…";
@@ -742,7 +870,9 @@
     }
 
     if (data.kind === "empty") {
+      lastAtisIssued = "";
       kindLabel.textContent = "No D-ATIS";
+      setAgeEl(atisAgeEl, "");
       hideStaleBanner();
       bodyEl.className = "atis-body empty";
       bodyEl.textContent = `No digital ATIS is available for ${icao}.`;
@@ -750,7 +880,9 @@
     }
 
     if (data.kind === "error") {
+      lastAtisIssued = "";
       kindLabel.textContent = "ATIS";
+      setAgeEl(atisAgeEl, "");
       hideStaleBanner();
       bodyEl.className = "atis-body error";
       bodyEl.textContent = data.error || "Could not load ATIS.";
@@ -759,6 +891,8 @@
 
     kindLabel.textContent =
       data.kind === "combined" ? "Combined ATIS" : "Departure ATIS";
+    lastAtisIssued = atisIssuedAt(data);
+    setAgeEl(atisAgeEl, lastAtisIssued, formatAtisAge);
 
     const stale = isStaleAtis(data);
     if (stale) {
@@ -771,7 +905,23 @@
     }
 
     bodyEl.className = "atis-body";
-    paintZuluInto(bodyEl, data.text || "");
+    const Hl = typeof GearUpHl !== "undefined" ? GearUpHl : null;
+    const atisText =
+      Hl && Hl.formatAtis ? Hl.formatAtis(data.text || "") : data.text || "";
+    lastDepRunways = Hl ? Hl.depRunways(atisText) : [];
+    paintOpsInto(bodyEl, atisText, {
+      letter: data.letter,
+      runways: lastDepRunways,
+    });
+    if (lastMetarRaw && !metarBox.hidden) {
+      paintOpsInto(metarText, lastMetarRaw, { runways: lastDepRunways });
+    }
+    if (lastTafRaw) {
+      paintOpsInto(tafBody, lastTafRaw, {
+        runways: lastDepRunways,
+        zuluStaleMs: TAF_STALE_MS,
+      });
+    }
   }
 
   function markCoverage(data) {
@@ -826,6 +976,16 @@
     clearNode(wxPirepBody);
   }
 
+  function paintWxInto(el, text) {
+    const raw = String(text || "");
+    const Hl = typeof GearUpHl !== "undefined" ? GearUpHl : null;
+    if (Hl && (Hl.wxRanges || Hl.hazardRanges)) {
+      Hl.paint(el, raw, (Hl.wxRanges || Hl.hazardRanges)(raw));
+      return;
+    }
+    el.textContent = raw;
+  }
+
   function fillWxList(container, items, emptyText) {
     clearNode(container);
     if (!items.length) {
@@ -843,13 +1003,13 @@
       if (item.head) {
         const h = document.createElement("p");
         h.className = "wx-item-head";
-        h.textContent = item.head;
+        paintWxInto(h, item.head);
         li.appendChild(h);
       }
       if (item.body) {
         const b = document.createElement("p");
         b.className = "wx-item-body";
-        b.textContent = item.body;
+        paintWxInto(b, item.body);
         li.appendChild(b);
       }
       ul.appendChild(li);
@@ -863,7 +1023,6 @@
   }
 
   function renderBriefWx(data) {
-    hideWxBlocks();
     if (!data || data.error) return;
     rememberAirport(data.icao, data);
     if (data.iata) setBriefIdent(data.icao, data.iata);
@@ -898,8 +1057,8 @@
     if (showDa) {
       const da = data.densityAltitude;
       const bits = [`${da.ft.toLocaleString("en-US")} ft`];
-      if (Number.isFinite(da.qnhHpa)) bits.push(`Q${Math.round(da.qnhHpa)}`);
       if (Number.isFinite(da.elevFt)) bits.push(`elev ${da.elevFt} ft`);
+      if (Number.isFinite(da.qnhHpa)) bits.push(`Q${Math.round(da.qnhHpa)}`);
       clearNode(wxDaBody);
       const line = document.createElement("p");
       line.className = "wx-pair-line";
@@ -911,7 +1070,9 @@
       clearNode(wxRhBody);
       const line = document.createElement("p");
       line.className = "wx-pair-line";
-      line.textContent = `${rh.tempC}°C · DP ${rh.dewC}°C · ${rh.rh}%`;
+      const bits = [`${rh.tempC}°C`, `DP ${rh.dewC}°C`, `${rh.rh}%`];
+      if (Number.isFinite(rh.feelC)) bits.push(`feel ${rh.feelC}°C`);
+      line.textContent = bits.join(" · ");
       wxRhBody.appendChild(line);
       wxRh.hidden = false;
     }
@@ -939,22 +1100,39 @@
     }
   }
 
+  function runwaysForPaint() {
+    if (lastDepRunways.length) return lastDepRunways;
+    const Hl = typeof GearUpHl !== "undefined" ? GearUpHl : null;
+    const cached = cache[currentIcao];
+    if (Hl && cached && cached.text) {
+      lastDepRunways = Hl.depRunways(cached.text);
+      return lastDepRunways;
+    }
+    return lastDepRunways;
+  }
+
   function renderTaf(data) {
     if (!data || data.error || !data.text) {
+      lastTafRaw = "";
+      lastTafIssued = "";
       tafValidUntil = null;
       tafIssued.textContent = "";
       tafIssued.hidden = true;
+      tafIssued.classList.remove("zulu-old");
       tafRemain.textContent = "";
       tafBody.className = "atis-body empty";
       tafBody.textContent = data && data.error ? data.error : "No TAF.";
       return;
     }
     tafValidUntil = data.validUntil || null;
-    const issued = data.issued ? formatAge(data.issued) : "";
-    tafIssued.textContent = issued ? `issued ${issued}` : "";
-    tafIssued.hidden = !issued;
+    lastTafIssued = data.issued || "";
+    lastTafRaw = data.text;
     tafBody.className = "atis-body";
-    tafBody.textContent = data.text;
+    paintOpsInto(tafBody, lastTafRaw, {
+      runways: runwaysForPaint(),
+      zuluStaleMs: TAF_STALE_MS,
+    });
+    tickTafIssuedAge();
     tickTafRemain();
   }
 
@@ -967,6 +1145,9 @@
     briefRefresh.disabled = true;
     setBriefIdent("", "");
     tafValidUntil = null;
+    lastTafRaw = "";
+    lastTafIssued = "";
+    tafIssued.classList.remove("zulu-old");
     hideWxBlocks();
     briefSun.hidden = true;
     updateTafTabLabel();
@@ -1000,31 +1181,29 @@
     });
 
     const token = ++briefToken;
+    const stillHere = () => token === briefToken && currentTab === "taf";
+
+    const tafPromise = fetch(`/api/taf/${code}`, { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : { error: "Could not load TAF." }))
+      .catch(() => ({ error: "Could not load TAF." }));
+    const wxPromise = fetch(`/api/briefwx/${code}`, { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .catch(() => null);
+
     try {
-      const [tafRes, wxRes] = await Promise.all([
-        fetch(`/api/taf/${code}`, { cache: "no-store" }),
-        fetch(`/api/briefwx/${code}`, { cache: "no-store" }),
-      ]);
-      const taf = tafRes.ok
-        ? await tafRes.json()
-        : { error: "Could not load TAF." };
-      let wx = null;
-      if (wxRes.ok) {
-        try {
-          wx = await wxRes.json();
-        } catch {
-          wx = null;
-        }
-      }
-      if (token !== briefToken || currentTab !== "taf") return;
+      const taf = await tafPromise;
+      if (!stillHere()) return;
       renderTaf(taf);
-      renderBriefWx(wx);
     } catch {
-      if (token !== briefToken || currentTab !== "taf") return;
+      if (!stillHere()) return;
       renderTaf({ error: "Could not load TAF." });
     } finally {
       if (token === briefToken) briefRefresh.disabled = false;
     }
+
+    const wx = await wxPromise;
+    if (!stillHere()) return;
+    renderBriefWx(wx);
   }
 
   function loadSlots() {
@@ -1120,13 +1299,6 @@
       const opts = pendingOpts || {};
       pendingOpts = null;
       loadAtis(icao, opts);
-      return;
-    }
-    if (launch) {
-      if (normalizeIcao(location.hash.replace(/^#\/?/, "")) !== "EHAM") {
-        location.hash = "EHAM";
-      }
-      loadAtis("EHAM");
       return;
     }
     showHome();
@@ -1242,15 +1414,5 @@
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) tickUtcClock();
   });
-  try {
-    if (!sessionStorage.getItem("gearup.hit")) {
-      sessionStorage.setItem("gearup.hit", "1");
-      fetch("/api/hit", { method: "POST", cache: "no-store", keepalive: true }).catch(
-        () => {}
-      );
-    }
-  } catch {
-    /* private mode */
-  }
   route();
 })();
