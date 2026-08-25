@@ -63,6 +63,9 @@
   const wxSigmetBody = document.getElementById("wx-sigmet-body");
   const wxDa = document.getElementById("wx-da");
   const wxDaBody = document.getElementById("wx-da-body");
+  const wxPair = document.getElementById("wx-pair");
+  const wxRh = document.getElementById("wx-rh");
+  const wxRhBody = document.getElementById("wx-rh-body");
   const wxAirmet = document.getElementById("wx-airmet");
   const wxAirmetBody = document.getElementById("wx-airmet-body");
   const wxPirep = document.getElementById("wx-pirep");
@@ -809,12 +812,16 @@
   function hideWxBlocks() {
     wxDelay.hidden = true;
     wxSigmet.hidden = true;
+    wxPair.hidden = true;
     wxDa.hidden = true;
+    wxRh.hidden = true;
     wxAirmet.hidden = true;
     wxPirep.hidden = true;
+    wxPair.classList.remove("solo");
     clearNode(wxDelayBody);
     clearNode(wxSigmetBody);
     clearNode(wxDaBody);
+    clearNode(wxRhBody);
     clearNode(wxAirmetBody);
     clearNode(wxPirepBody);
   }
@@ -885,23 +892,31 @@
       wxSigmet.hidden = false;
     }
 
-    if (data.densityAltitude && Number.isFinite(data.densityAltitude.ft)) {
+    const showDa = !!(data.densityAltitude && Number.isFinite(data.densityAltitude.ft));
+    const rh = data.humidity;
+    const showRh = !!(rh && Number.isFinite(rh.rh));
+    if (showDa) {
       const da = data.densityAltitude;
-      clearNode(wxDaBody);
-      const val = document.createElement("p");
-      val.className = "wx-da-value";
-      val.textContent = `${da.ft.toLocaleString("en-US")} ft`;
-      const meta = document.createElement("p");
-      meta.className = "wx-da-meta";
-      const bits = [];
-      if (Number.isFinite(da.tempC)) bits.push(`${da.tempC}°C`);
+      const bits = [`${da.ft.toLocaleString("en-US")} ft`];
       if (Number.isFinite(da.qnhHpa)) bits.push(`Q${Math.round(da.qnhHpa)}`);
       if (Number.isFinite(da.elevFt)) bits.push(`elev ${da.elevFt} ft`);
-      meta.textContent = bits.join(" · ");
-      wxDaBody.appendChild(val);
-      if (bits.length) wxDaBody.appendChild(meta);
+      clearNode(wxDaBody);
+      const line = document.createElement("p");
+      line.className = "wx-pair-line";
+      line.textContent = bits.join(" · ");
+      wxDaBody.appendChild(line);
       wxDa.hidden = false;
     }
+    if (showRh) {
+      clearNode(wxRhBody);
+      const line = document.createElement("p");
+      line.className = "wx-pair-line";
+      line.textContent = `${rh.tempC}°C · DP ${rh.dewC}°C · ${rh.rh}%`;
+      wxRhBody.appendChild(line);
+      wxRh.hidden = false;
+    }
+    wxPair.hidden = !showDa && !showRh;
+    wxPair.classList.toggle("solo", showDa !== showRh);
 
     const airs = (data.airmets || []).map((row) => ({
       head: [row.hazard, row.when, row.hour != null ? `+${row.hour}h` : "", row.nm != null ? `${row.nm} NM` : ""]

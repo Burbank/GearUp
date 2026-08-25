@@ -662,20 +662,40 @@ body {
   color: var(--muted);
 }
 
-.wx-da-value {
-  margin: 0;
-  font-size: 1.35rem;
-  font-weight: 750;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
+.wx-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  margin-top: 0.7rem;
 }
 
-.wx-da-meta {
-  margin: 0.2rem 0 0;
-  font-size: 1.05rem;
-  line-height: 1.35;
-  color: var(--muted);
+.wx-pair.solo {
+  grid-template-columns: 1fr;
+}
+
+.wx-pair[hidden] {
+  display: none !important;
+}
+
+.wx-pair .wx-block {
+  margin-top: 0;
+  padding: 0.5rem 0.6rem;
+}
+
+.wx-pair .wx-title {
+  margin: 0 0 0.18rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.wx-pair-line {
+  margin: 0;
+  font-size: 1.02rem;
   font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
 }
 
 .wx-item-head {
