@@ -1,0 +1,9 @@
+{
+  "name": "gearup",
+  "private": true,
+  "description": "GearUp — departure D-ATIS, TAF, and briefing PWA",
+  "scripts": {
+    "start": "node server.js",
+    "icons": "node scripts/generate-icons.js"
+  }
+}

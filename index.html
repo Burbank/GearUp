@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="apple-mobile-web-app-title" content="GearUp" />
+    <meta
+      name="theme-color"
+      content="#ffffff"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#1a2332"
+      media="(prefers-color-scheme: dark)"
+    />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src 'self'; media-src 'self' https:; frame-src https://mobile.ehamcdm.nl; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="/icons/apple-touch-icon.png"
+    />
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="stylesheet" href="/css/app.css" />
+  </head>
+  <body>
+    <div id="app">
+      <nav class="tabs" role="tablist" aria-label="Sections">
+        <button type="button" id="tab-atis" class="tab" data-tab="atis">
+          ATIS
+        </button>
+        <button type="button" id="tab-brief" class="tab" data-tab="taf">
+          TAF
+        </button>
+        <button type="button" id="tab-slots" class="tab" data-tab="slots">
+          AMS CDM
+        </button>
+      </nav>
+
+      <section id="home" class="view view-home" hidden>
+        <header class="home-header">
+          <h1>GearUp</h1>
+          <p class="home-sub">Departure digital ATIS</p>
+        </header>
+        <form id="lookup-form" class="lookup" autocomplete="off">
+          <label class="sr-only" for="icao-input">ICAO</label>
+          <input
+            id="icao-input"
+            name="icao"
+            type="text"
+            inputmode="text"
+            autocapitalize="characters"
+            autocomplete="off"
+            spellcheck="false"
+            maxlength="4"
+            placeholder="ICAO"
+            aria-label="Four-letter ICAO"
+          />
+          <button type="submit">Go</button>
+        </form>
+        <div id="pins" class="pins"></div>
+        <div class="disclaimer">
+          <p>
+            To save as a web app on iPhone, open this page in Safari, tap Share,
+            then Add to Home Screen.
+          </p>
+          <p>
+            Not for operational use. US D-ATIS is from FAA (atis.info). Hong Kong
+            departure ATIS is from CAD. Canadian ATIS is from NAV CANADA AeroView.
+            Other fields are ACARS via atis.guru and may be stale — the digital
+            copy can lag the live ATIS broadcast.
+          </p>
+          <p>
+            ADS-B opens an area view below 10,000 feet AGL; zoom out to show more
+            aircraft in the area.
+          </p>
+          <p>
+            The author assumes no responsibility. Opens are counted as one
+            number; no identity, airport, or location is stored.
+          </p>
+          <p>
+            <a href="/use.html">Opens</a>
+          </p>
+        </div>
+      </section>
+
+      <section id="detail" class="view view-detail" hidden>
+        <header class="detail-chrome">
+          <div class="detail-nav">
+            <button type="button" id="back-btn" class="icon-btn">Back</button>
+            <a
+              id="adsb-link"
+              class="icon-btn"
+              hidden
+              target="_blank"
+              rel="noopener noreferrer"
+              >ADS-B</a
+            >
+          </div>
+          <div class="detail-actions">
+            <button type="button" id="pin-btn" class="icon-btn">Pin</button>
+            <button type="button" id="refresh-btn" class="icon-btn">
+              Refresh
+            </button>
+          </div>
+        </header>
+        <div class="ident-row">
+          <h2 id="ident"></h2>
+          <span id="iata" class="iata" hidden></span>
+          <time id="utc-clock" class="utc-clock">
+            <span id="utc-time">--:--:--</span
+            ><span class="utc-suffix">UTC</span>
+          </time>
+        </div>
+        <div id="metar-box" class="metar-box" hidden>
+          <p class="metar-head">
+            <span class="kind-label">METAR</span>
+            <span id="metar-age" class="metar-age" hidden></span>
+          </p>
+          <p id="metar-text" class="metar-text"></p>
+        </div>
+        <div id="stale" class="stale-row" hidden>
+          <p id="stale-text" class="stale-flag">Stale ATIS below</p>
+          <button
+            type="button"
+            id="stale-listen"
+            class="icon-btn stale-listen"
+            hidden
+          >
+            Listen
+          </button>
+        </div>
+        <audio id="atis-audio" preload="none" playsinline></audio>
+        <p class="kind-row">
+          <span id="kind-label" class="kind-label"></span>
+        </p>
+        <div id="atis-body" class="atis-body"></div>
+      </section>
+
+      <section id="brief" class="view view-brief" hidden>
+        <header class="brief-chrome">
+          <div class="ident-row">
+            <h1 id="brief-ident">TAF</h1>
+            <span id="brief-iata" class="iata" hidden></span>
+            <div class="brief-clockwrap">
+              <time id="brief-utc" class="utc-clock brief-utc">
+                <span id="brief-utc-time">--:--</span
+                ><span class="utc-suffix">Z</span>
+              </time>
+              <p id="brief-sun" class="brief-sun" hidden>
+                <span id="brief-sun-kind"></span>
+                <span class="brief-sun-when"
+                  ><span id="brief-sun-text"></span
+                  ><span class="utc-suffix">Z</span></span
+                >
+              </p>
+            </div>
+          </div>
+          <button type="button" id="brief-refresh" class="icon-btn">
+            Refresh
+          </button>
+        </header>
+        <p id="brief-empty" class="brief-empty" hidden>
+          Open an airport on the ATIS tab first.
+        </p>
+        <div id="brief-content" hidden>
+          <p class="kind-row">
+            <span class="kind-label">TAF</span>
+            <span id="taf-issued" class="atis-age" hidden></span>
+            <span id="taf-remain" class="taf-remain"></span>
+          </p>
+          <div id="taf-body" class="atis-body"></div>
+          <div id="wx-delay" class="wx-block" hidden>
+            <h2 class="wx-title">NAS delay</h2>
+            <div id="wx-delay-body" class="wx-body"></div>
+          </div>
+          <div id="wx-sigmet" class="wx-block" hidden>
+            <h2 class="wx-title">SIGMET</h2>
+            <div id="wx-sigmet-body" class="wx-body"></div>
+          </div>
+          <div id="wx-da" class="wx-block" hidden>
+            <h2 class="wx-title">Density altitude</h2>
+            <div id="wx-da-body" class="wx-body"></div>
+          </div>
+          <div id="wx-airmet" class="wx-block" hidden>
+            <h2 class="wx-title">G-AIRMET</h2>
+            <div id="wx-airmet-body" class="wx-body"></div>
+          </div>
+          <div id="wx-pirep" class="wx-block" hidden>
+            <h2 class="wx-title">PIREPs</h2>
+            <div id="wx-pirep-body" class="wx-body"></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="slots" class="view view-slots" hidden>
+        <iframe
+          id="slots-frame"
+          title="Schiphol CDM"
+          src="about:blank"
+        ></iframe>
+      </section>
+    </div>
+    <script src="/js/sun.js"></script>
+    <script src="/js/app.js" defer></script>
+  </body>
+</html>

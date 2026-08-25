@@ -1,0 +1,52 @@
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/atis/:icao"
+  to = "/.netlify/functions/atis?icao=:icao"
+  status = 200
+
+[[redirects]]
+  from = "/api/taf/:icao"
+  to = "/.netlify/functions/taf?icao=:icao"
+  status = 200
+
+[[redirects]]
+  from = "/api/atis-audio/:icao"
+  to = "/.netlify/functions/atis-audio?icao=:icao"
+  status = 200
+
+[[redirects]]
+  from = "/api/metar/:icao"
+  to = "/.netlify/functions/metar?icao=:icao"
+  status = 200
+
+[[redirects]]
+  from = "/api/airport/:icao"
+  to = "/.netlify/functions/airport?icao=:icao"
+  status = 200
+
+[[redirects]]
+  from = "/api/briefwx/:icao"
+  to = "/.netlify/functions/briefwx?icao=:icao"
+  status = 200
+
+[[redirects]]
+  from = "/api/hit"
+  to = "/.netlify/functions/hit"
+  status = 200
+
+[[redirects]]
+  from = "/api/usage"
+  to = "/.netlify/functions/usage"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
+    X-Frame-Options = "DENY"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src 'self'; media-src 'self' https:; frame-src https://mobile.ehamcdm.nl; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
