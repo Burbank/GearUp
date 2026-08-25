@@ -625,6 +625,7 @@
     );
     return String(text || "")
       .replace(spoken, ".")
+      .replace(/\b(\d{1,3})\s+(?:DECIMAL|POINT)\s+(\d{1,4})\b/gi, "$1.$2")
       .replace(/\.\s*\./g, ".")
       .replace(/[ \t]{2,}/g, " ")
       .replace(/\b(\d{2})(\d{2})Z\b/g, "$1:$2Z")
@@ -794,6 +795,14 @@
       String(text || "")
         .replace(
           /(?:\.{2,}\s*)?(?:ADVS|ADVISE)\s+YOU\s+HAVE\s+INFO(?:RMATION)?(?:\s+[A-Z])?\s*\.?/gi,
+          " "
+        )
+        .replace(
+          /(?:\.{2,}\s*)?(?:ADVS|ADVISE)\s+ATC\s+COPIED(?:\s+[A-Z])?\s*\.?/gi,
+          " "
+        )
+        .replace(
+          /\bRCVD\s+INFO(?:RMATION)?(?:\s+[A-Z])?\s*\.?/gi,
           " "
         )
     );
