@@ -1069,6 +1069,15 @@
 
   function issueDayUncertain(data) {
     if (!data || !data.text) return false;
+    const icao = normalizeIcao(data.icao || currentIcao);
+    const src = String(data.source || "");
+    if (
+      isOfficialDatis(icao) &&
+      src !== "atis.guru" &&
+      src !== "airframes.io"
+    ) {
+      return false;
+    }
     if (data.issueDayKnown === true) return false;
     if (data.issueDayKnown === false) return true;
     if (data.heardAt) return false;
@@ -1239,6 +1248,7 @@
       const dd = Number(pretty[1]);
       const hh = Number(pretty[2]);
       const mm = Number(pretty[3]);
+      if (dd < 1 || dd > 31 || hh > 23 || mm > 59) return NaN;
       const n = new Date();
       let t = Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), dd, hh, mm, 0);
       while (t > now + ZULU_FUTURE_MS) {
@@ -1262,6 +1272,7 @@
     if (/^\d{2}:\d{2}Z$/.test(clock)) {
       const hh = Number(clock.slice(0, 2));
       const mm = Number(clock.slice(3, 5));
+      if (hh > 23 || mm > 59) return NaN;
       let t = Date.UTC(y, mo, da, hh, mm, 0);
       while (t > now + ZULU_FUTURE_MS) t -= 24 * 3600 * 1000;
       return t;
@@ -1269,6 +1280,7 @@
     if (/^\d{4}Z$/.test(clock)) {
       const hh = Number(token.slice(0, 2));
       const mm = Number(token.slice(2, 4));
+      if (hh > 23 || mm > 59) return NaN;
       let t = Date.UTC(y, mo, da, hh, mm, 0);
       while (t > now + ZULU_FUTURE_MS) t -= 24 * 3600 * 1000;
       return t;
@@ -1277,6 +1289,7 @@
       const dd = Number(token.slice(0, 2));
       const hh = Number(token.slice(2, 4));
       const mm = Number(token.slice(4, 6));
+      if (dd < 1 || dd > 31 || hh > 23 || mm > 59) return NaN;
       const n = new Date();
       let t = Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), dd, hh, mm, 0);
       while (t > now + ZULU_FUTURE_MS) {
@@ -1299,17 +1312,24 @@
     const limit = Number.isFinite(staleMs) ? staleMs : STALE_MS;
     const out = [];
     const re = /\b(?:\d{2}\s\d{2}:\d{2}Z|\d{2}:\d{2}Z|\d{4}(?:\d{2})?Z)\b/g;
+    const Hl = typeof GearUpHl !== "undefined" ? GearUpHl : null;
     let m = re.exec(raw);
     while (m) {
-      const ms = zuluTokenToMs(m[0], referenceIso);
-      out.push({
-        start: m.index,
-        end: m.index + m[0].length,
-        cls: "zulu-time",
-        ms: Number.isFinite(ms) ? ms : undefined,
-        staleMs: limit,
-        old: Number.isFinite(ms) && isZuluOld(ms, limit),
-      });
+      const skipTemp =
+        Hl && Hl.isTafForecastTempTime
+          ? Hl.isTafForecastTempTime(raw, m.index)
+          : /T[XN]\s*M?\d{2}\s*\/\s*$/i.test(raw.slice(Math.max(0, m.index - 12), m.index));
+      if (!skipTemp) {
+        const ms = zuluTokenToMs(m[0], referenceIso);
+        out.push({
+          start: m.index,
+          end: m.index + m[0].length,
+          cls: "zulu-time",
+          ms: Number.isFinite(ms) ? ms : undefined,
+          staleMs: limit,
+          old: Number.isFinite(ms) && isZuluOld(ms, limit),
+        });
+      }
       m = re.exec(raw);
     }
     return out;
@@ -1329,7 +1349,13 @@
     const re = /\b(?:\d{2}\s\d{2}:\d{2}Z|\d{2}:\d{2}Z|\d{4}(?:\d{2})?Z)\b/g;
     let last = 0;
     let m = re.exec(raw);
+    const skipTempAt = (index) =>
+      /T[XN]\s*M?\d{2}\s*\/\s*$/i.test(raw.slice(Math.max(0, index - 12), index));
     while (m) {
+      if (skipTempAt(m.index)) {
+        m = re.exec(raw);
+        continue;
+      }
       if (m.index > last) {
         el.appendChild(document.createTextNode(raw.slice(last, m.index)));
       }
@@ -2137,13 +2163,21 @@
     const showRh = !!(rh && Number.isFinite(rh.rh));
     if (showDa) {
       const da = data.densityAltitude;
-      const bits = [`DA${da.ft.toLocaleString("en-US")} ft`];
-      if (Number.isFinite(da.elevFt)) bits.push(`elev ${da.elevFt} ft`);
-      if (Number.isFinite(da.qnhHpa)) bits.push(`Q${Math.round(da.qnhHpa)}`);
+      const bits = [];
+      const daTok = document.createElement("span");
+      daTok.className = "wx-da-value";
+      daTok.textContent = `DA${da.ft.toLocaleString("en-US")} ft`;
+      bits.push(daTok);
+      if (Number.isFinite(da.elevFt)) {
+        bits.push(document.createTextNode(` · elev ${da.elevFt} ft`));
+      }
+      if (Number.isFinite(da.qnhHpa)) {
+        bits.push(document.createTextNode(` · Q${Math.round(da.qnhHpa)}`));
+      }
       clearNode(wxDaBody);
       const line = document.createElement("p");
       line.className = "wx-pair-line";
-      line.textContent = bits.join(" · ");
+      for (const node of bits) line.appendChild(node);
       wxDaBody.appendChild(line);
       wxDa.hidden = false;
     }

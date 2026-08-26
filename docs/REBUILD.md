@@ -32,9 +32,9 @@ Bundle is a static PWA. Weather and Schiphol traffic go through the same-origin 
 
 ## Version
 
-Footer and `aria-label` on home: **1.1** (`index.html` `.home-version`).  
-User-Agent: `GearUp/1.1` in `lib/http.js`.  
-Service worker cache at 1.1 ship: `gearup-v120`.
+Footer and `aria-label` on home: **1.2** (`index.html` `.home-version`).  
+User-Agent: `GearUp/1.2` in `lib/http.js`.  
+Service worker cache at 1.2 ship: `gearup-v125`.
 
 When bumping later: change the footer, UA, SW cache string, CSS query, and mask query together.
 

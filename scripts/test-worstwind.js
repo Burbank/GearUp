@@ -165,4 +165,15 @@ assert.deepStrictEqual(
   ["WORST 25L DEPARTURE WIND 070/18 T18 X0"]
 );
 
+const vhhhVrb = `
+VHHH DEP ATIS R 1737Z.
+DEPARTURES, RWY 25L.
+SIG WS FCST.
+ WIND VRB05KT VIS 10KM CLD FEW 600FT FEW CB 1500FT SCT 2200FT T27 DP26 QNH 1003HPA=
+`.trim();
+assert.deepStrictEqual(
+  W.lines(vhhhVrb, { kind: "departure", runways: Hl.depRunways(vhhhVrb) }),
+  ["WORST 25L DEPARTURE WIND 070/05 T5 X0"]
+);
+
 console.log("worstwind ok");

@@ -113,7 +113,7 @@ Candidates:
 
 `inArc` / `usesClockwise`: if a mean is given, the short/long way is the arc that **contains the mean**. If no mean, take the ≤180° arc.
 
-**Displayed direction is the winning candidate, not the METAR mean.**
+**Displayed direction is the winning candidate, not the METAR mean.** Do not parse cloud bases (`FEW 1500FT`) as a wind. Fully variable `VRB05KT` (no sector) still uses the reciprocal, never CALM.
 
 Worked VHHH example (leave it this way):
 
@@ -234,6 +234,7 @@ Polar day/night (`cosH` out of [−1, 1]) → hide the chip.
 - ATIS / METAR stale: **1 hour** (`STALE_MS`).
 - TAF issued / TAF body Zulu: **6 hours** (`TAF_STALE_MS`).
 - Token forms: `25 20:25Z`, `20:25Z`, `2025Z`, `252025Z`.
+- **TAF max/min temps are not clock times.** `TX31/2706Z` / `TN27/2622Z` / `TNM02/0615Z` use **date + hour** (`DDHHZ`), never HHMM. Do not paint them as `.zulu-time` / `.zulu-old`. Hour 24–31 in a 4-digit `Z` group is also rejected.
 - A stamp **later than now + 1 minute** is rolled to **yesterday** (EGLL 1350Z read at 11:44Z is last night). `ZULU_FUTURE_MS = 60s`.
 - ATIS max age window for parsing day: 24 hours.
 - Red class: `.zulu-old` using `--stale`.

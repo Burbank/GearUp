@@ -2,6 +2,17 @@
 
 Session history for rebuild. Older narrative also lives in `CURSOR_general_logs/ATIS_PWA/LOG.md`.
 
+## 2026-08-26 — version 1.2
+
+Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`. SW `gearup-v125`.
+
+- TAF `TX`/`TN` groups (`DDHHZ`) are not clock times; do not mark them stale.
+- Strip ATIS closer sentences: `ACKNOWLEDGE INFO`, `ACKNOWLEDGE RECEIPT OF INFORMATION`, US `ADVS YOU HAVE INFO`.
+- Runway speak: `RY`, `RWY:`, `05 RIGHT`, glued `APCHRWY`.
+- `VRB05KT` is a 5 kt variable wind (reciprocal = worst tail), not CALM. Do not parse `FEW 1500FT` as a wind.
+- Density altitude figure is 3 pt smaller than elev/Q.
+- **MAY NOT BE TODAY** omitted for official FAA / NAV CANADA / Hong Kong CAD copies.
+
 ## 2026-08-26 — version 1.1
 
 Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`. SW `gearup-v120`.

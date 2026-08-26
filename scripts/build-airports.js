@@ -27,7 +27,7 @@ const TYPE_RANK = {
 function fetchText(url) {
   return new Promise((resolve, reject) => {
     https
-      .get(url, { headers: { "User-Agent": "GearUp/1.1 airport index" } }, (res) => {
+      .get(url, { headers: { "User-Agent": "GearUp/1.2 airport index" } }, (res) => {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           fetchText(res.headers.location).then(resolve, reject);
           res.resume();

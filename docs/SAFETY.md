@@ -8,7 +8,7 @@ Educational / unofficial. The home footer is the contract: overheard ATIS, EHAM 
 
 - Worst wind and runway condition: **UNOFFICIAL ESTIMATE**.
 - Stale copies get a red **Stale ATIS below** flag; Zulu tokens older than the threshold paint `--stale`.
-- US filler that is not the weather (spoken altimeter asides, `ADVS YOU HAVE INFO X`, `RCVD INFO`, crane/XPDR sentences) is stripped so the remaining text is less noisy, not more authoritative.
+- US filler that is not the weather (spoken altimeter asides, `ADVS YOU HAVE INFO X`, `RCVD INFO`, `ACKNOWLEDGE INFO …`, crane/XPDR sentences) is stripped so the remaining text is less noisy, not more authoritative.
 - ADS-B is a public globe (airplanes.live), not a traffic display for operations.
 
 ---

@@ -36,14 +36,24 @@
     return "main";
   }
 
+  function normalizeRwySpeak(text) {
+    return String(text || "")
+      .replace(/\b(\d{1,2})\s+RIGHT\b/gi, "$1R")
+      .replace(/\b(\d{1,2})\s+LEFT\b/gi, "$1L")
+      .replace(/\b(\d{1,2})\s+CENT(?:RE|ER)\b/gi, "$1C")
+      .replace(/\bAPCH\s*RWYS?\b/gi, "APCH RWY")
+      .replace(/\bRYS?\b/gi, "RWY");
+  }
+
   function depRunways(text) {
-    const u = String(text || "");
+    const u = normalizeRwySpeak(text);
     const found = [];
     const rules = [
       /\b(MAIN|PRIMARY|SECONDARY|SEC|2ND)?\s*(?:DEP(?:ARTURES?)?|DEPG|TAKE\s*OFF|TKOF)\b(?:\s*[,:]+\s*|\s+)(?:(?:RWYS?|RW|RUNWAYS?)\s+)?(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
       /\b(MAIN|PRIMARY|SECONDARY|SEC|2ND)?\s*TL\s+(\d{1,2}\s*[LCR]?)/gi,
       /\b(?:RWYS?|RW|RUNWAYS?)\s+(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)\s+(?:IN USE|FOR (?:DEP(?:ARTURE)?|TAKE\s*OFF))/gi,
       /\bUSING\s+(?:RWYS?|RW|RUNWAYS?)\s+(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
+      /\b(?:RWYS?|RW|RUNWAYS?):\s*(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
     ];
     for (const re of rules) {
       re.lastIndex = 0;
@@ -57,13 +67,14 @@
   }
 
   function arrRunways(text) {
-    const u = String(text || "");
+    const u = normalizeRwySpeak(text);
     const found = [];
     const rules = [
       /\b(MAIN|PRIMARY|SECONDARY|SEC|2ND)?\s*(?:ARR(?:IVALS?)?|LANDING|LDG|APP(?:ROACH)?|APCH)\b(?:\s*[,:]+\s*|\s+)(?:(?:RWYS?|RW|RUNWAYS?)\s+)?(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
       /\b(?:RWYS?|RW|RUNWAYS?)\s+(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)\s+(?:IN USE|FOR (?:ARR(?:IVAL)?|LANDING|LDG))/gi,
       /\bUSING\s+(?:RWYS?|RW|RUNWAYS?)\s+(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
       /\bILS(?:\s+[A-Z])?\s+(?:RWYS?|RW)\s*(\d{1,2}\s*[LCR]?)/gi,
+      /\b(?:RWYS?|RW|RUNWAYS?):\s*(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
     ];
     for (const re of rules) {
       re.lastIndex = 0;
@@ -336,6 +347,12 @@
       }
     }
     return out;
+  }
+
+  function isTafForecastTempTime(text, index) {
+    return /T[XN]\s*M?\d{2}\s*\/\s*$/i.test(
+      String(text || "").slice(Math.max(0, Number(index) - 12), Number(index))
+    );
   }
 
   function tafTempRanges(text) {
@@ -687,7 +704,7 @@
       .replace(/\b(\d{1,3})\s+(?:DECIMAL|POINT)\s+(\d{1,4})\b/gi, "$1.$2")
       .replace(/\.\s*\./g, ".")
       .replace(/[ \t]{2,}/g, " ")
-      .replace(/\b(\d{2})(\d{2})Z\b/g, "$1:$2Z")
+      .replace(/(?<!T[XN]\s*M?\d{2}\s*\/\s*)\b(\d{2})(\d{2})Z\b/g, "$1:$2Z")
       .replace(/\b([0-3]\d{2})(\d{2,3})(G\d{2,3})?(KT|MPS|KMH)\b/g, "$1/$2$3$4");
   }
 
@@ -828,6 +845,24 @@
     return cutRanges(raw, cuts);
   }
 
+  function stripAcknowledgeSentences(text) {
+    const raw = String(text || "");
+    const re =
+      /\bACK(?:NOWLEDGE(?:MENT)?)?\b(?=[\s\S]{0,90}?\bINFO(?:RMATION)?\b)/gi;
+    const cuts = [];
+    let m;
+    while ((m = re.exec(raw))) {
+      let s = m.index;
+      while (s > 0 && raw[s - 1] !== "." && raw[s - 1] !== "\n") s -= 1;
+      while (s < m.index && /[\s,]/.test(raw[s])) s += 1;
+      let e = m.index + m[0].length;
+      while (e < raw.length && raw[e] !== ".") e += 1;
+      if (e < raw.length && raw[e] === ".") e += 1;
+      cuts.push([s, e]);
+    }
+    return cutRanges(raw, cuts);
+  }
+
   function tidyAtis(text) {
     return String(text || "")
       .replace(/[ \t]{2,}/g, " ")
@@ -850,10 +885,15 @@
   }
 
   function stripAdviseInfo(text) {
+    let raw = stripAcknowledgeSentences(text);
+    raw = stripSentencesMatching(
+      raw,
+      String.raw`\bACK(?:NOWLEDGE(?:MENT)?)?\s+(?:THIS\s+)?ATIS\b`
+    );
     return tidyAtis(
-      String(text || "")
+      raw
         .replace(
-          /(?:\.{2,}\s*)?(?:ADVS|ADVISE)\s+YOU\s+HAVE\s+INFO(?:RMATION)?(?:\s+[A-Z])?\s*\.?/gi,
+          /(?:\.{2,}\s*)?(?:ADVS|ADVISE|INFORM|REPORT)\s+YOU\s+HAVE\s+(?:ATIS\s+)?INFO(?:RMATION)?(?:\s+[A-Z])?\s*\.?/gi,
           " "
         )
         .replace(
@@ -933,6 +973,8 @@
     tempDew,
     formatMetar,
     formatAtis,
+    isTafForecastTempTime,
+    stripAdviseInfo,
     tailDirRanges,
     hazardRanges,
     wxRanges,

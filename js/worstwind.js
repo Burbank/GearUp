@@ -128,10 +128,10 @@
       );
       const calm = /\bCALM\b/i.test(win.slice(0, 48));
       const compact = win.match(
-        /\b(?:VRB|[0-3]\d{2})\/(\d{2,3})(?:G(\d{2,3}))?(KT|MPS|KMH)\b/i
+        /\b((?:VRB|[0-3]\d{2})\/?(\d{2,3})(?:G(\d{2,3}))?(KT|MPS|KMH))\b/i
       );
       const dirSpd = win.match(
-        /\b(\d{3})\s*(?:DEG(?:REES)?)?(?:\s+AT)?\s*[,/]?\s*(\d{1,3})(?:G(\d{1,3}))?\s*(KT|KTS|KNOTS)?/i
+        /(?<!\d)(\d{3})(?!\d)\s*(?:DEG(?:REES)?)?(?:\s+AT)?\s*[,/]?\s*(?<!\d)(\d{1,3})(?!\d)(?:G(\d{1,3}))?\s*(KT|KTS|KNOTS)?/i
       );
       const vrbSpd = win.match(
         /\bVRB\s*\/?\s*(\d{1,3})(?:G(\d{1,3}))?\s*(KT|KTS|KNOTS|MPS|KMH)?/i
@@ -146,15 +146,21 @@
         role,
         source: "spoken",
       };
-      if (calm && !dirSpd && !compact) {
+      if (calm && !dirSpd && !compact && !vrbSpd) {
         winds.push(enrichWindow(win, wind));
         continue;
       }
-      if (compact && !/^VRB/i.test(compact[0])) {
-        const dirTok = compact[0].replace("/", "").slice(0, 3);
+      if (compact && /^VRB/i.test(compact[1] || compact[0])) {
+        wind.vrb = true;
+        wind.spd = ktFrom(compact[2], compact[4]);
+        wind.gust = compact[3] ? ktFrom(compact[3], compact[4]) : null;
+      } else if (compact) {
+        const dirTok = String(compact[1] || compact[0])
+          .replace("/", "")
+          .slice(0, 3);
         if (/^\d{3}$/.test(dirTok)) wind.dir = Number(dirTok);
-        wind.spd = ktFrom(compact[1], compact[3]);
-        wind.gust = compact[2] ? ktFrom(compact[2], compact[3]) : null;
+        wind.spd = ktFrom(compact[2], compact[4]);
+        wind.gust = compact[3] ? ktFrom(compact[3], compact[4]) : null;
       } else if (dirSpd) {
         wind.dir = Number(dirSpd[1]);
         wind.spd = ktFrom(dirSpd[2], dirSpd[4] || "KT");
@@ -257,6 +263,11 @@
 
   function pickWinds(all) {
     const spoken = all.filter((w) => w.source === "spoken");
+    const other = all.filter((w) => w.source !== "spoken");
+    const spokenLive = spoken.filter((w) => speedKt(w) > 0);
+    if (spokenLive.length) return spokenLive;
+    const otherLive = other.filter((w) => speedKt(w) > 0);
+    if (otherLive.length) return otherLive;
     return spoken.length ? spoken : all;
   }
 
