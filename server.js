@@ -10,10 +10,34 @@ const { getMetar } = require("./lib/metar");
 const { getAirport } = require("./lib/airport");
 const { findLiveAtis } = require("./lib/liveatc");
 const { getBriefWx } = require("./lib/briefwx");
-const { tooMany } = require("./lib/limit");
+const { proxyCdm, FRAME_CSP } = require("./lib/cdm");
+const { getBoard } = require("./lib/board");
+const { BOARD_CACHE, BOARD_MAX, RATE_LIMIT_MSG, boardClientOk, tooMany } = require("./lib/limit");
 const { isIcao, jsonHeaders } = require("./lib/icao");
 
 const ROOT = __dirname;
+
+function loadDotEnv() {
+  const file = path.join(ROOT, ".env");
+  if (!fs.existsSync(file)) return;
+  for (const line of fs.readFileSync(file, "utf8").split(/\n/)) {
+    const t = line.trim();
+    if (!t || t.startsWith("#")) continue;
+    const i = t.indexOf("=");
+    if (i < 1) continue;
+    const k = t.slice(0, i).trim();
+    let v = t.slice(i + 1).trim();
+    if (
+      (v.startsWith('"') && v.endsWith('"')) ||
+      (v.startsWith("'") && v.endsWith("'"))
+    ) {
+      v = v.slice(1, -1);
+    }
+    if (process.env[k] == null) process.env[k] = v;
+  }
+}
+
+loadDotEnv();
 const PORT = Number(process.env.PORT) || 8787;
 
 const MIME = {
@@ -34,7 +58,7 @@ const PUBLIC_ROOT = new Set([
   "manifest.webmanifest",
   "robots.txt",
 ]);
-const PUBLIC_DIR = new Set(["css", "js", "fonts", "icons"]);
+const PUBLIC_DIR = new Set(["css", "js", "fonts", "icons", "data"]);
 
 const SECURITY = {
   "X-Content-Type-Options": "nosniff",
@@ -89,12 +113,20 @@ function serveStatic(req, res, url) {
       return;
     }
     const ext = path.extname(file);
+    let cache = "public, max-age=300";
+    if (ext === ".woff2") cache = "public, max-age=31536000, immutable";
+    else if (ext === ".png" || ext === ".json") cache = "public, max-age=86400";
+    else if (
+      ext === ".html" ||
+      ext === ".js" ||
+      ext === ".css" ||
+      ext === ".webmanifest"
+    ) {
+      cache = "no-cache";
+    }
     res.writeHead(200, {
       "Content-Type": MIME[ext] || "application/octet-stream",
-      "Cache-Control":
-        ext === ".html" || ext === ".js" || ext === ".css"
-          ? "no-cache"
-          : "public, max-age=300",
+      "Cache-Control": cache,
       ...SECURITY,
       "X-Frame-Options": ext === ".html" ? "DENY" : SECURITY["X-Frame-Options"],
     });
@@ -104,6 +136,36 @@ function serveStatic(req, res, url) {
 
 function takeIcao(pathname, prefix) {
   return pathname.slice(prefix.length).split("/")[0];
+}
+
+function readBody(req, maxBytes) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on("data", (c) => {
+      size += c.length;
+      if (size > maxBytes) {
+        req.destroy();
+        reject(new Error("too large"));
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+    req.on("error", reject);
+  });
+}
+
+function sendCdmHtml(res, html) {
+  res.writeHead(200, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+    "X-Frame-Options": "SAMEORIGIN",
+    "Content-Security-Policy": FRAME_CSP,
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff",
+  });
+  res.end(html);
 }
 
 const APIS = [
@@ -126,8 +188,57 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (url.pathname.startsWith("/api/")) {
-    if (tooMany(req)) {
-      sendJson(res, 429, { error: "Slow down" });
+    const isBoard =
+      url.pathname === "/api/board" || url.pathname === "/api/board/";
+    if (
+      tooMany(
+        req,
+        isBoard ? { max: BOARD_MAX, bucket: "board" } : undefined
+      )
+    ) {
+      sendJson(res, 429, { error: RATE_LIMIT_MSG });
+      return;
+    }
+    if (isBoard && !boardClientOk(req)) {
+      sendJson(res, 403, { error: "Forbidden" });
+      return;
+    }
+    if (isBoard) {
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        res.writeHead(405, SECURITY);
+        res.end();
+        return;
+      }
+      try {
+        const data = await getBoard(url.searchParams.get("dir"));
+        sendJson(res, 200, data, BOARD_CACHE);
+      } catch (err) {
+        sendJson(res, err.statusCode || 502, {
+          error: err.message || "Could not load Schiphol board",
+        });
+      }
+      return;
+    }
+    if (url.pathname === "/api/cdm" || url.pathname === "/api/cdm/") {
+      if (req.method !== "GET" && req.method !== "HEAD" && req.method !== "POST") {
+        res.writeHead(405, SECURITY);
+        res.end();
+        return;
+      }
+      Promise.resolve()
+        .then(() =>
+          req.method === "POST" ? readBody(req, 8000) : Promise.resolve("")
+        )
+        .then((body) => proxyCdm(req.method, body))
+        .then((html) => sendCdmHtml(res, html))
+        .catch((err) => {
+          res.writeHead(err.statusCode || 502, {
+            "Content-Type": "text/plain; charset=utf-8",
+            ...SECURITY,
+            "X-Frame-Options": "SAMEORIGIN",
+          });
+          res.end("Could not load Schiphol CDM.");
+        });
       return;
     }
     if (req.method !== "GET" && req.method !== "HEAD") {
@@ -143,7 +254,9 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       try {
-        const data = await fn(icao);
+                    const data = await fn(icao, {
+                      quiet: url.searchParams.get("quiet") === "1",
+                    });
         const cache = prefix === "/api/airport/" ? "public, max-age=86400" : "no-store";
         sendJson(res, 200, data, cache);
       } catch (err) {

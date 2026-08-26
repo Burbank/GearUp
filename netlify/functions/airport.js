@@ -1,8 +1,11 @@
 "use strict";
 
 const { getAirport } = require("../../lib/airport");
+const { netlifyLimited } = require("../../lib/limit");
 
 exports.handler = async (event) => {
+  const limited = netlifyLimited(event);
+  if (limited) return limited;
   const q = event.queryStringParameters || {};
   const pathIcao = (event.path || "").split("/").filter(Boolean).pop();
   const icao = q.icao || pathIcao || "";

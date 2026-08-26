@@ -1,13 +1,21 @@
-const CACHE = "gearup-v21";
+const CACHE = "gearup-v120";
 const PRECACHE = [
   "/",
   "/index.html",
   "/css/app.css",
+  "/js/theme.js",
   "/js/app.js",
   "/js/sun.js",
+  "/js/tz.js",
   "/js/hl.js",
+  "/js/worstwind.js",
+  "/js/rwycond.js",
+  "/js/cdm.js",
+  "/js/board.js",
+  "/js/airports.js",
   "/fonts/AtkinsonHyperlegible-Regular.woff2",
   "/fonts/AtkinsonHyperlegible-Bold.woff2",
+  "/icons/fasttrack-flat.png",
   "/manifest.webmanifest",
   "/icons/icon-192.png",
   "/icons/apple-touch-icon.png",
@@ -27,6 +35,14 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+function cacheCopy(request, res) {
+  if (res.ok) {
+    const copy = res.clone();
+    caches.open(CACHE).then((cache) => cache.put(request, copy));
+  }
+  return res;
+}
+
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   const url = new URL(event.request.url);
@@ -35,15 +51,28 @@ self.addEventListener("fetch", (event) => {
   const dest = event.request.destination;
   if (dest === "audio" || dest === "video") return;
 
+  const cacheFirst =
+    dest === "font" ||
+    dest === "image" ||
+    url.pathname.startsWith("/fonts/") ||
+    url.pathname.startsWith("/icons/") ||
+    url.pathname.startsWith("/data/");
+
+  if (cacheFirst) {
+    event.respondWith(
+      caches.match(event.request).then((hit) => {
+        if (hit) return hit;
+        return fetch(event.request)
+          .then((res) => cacheCopy(event.request, res))
+          .catch(() => Response.error());
+      })
+    );
+    return;
+  }
+
   event.respondWith(
     fetch(event.request)
-      .then((res) => {
-        if (res.ok) {
-          const copy = res.clone();
-          caches.open(CACHE).then((cache) => cache.put(event.request, copy));
-        }
-        return res;
-      })
+      .then((res) => cacheCopy(event.request, res))
       .catch(() =>
         caches.match(event.request).then((hit) => {
           if (hit) return hit;

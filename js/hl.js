@@ -40,9 +40,30 @@
     const u = String(text || "");
     const found = [];
     const rules = [
-      /\b(MAIN|PRIMARY|SECONDARY|SEC|2ND)?\s*(?:DEP(?:ARTURE)?|DEPG|TAKE\s*OFF|TKOF)\b(?:\s+(?:RWYS?|RW|RUNWAYS?))?\s*[,:=]?\s*(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
+      /\b(MAIN|PRIMARY|SECONDARY|SEC|2ND)?\s*(?:DEP(?:ARTURES?)?|DEPG|TAKE\s*OFF|TKOF)\b(?:\s*[,:]+\s*|\s+)(?:(?:RWYS?|RW|RUNWAYS?)\s+)?(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
       /\b(MAIN|PRIMARY|SECONDARY|SEC|2ND)?\s*TL\s+(\d{1,2}\s*[LCR]?)/gi,
       /\b(?:RWYS?|RW|RUNWAYS?)\s+(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)\s+(?:IN USE|FOR (?:DEP(?:ARTURE)?|TAKE\s*OFF))/gi,
+      /\bUSING\s+(?:RWYS?|RW|RUNWAYS?)\s+(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
+    ];
+    for (const re of rules) {
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(u))) {
+        if (m.length >= 3) addRwy(found, m[2], roleFromPrefix(m[1]) || "main");
+        else addRwy(found, m[1], "main");
+      }
+    }
+    return found;
+  }
+
+  function arrRunways(text) {
+    const u = String(text || "");
+    const found = [];
+    const rules = [
+      /\b(MAIN|PRIMARY|SECONDARY|SEC|2ND)?\s*(?:ARR(?:IVALS?)?|LANDING|LDG|APP(?:ROACH)?|APCH)\b(?:\s*[,:]+\s*|\s+)(?:(?:RWYS?|RW|RUNWAYS?)\s+)?(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
+      /\b(?:RWYS?|RW|RUNWAYS?)\s+(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)\s+(?:IN USE|FOR (?:ARR(?:IVAL)?|LANDING|LDG))/gi,
+      /\bUSING\s+(?:RWYS?|RW|RUNWAYS?)\s+(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
+      /\bILS(?:\s+[A-Z])?\s+(?:RWYS?|RW)\s*(\d{1,2}\s*[LCR]?)/gi,
     ];
     for (const re of rules) {
       re.lastIndex = 0;
@@ -424,6 +445,26 @@
     return out;
   }
 
+  function rwyccRanges(text) {
+    const raw = String(text || "");
+    const out = [];
+    const re = /\b([0-6])\s*[\/,]\s*([0-6])\s*[\/,]\s*([0-6])\b/g;
+    let m;
+    while ((m = re.exec(raw))) {
+      let pos = m.index;
+      for (let i = 1; i <= 3; i++) {
+        const digit = m[i];
+        const idx = raw.indexOf(digit, pos);
+        if (idx < 0) break;
+        pos = idx + 1;
+        if (Number(digit) <= 5) {
+          out.push({ start: idx, end: idx + 1, cls: "hl-ops" });
+        }
+      }
+    }
+    return out;
+  }
+
   function fzlRanges(text, tempC) {
     if (Number.isFinite(tempC) && tempC > 4) return [];
     const raw = String(text || "");
@@ -475,6 +516,23 @@
       String.raw`\b(?:DS|SS)\b`,
       String.raw`\bHAIL\b`,
       String.raw`\bGR\b`,
+      String.raw`\bSNOWTAMS?\b`,
+      String.raw`DRY\s+SNOW(?:\s+ON\s+TOP(?:\s+OF)?(?:\s+ICE|\s+COMPACTED\s+SNOW)?)?`,
+      String.raw`WET\s+SNOW(?:\s+ON\s+TOP(?:\s+OF)?(?:\s+ICE|\s+COMPACTED\s+SNOW)?)?`,
+      String.raw`COMPACTED\s+SNOW`,
+      String.raw`STANDING\s+WATER`,
+      String.raw`WET\s+ICE`,
+      String.raw`BLACK\s+ICE`,
+      String.raw`\bSLUSH\b`,
+      String.raw`\bSNOW\b`,
+      String.raw`\bFROST\b`,
+      String.raw`\bICING\b`,
+      String.raw`\bICE\b`,
+      String.raw`\bSLIPPERY\b`,
+      String.raw`\bBLSN\b`,
+      String.raw`\bDRSN\b`,
+      String.raw`\bSHSN\b`,
+      String.raw`(?<![A-Z0-9])[-+]?(?:SN|SG|PL|IC)\b`,
       String.raw`\bLIFR\b`,
       String.raw`\bIFR\b`,
     ].join("|"),
@@ -506,7 +564,8 @@
       .concat(hazardRanges(raw))
       .concat(visRvrRanges(raw))
       .concat(ceilingRanges(raw))
-      .concat(fzlRanges(raw, tempC));
+      .concat(fzlRanges(raw, tempC))
+      .concat(rwyccRanges(raw));
   }
 
   function ranges(text, opts) {
@@ -866,6 +925,7 @@
 
   return {
     depRunways,
+    arrRunways,
     ranges,
     paint,
     parseRwy,
@@ -876,5 +936,6 @@
     tailDirRanges,
     hazardRanges,
     wxRanges,
+    rwyccRanges,
   };
 });

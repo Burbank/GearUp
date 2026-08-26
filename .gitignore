@@ -1,8 +1,12 @@
 .DS_Store
 node_modules
-data/
+data/usage.json
 .env
 .cursor/
 
 # Local Netlify folder
 .netlify
+
+# Working scans of the home handwriting (canonical copy is docs/branding/)
+Handwritten*.png
+Handwritten notes*.png

@@ -21,6 +21,12 @@
   force = true
 
 [[redirects]]
+  from = "/docs/*"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
   from = "/GearUP.jpg"
   to = "/index.html"
   status = 404
@@ -70,9 +76,46 @@
   status = 200
 
 [[redirects]]
+  from = "/api/board"
+  to = "/.netlify/functions/board"
+  status = 200
+
+[[redirects]]
+  from = "/api/cdm"
+  to = "/.netlify/functions/cdm"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/briefwx/:icao"
   to = "/.netlify/functions/briefwx?icao=:icao"
   status = 200
+
+[[headers]]
+  for = "/api/board"
+  [headers.values]
+    Cache-Control = "public, s-maxage=60, stale-while-revalidate=30"
+    Netlify-CDN-Cache-Control = "public, s-maxage=60, stale-while-revalidate=30"
+
+[[headers]]
+  for = "/fonts/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/icons/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/data/*"
+  [headers.values]
+    Cache-Control = "public, max-age=86400"
+
+[[headers]]
+  for = "/api/cdm"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
 
 [[headers]]
   for = "/*"
@@ -81,4 +124,4 @@
     Referrer-Policy = "no-referrer"
     X-Frame-Options = "DENY"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
-    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src 'self'; media-src 'self' https:; frame-src https://mobile.ehamcdm.nl; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src 'self'; media-src 'self' https:; frame-src 'self' https://mobile.ehamcdm.nl https://globe.airplanes.live; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"

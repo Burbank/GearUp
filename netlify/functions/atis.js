@@ -1,8 +1,11 @@
 "use strict";
 
 const { getAtis } = require("../../lib/atis");
+const { netlifyLimited } = require("../../lib/limit");
 
 exports.handler = async (event) => {
+  const limited = netlifyLimited(event);
+  if (limited) return limited;
   const q = event.queryStringParameters || {};
   const pathIcao = (event.path || "").split("/").filter(Boolean).pop();
   const icao = q.icao || pathIcao || "";
@@ -13,7 +16,8 @@ exports.handler = async (event) => {
   };
 
   try {
-    const data = await getAtis(icao);
+    const quiet = q.quiet === "1" || q.quiet === "true";
+    const data = await getAtis(icao, { quiet });
     return { statusCode: 200, headers, body: JSON.stringify(data) };
   } catch (err) {
     return {
