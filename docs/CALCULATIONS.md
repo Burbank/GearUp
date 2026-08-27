@@ -1,6 +1,6 @@
 # GearUp calculations
 
-All of these are **unofficial estimates**. Rebuild the same way; do not invent a second formula. Implementation lives in the files named. Unit tests: `scripts/test-worstwind.js`, `scripts/test-rwycond.js`, `scripts/test-zulu.js`, `scripts/test-ehamrwy.js`, `scripts/test-czech-atis.js`.
+All of these are **unofficial estimates**. Rebuild the same way; do not invent a second formula. Implementation lives in the files named. Unit tests: `scripts/test-worstwind.js`, `scripts/test-rwycond.js`, `scripts/test-zulu.js`, `scripts/test-ehamrwy.js`, `scripts/test-czech-atis.js`, `scripts/test-present.js`.
 
 Times in the UI are UTC unless a local clock is shown next to them.
 
@@ -24,6 +24,8 @@ Departure extract (`depRunways`): DEP/DEPARTURE/DEPARTURES/DEPG/TAKE OFF/TKOF, `
 Arrival extract (`arrRunways`): ARR/ARRIVAL/ARRIVALS/LANDING/LDG/LNDG/APP/APCH, ILS RWY, `RUNWAY IN USE 06`, USING RWY, and `SIMUL APCHS IN USE, RWY 34R, RWY 35L`. Closed-runway NOTAMs (`RWY 26 ILS OTS`) are not in-use runways.
 
 MAIN/PRIMARY vs SECONDARY/SEC/2ND prefixes set `role: "main" | "sec"` so a second wind pairs to the second runway.
+
+The same extract is attached to `/api/atis` JSON as `formattedText`, `depRunways`, `arrRunways`, `worstWind.departure` / `worstWind.arrival` (string lines), optional `rwycond`, and EHAM `inferDep`. Native iOS uses those fields so it does not reimplement `hl.js` / `worstwind.js`. `lib/present.js` is the shared attach.
 
 ---
 

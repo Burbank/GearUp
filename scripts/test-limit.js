@@ -1,7 +1,7 @@
 "use strict";
 
 const assert = require("assert");
-const { tooMany, netlifyLimited, BOARD_MAX } = require("../lib/limit");
+const { tooMany, netlifyLimited, BOARD_MAX, boardClientOk, IOS_BUNDLE } = require("../lib/limit");
 
 function req(ip) {
   return { headers: { "x-forwarded-for": ip }, socket: { remoteAddress: ip } };
@@ -26,5 +26,41 @@ assert.equal(hit.statusCode, 429);
 assert.equal(JSON.parse(hit.body).error, "Too many refreshes — wait a moment.");
 
 assert.equal(tooMany(req("10.0.0.3"), { bucket: "other" }), false);
+
+assert.equal(boardClientOk({ headers: {} }), false);
+assert.equal(boardClientOk({ headers: { "sec-fetch-site": "same-origin" } }), true);
+assert.equal(
+  boardClientOk({
+    headers: { origin: "https://gearup4u.netlify.app", host: "gearup4u.netlify.app" },
+  }),
+  true
+);
+const prevTok = process.env.GEARUP_IOS_BOARD_TOKEN;
+process.env.GEARUP_IOS_BOARD_TOKEN = "test-ios-board-token";
+assert.equal(
+  boardClientOk({ headers: { "x-gearup-token": "test-ios-board-token" } }),
+  true
+);
+assert.equal(
+  boardClientOk({
+    headers: {
+      "X-GearUp-Token": "test-ios-board-token",
+      "X-GearUp-Bundle": IOS_BUNDLE,
+    },
+  }),
+  true
+);
+assert.equal(
+  boardClientOk({
+    headers: {
+      "x-gearup-token": "test-ios-board-token",
+      "x-gearup-bundle": "com.other.app",
+    },
+  }),
+  false
+);
+assert.equal(boardClientOk({ headers: { "x-gearup-token": "nope" } }), false);
+if (prevTok == null) delete process.env.GEARUP_IOS_BOARD_TOKEN;
+else process.env.GEARUP_IOS_BOARD_TOKEN = prevTok;
 
 console.log("limit ok");

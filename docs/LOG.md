@@ -6,6 +6,8 @@ Session history for rebuild. Older narrative also lives in `CURSOR_general_logs/
 
 Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`. SW `gearup-v219`. Live: https://gearup4u.netlify.app
 
+Hotfix: `/api/atis` includes `formattedText`, `depRunways`, `arrRunways`, and `worstWind` so a native iOS client does not re-parse ATIS. `/api/board` accepts the GearUp iOS client token (`GEARUP_IOS_BOARD_TOKEN`); still 403 for anonymous curl. Native app lives in `CURSOR_PROJECT_REPOS/GearUp-iOS`.
+
 Hotfix: Denver (and similar US D-ATIS) runways parse for the wind strip. `DEPG RWY8, RWY25, RUNWAY 3 4 LEFT` is 08 / 25 / 34L. Arrival `SIMUL APCHS IN USE, RWY 34R, RWY 35L, RWY 35R` is those three, not the closed-runway NOTAMs.
 
 Hotfix: Refresh and pull-to-refresh actually refetch. They send `fresh=1` so overheard ATIS, NAS delay, TAF briefing lists, and the Schiphol board skip their 60s–3min in-process caches. Tab switches still use the 90s/60s holds.

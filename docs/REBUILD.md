@@ -16,7 +16,7 @@ Bundle is a static PWA. Weather and Schiphol traffic go through the same-origin 
 
 ## Secrets — never commit
 
-- `.env` holds `SCHIPHOL_APP_ID` and `SCHIPHOL_APP_KEY` (EHAM board only).
+- `.env` holds `SCHIPHOL_APP_ID` and `SCHIPHOL_APP_KEY` (EHAM board only), plus `GEARUP_IOS_BOARD_TOKEN` (native iOS board gate; not a Schiphol key).
 - Copy `.env.example` → `.env` on a new Mac. Same names on Netlify env.
 - Do not print keys. Do not bake them into source.
 
@@ -57,7 +57,7 @@ When bumping later: change the footer, UA, SW cache string, CSS query, and mask 
 | `js/cdm.js` | Parse EHAM CDM HTML (TOBT, runway) |
 | `sw.js` | Precache shell; **never** intercept `/api/` |
 | `server.js` | Local HTTPS-only proxy + static allowlist |
-| `lib/*` | Node fetchers: ATIS, TAF, METAR, airport, board, CDM, density, limit |
+| `lib/present.js` | Attach formatted ATIS, runways, worst-wind lines for PWA + iOS |
 | `netlify/functions/*` | Thin wrappers around `lib/` |
 | `data/airports.json` | OurAirports index (ICAO, IATA, name, city, lat/lon, elev, tz) |
 | `icons/rightaway-flat.png` | Home overlay mask (transparent ink on transparent) |
