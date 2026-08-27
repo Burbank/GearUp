@@ -237,4 +237,26 @@ assert.deepStrictEqual(
   ["WORST 06 LANDING WIND 070/08 H8 X1"]
 );
 
+const kden = `
+DEN DEP INFO L 2153Z. VRB03KT 10SM.
+DEPG RWY8, RWY25, RUNWAY 3 4 LEFT.
+`.trim();
+assert.deepStrictEqual(Hl.depRunways(kden).map((r) => r.id), ["08", "25", "34L"]);
+assert.deepStrictEqual(
+  W.lines(kden, { kind: "departure", runways: Hl.depRunways(kden) }).map(
+    (line) => line.split(" ")[1]
+  ),
+  ["08", "25", "34L"]
+);
+
+const kdenArrWx = `
+DEN ARR INFO Y 2153Z. VRB03KT 10SM.
+EXPC ILS, RNAV, OR VISUAL APCH, SIMUL APCHS IN USE, RWY 34R, RWY 35L, RWY 35R.
+`.trim();
+assert.deepStrictEqual(Hl.arrRunways(kdenArrWx).map((r) => r.id), [
+  "34R",
+  "35L",
+  "35R",
+]);
+
 console.log("worstwind ok");

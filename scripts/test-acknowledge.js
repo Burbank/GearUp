@@ -62,4 +62,36 @@ assert.deepStrictEqual(
   ["24"]
 );
 
+const kdenDep =
+  "DEPG RWY8, RWY25, RUNWAY 3 4 LEFT. NOTICE TO AIRMEN. RWY 17R ILS UNAVAILABLE.";
+assert.deepStrictEqual(Hl.depRunways(kdenDep).map((r) => r.id), [
+  "08",
+  "25",
+  "34L",
+]);
+assert.deepStrictEqual(Hl.depRunways(Hl.formatAtis(kdenDep)).map((r) => r.id), [
+  "08",
+  "25",
+  "34L",
+]);
+
+const kdenArr =
+  "EXPC ILS, RNAV, OR VISUAL APCH, SIMUL APCHS IN USE, RWY 34R, RWY 35L, RWY 35R. NOTICE TO AIRMEN. RWY 26 ILS OTS. RWY 17R ILS UNAVAILABLE.";
+assert.deepStrictEqual(Hl.arrRunways(kdenArr).map((r) => r.id), [
+  "34R",
+  "35L",
+  "35R",
+]);
+assert.ok(!Hl.arrRunways(kdenArr).some((r) => r.id === "26" || r.id === "17R"));
+assert.deepStrictEqual(Hl.arrRunways(Hl.formatAtis(kdenArr)).map((r) => r.id), [
+  "34R",
+  "35L",
+  "35R",
+]);
+
+assert.deepStrictEqual(
+  Hl.depRunways("DEPG RWYS, 26L, 27R").map((r) => r.id),
+  ["26L", "27R"]
+);
+
 console.log("acknowledge-info ok");

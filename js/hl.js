@@ -36,26 +36,35 @@
     return "main";
   }
 
+  const RWY_WORD = String.raw`(?:RWYS?|RYS?|RW|RUNWAYS?)`;
+  const RWY_ID = String.raw`\d{1,2}\s*[LCR]?`;
+  const RWY_LIST = String.raw`(?:${RWY_WORD}\s*)?${RWY_ID}(?:\s*(?:\/|,|&|AND)\s*(?:${RWY_WORD}\s*)?${RWY_ID})*`;
+  const AFTER_RWY_VERB = String.raw`(?:\s*[,:]+\s*|\s+)(?:${RWY_WORD}\s*[,:]?\s*)?`;
+
   function normalizeRwySpeak(text) {
     return String(text || "")
+      .replace(/\bAPCH\s*RWYS?\b/gi, "APCH RWY")
+      .replace(new RegExp(String.raw`\b(${RWY_WORD})\s*(${RWY_ID})\b`, "gi"), "$1 $2")
+      .replace(
+        new RegExp(
+          String.raw`\b(${RWY_WORD}\s+)(\d)\s+(\d)(\s*(?:[LCR]|LEFT|RIGHT|CENT(?:ER|RE)))?\b`,
+          "gi"
+        ),
+        (all, word, a, b, side) => {
+          const n = Number(a + b);
+          if (n < 1 || n > 36) return all;
+          return word + a + b + (side || "");
+        }
+      )
       .replace(/\b(\d{1,2})\s+RIGHT\b/gi, "$1R")
       .replace(/\b(\d{1,2})\s+LEFT\b/gi, "$1L")
       .replace(/\b(\d{1,2})\s+CENT(?:RE|ER)\b/gi, "$1C")
-      .replace(/\bAPCH\s*RWYS?\b/gi, "APCH RWY")
       .replace(/\bRYS?\b/gi, "RWY");
   }
 
-  function depRunways(text) {
+  function collectRwys(text, rules) {
     const u = normalizeRwySpeak(text);
     const found = [];
-    const rules = [
-      /\b(MAIN|PRIMARY|SECONDARY|SEC|2ND)?\s*(?:DEP(?:ARTURES?)?|DEPG|TAKE\s*OFF|TKOF)\b(?:\s*[,:]+\s*|\s+)(?:(?:RWYS?|RW|RUNWAYS?)\s+)?(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
-      /\b(MAIN|PRIMARY|SECONDARY|SEC|2ND)?\s*TL\s+(\d{1,2}\s*[LCR]?)/gi,
-      /\b(?:RWYS?|RW|RUNWAYS?)\s+(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)\s+(?:IN USE|FOR (?:DEP(?:ARTURE)?|TAKE\s*OFF))/gi,
-      /\b(?:RWYS?|RW|RUNWAYS?)\s+IN USE\s+(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
-      /\bUSING\s+(?:RWYS?|RW|RUNWAYS?)\s+(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
-      /\b(?:RWYS?|RW|RUNWAYS?):\s*(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
-    ];
     for (const re of rules) {
       re.lastIndex = 0;
       let m;
@@ -67,26 +76,46 @@
     return found;
   }
 
+  function depRunways(text) {
+    return collectRwys(text, [
+      new RegExp(
+        String.raw`\b(MAIN|PRIMARY|SECONDARY|SEC|2ND)?\s*(?:DEP(?:ARTURES?)?|DEPG|TAKE\s*OFF|TKOF)\b` +
+          AFTER_RWY_VERB +
+          String.raw`(${RWY_LIST})`,
+        "gi"
+      ),
+      /\b(MAIN|PRIMARY|SECONDARY|SEC|2ND)?\s*TL\s+(\d{1,2}\s*[LCR]?)/gi,
+      new RegExp(
+        String.raw`\b${RWY_WORD}\s+(${RWY_LIST})\s+(?:IN USE|FOR (?:DEP(?:ARTURE)?|TAKE\s*OFF))`,
+        "gi"
+      ),
+      new RegExp(String.raw`\b${RWY_WORD}\s+IN USE\s+(${RWY_LIST})`, "gi"),
+      new RegExp(String.raw`\bUSING\s+${RWY_WORD}\s+(${RWY_LIST})`, "gi"),
+      new RegExp(String.raw`\b${RWY_WORD}:\s*(${RWY_LIST})`, "gi"),
+    ]);
+  }
+
   function arrRunways(text) {
-    const u = normalizeRwySpeak(text);
-    const found = [];
-    const rules = [
-      /\b(MAIN|PRIMARY|SECONDARY|SEC|2ND)?\s*(?:ARR(?:IVALS?)?|LANDING|LDG|APP(?:ROACH)?|APCH)\b(?:\s*[,:]+\s*|\s+)(?:(?:RWYS?|RW|RUNWAYS?)\s+)?(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
-      /\b(?:RWYS?|RW|RUNWAYS?)\s+(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)\s+(?:IN USE|FOR (?:ARR(?:IVAL)?|LANDING|LDG))/gi,
-      /\b(?:RWYS?|RW|RUNWAYS?)\s+IN USE\s+(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
-      /\bUSING\s+(?:RWYS?|RW|RUNWAYS?)\s+(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
-      /\bILS(?:\s+[A-Z])?\s+(?:RWYS?|RW)\s*(\d{1,2}\s*[LCR]?)/gi,
-      /\b(?:RWYS?|RW|RUNWAYS?):\s*(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
-    ];
-    for (const re of rules) {
-      re.lastIndex = 0;
-      let m;
-      while ((m = re.exec(u))) {
-        if (m.length >= 3) addRwy(found, m[2], roleFromPrefix(m[1]) || "main");
-        else addRwy(found, m[1], "main");
-      }
-    }
-    return found;
+    return collectRwys(text, [
+      new RegExp(
+        String.raw`\b(MAIN|PRIMARY|SECONDARY|SEC|2ND)?\s*(?:ARR(?:IVALS?)?|LANDING|LNDG|LDG|APP(?:ROACH(?:ES)?)?|APCHS?)\b` +
+          AFTER_RWY_VERB +
+          String.raw`(${RWY_LIST})`,
+        "gi"
+      ),
+      new RegExp(
+        String.raw`\b${RWY_WORD}\s+(${RWY_LIST})\s+(?:IN USE|FOR (?:ARR(?:IVAL)?|LANDING|LDG|LNDG))`,
+        "gi"
+      ),
+      new RegExp(String.raw`\b${RWY_WORD}\s+IN USE\s+(${RWY_LIST})`, "gi"),
+      new RegExp(
+        String.raw`\bIN USE(?:\s*[,:]+\s*|\s+)(?:${RWY_WORD}\s*[,:]?\s*)?(${RWY_LIST})`,
+        "gi"
+      ),
+      new RegExp(String.raw`\bUSING\s+${RWY_WORD}\s+(${RWY_LIST})`, "gi"),
+      new RegExp(String.raw`\bILS(?:\s+[A-Z])?\s+(?:RWYS?|RW)\s*(${RWY_ID})`, "gi"),
+      new RegExp(String.raw`\b${RWY_WORD}:\s*(${RWY_LIST})`, "gi"),
+    ]);
   }
 
   const TAIL_HL_KT = 9;
@@ -214,15 +243,20 @@
     for (const rwy of runways || []) {
       const n = String(rwy.n);
       const n2 = n.padStart(2, "0");
+      const spoken =
+        rwy.n >= 10 ? String.raw`|${Math.floor(rwy.n / 10)}\s+${rwy.n % 10}` : "";
       let body;
       if (rwy.side) {
         const word =
           rwy.side === "L" ? "LEFT" : rwy.side === "R" ? "RIGHT" : "CENT(?:ER|RE)";
-        body = `(?:${n2}|${n})\\s*(?:${rwy.side}|${word})`;
+        body = `(?:${n2}|${n}${spoken})\\s*(?:${rwy.side}|${word})`;
       } else {
-        body = `(?:${n2}|${n})`;
+        body = `(?:${n2}|${n}${spoken})`;
       }
-      const re = new RegExp(String.raw`\b(${body})\b`, "gi");
+      const re = new RegExp(
+        String.raw`(?:\b|(?<=(?:RWYS?|RW|RUNWAYS?)))(${body})\b`,
+        "gi"
+      );
       let m;
       while ((m = re.exec(raw))) {
         if (!rwy.side) {

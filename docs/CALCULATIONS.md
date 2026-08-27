@@ -19,9 +19,9 @@ The strip is still labeled UNOFFICIAL ESTIMATE because it is a worst-heading / g
 
 `DEPARTURES` / `ARRIVALS` (plural) plus a comma then `RWY 25L` must match. Old `DEPARTURE\b` missed Hong Kong CAD. Same for `EXP ILS APCH, RWY 25C`.
 
-Departure extract (`depRunways`): DEP/DEPARTURE/DEPARTURES/DEPG/TAKE OFF/TKOF, `TL 22`, `RWY … IN USE / FOR DEP`, `RUNWAY IN USE 06`, `USING RWY 34L/34R`.
+Departure extract (`depRunways`): DEP/DEPARTURE/DEPARTURES/DEPG/TAKE OFF/TKOF, `TL 22`, `RWY … IN USE / FOR DEP`, `RUNWAY IN USE 06`, `USING RWY 34L/34R`. US D-ATIS may glue `RWY8`, repeat `RWY` after commas (`DEPG RWY8, RWY25`), or speak two digits (`RUNWAY 3 4 LEFT` → 34L). `DEPG RWYS, 26L, 27R` still parses.
 
-Arrival extract (`arrRunways`): ARR/ARRIVAL/ARRIVALS/LANDING/LDG/APP/APCH, ILS RWY, `RUNWAY IN USE 06`, USING RWY.
+Arrival extract (`arrRunways`): ARR/ARRIVAL/ARRIVALS/LANDING/LDG/LNDG/APP/APCH, ILS RWY, `RUNWAY IN USE 06`, USING RWY, and `SIMUL APCHS IN USE, RWY 34R, RWY 35L`. Closed-runway NOTAMs (`RWY 26 ILS OTS`) are not in-use runways.
 
 MAIN/PRIMARY vs SECONDARY/SEC/2ND prefixes set `role: "main" | "sec"` so a second wind pairs to the second runway.
 
