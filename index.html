@@ -83,7 +83,7 @@
       media="(prefers-color-scheme: dark)"
     />
     <script src="/js/theme.js"></script>
-    <link rel="stylesheet" href="/css/app.css?v=206" />
+    <link rel="stylesheet" href="/css/app.css?v=217" />
   </head>
   <body>
     <div id="app">
@@ -499,9 +499,16 @@
         <div class="slots-wrap">
           <iframe
             id="slots-frame"
-            title="Map"
+            title="Schiphol CDM"
             src="about:blank"
             allow="fullscreen"
+          ></iframe>
+          <iframe
+            id="adsb-frame"
+            title="ADS-B"
+            src="about:blank"
+            allow="fullscreen"
+            hidden
           ></iframe>
           <button
             type="button"
@@ -682,6 +689,6 @@
     <script src="/js/cdm.js" defer></script>
     <script src="/js/board.js?v=202" defer></script>
     <script src="/js/airports.js?v=211" defer></script>
-    <script src="/js/app.js?v=216" defer></script>
+    <script src="/js/app.js?v=217" defer></script>
   </body>
 </html>

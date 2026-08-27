@@ -4,11 +4,11 @@ Session history for rebuild. Older narrative also lives in `CURSOR_general_logs/
 
 ## 2026-08-27 — version 1.4
 
-Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`. SW `gearup-v216`. Live: https://gearup4u.netlify.app
+Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`. SW `gearup-v217`. Live: https://gearup4u.netlify.app
+
+Hotfix: AMS CDM keeps the loaded flight when you open ADS-B. CDM and the airport globe are separate iframes. CLEAR still wipes the tab; overlay **×** only clears the board-pin CDM.
 
 Hotfix: tapping a home pin no longer forces `scrollTop` to 0. That jumped the list to the top on iPhone, so the click hit the search field instead of the last cards. Restore scroll only after a real reorder/swipe lock.
-
-- Czech official ATIS (LKPR, LKTB, LKMT, LKKV) from `meteo.rlp.cz` text files, HTML fallback, before overheard ACARS. Official copy wins a cached overheard one.
 
 - Czech official ATIS (LKPR, LKTB, LKMT, LKKV) from `meteo.rlp.cz` text files, HTML fallback, before overheard ACARS. Official copy wins a cached overheard one.
 - Combined ATIS wind strip follows the DEPT/ARR toggle.

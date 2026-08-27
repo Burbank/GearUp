@@ -131,6 +131,7 @@
   const wxSnowtamBody = document.getElementById("wx-snowtam-body");
   const wxSnowtamTitle = document.getElementById("wx-snowtam-title");
   const slotsFrame = document.getElementById("slots-frame");
+  const adsbFrame = document.getElementById("adsb-frame");
   const cdmReset = document.getElementById("cdm-reset");
   const tabButtons = [...document.querySelectorAll(".tabs .tab")];
   const tabAtis = document.getElementById("tab-atis");
@@ -4500,14 +4501,30 @@
     cdmReset.hidden = !on;
   }
 
+  function cdmIframeReady() {
+    if (!slotsFrame) return false;
+    const src = String(slotsFrame.getAttribute("src") || "");
+    return src === SLOTS_URL || src.indexOf("/api/cdm") !== -1;
+  }
+
+  function showCdmIframe() {
+    if (slotsFrame) slotsFrame.hidden = false;
+    if (adsbFrame) adsbFrame.hidden = true;
+  }
+
+  function showAdsbIframe() {
+    if (slotsFrame) slotsFrame.hidden = true;
+    if (adsbFrame) adsbFrame.hidden = false;
+  }
+
   function resetCdmFrame() {
     if (!slotsFrame || !shouldShowAmsCdm()) return;
     clearCdmWatch();
     paintCdmTab();
+    showCdmIframe();
     slotsFrame.src = "about:blank";
     slotsLoaded = false;
     thirdMode = "";
-    adsbFrameUrl = "";
     setTimeout(() => {
       if (!shouldShowAmsCdm()) return;
       slotsFrame.src = SLOTS_URL;
@@ -4520,11 +4537,11 @@
 
   function loadCdmFrame() {
     showThirdView();
+    showCdmIframe();
     slotsFrame.title = "Schiphol CDM";
-    if (thirdMode !== "cdm") {
+    if (!cdmIframeReady()) {
       slotsFrame.src = SLOTS_URL;
       slotsLoaded = true;
-      adsbFrameUrl = "";
     }
     thirdMode = "cdm";
     setCdmResetVisible(true);
@@ -4533,34 +4550,37 @@
 
   function loadAdsbFrame(icao) {
     showThirdView();
+    showAdsbIframe();
     setCdmResetVisible(false);
-    clearCdmWatch();
+    const frame = adsbFrame || slotsFrame;
     const code = normalizeIcao(icao);
     if (code.length !== 4) {
-      slotsFrame.title = "ADS-B";
+      if (frame) frame.title = "ADS-B";
       if (thirdMode !== "adsb-empty") {
-        slotsFrame.src = "about:blank";
+        if (frame) frame.src = "about:blank";
         adsbFrameUrl = "";
       }
       thirdMode = "adsb-empty";
+      paintCdmTab();
       return;
     }
-    slotsFrame.title = `${adsbTabCode(code)} ADS-B`;
+    if (frame) frame.title = `${adsbTabCode(code)} ADS-B`;
     const token = ++adsbFrameToken;
     const elev = airportCache[code] ? airportCache[code].elevFt : 0;
     const url = adsbAirportUrl(code, elev);
-    if (url && url !== adsbFrameUrl) {
-      slotsFrame.src = url;
+    if (frame && url && url !== adsbFrameUrl) {
+      frame.src = url;
       adsbFrameUrl = url;
     }
     thirdMode = "adsb";
+    paintCdmTab();
     ensureAirport(code).then((data) => {
       if (token !== adsbFrameToken || selectedIcao() !== code) return;
       updateThirdTabLabel();
-      slotsFrame.title = `${adsbTabCode(code)} ADS-B`;
+      if (frame) frame.title = `${adsbTabCode(code)} ADS-B`;
       const next = adsbAirportUrl(code, data && data.elevFt);
-      if (next && next !== adsbFrameUrl) {
-        slotsFrame.src = next;
+      if (frame && next && next !== adsbFrameUrl) {
+        frame.src = next;
         adsbFrameUrl = next;
       }
     });

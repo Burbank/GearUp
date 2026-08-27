@@ -110,7 +110,7 @@ No inline scripts. Theme is a file. Do not add `unsafe-inline`.
 
 - Missing keys → board **503** “Board needs Schiphol API keys.” Do not crash the rest of the PWA.
 - CDM MutationObserver is **debounced 400ms**. TOBT poll 60s. Countdown paint 15s. All skip while `document.hidden`.
-- iframe CLEAR resets to the empty search field; selected flight survives tab switches until CLEAR.
+- iframe CLEAR resets to the empty search field. The selected CDM flight survives ADS-B and other tab switches until CLEAR. Board-pin overlay **×** only clears the overlay CDM, not the AMS CDM tab.
 
 ---
 

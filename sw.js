@@ -1,4 +1,4 @@
-const CACHE = "gearup-v216";
+const CACHE = "gearup-v217";
 const PRECACHE = [
   "/",
   "/index.html",

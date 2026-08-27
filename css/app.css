@@ -1476,6 +1476,10 @@ html.pin-scroll-lock body {
   background: var(--bg);
 }
 
+.view-slots iframe[hidden] {
+  display: none !important;
+}
+
 .cdm-reset {
   position: absolute;
   top: 10px;

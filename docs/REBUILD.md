@@ -34,7 +34,7 @@ Bundle is a static PWA. Weather and Schiphol traffic go through the same-origin 
 
 Footer and `aria-label` on home: **1.4** (`index.html` `.home-version`).  
 User-Agent: `GearUp/1.4` in `lib/http.js`.  
-Service worker cache at 1.4 ship: `gearup-v216`.
+Service worker cache at 1.4 ship: `gearup-v217`.
 
 When bumping later: change the footer, UA, SW cache string, CSS query, and mask query together.
 
@@ -100,7 +100,7 @@ Do not re-host a webfont. The script is a **CSS mask** behind **GearUp**:
 - Empty `/` or `/#` is the pin board. PWA `start_url` is `/`.
 - ATIS `#EHAM`, TAF `#taf/EHAM`, board `#board` (EHAM only), CDM `#cdm` when Amsterdam, else `{IATA} ADS-B` via globe.airplanes.live in the iframe (`legacyUI`, `hideSideBar`).
 - BOARD is refused unless the selected / last ICAO is EHAM.
-- CDM iframe is proxied same-origin (`/api/cdm`) so TOBT can be read. CLEAR reloads to the flight-entry field.
+- CDM iframe is proxied same-origin (`/api/cdm`) so TOBT can be read. CLEAR reloads to the flight-entry field. ADS-B uses a **second** iframe (`#adsb-frame`); switching to the airport overview must not reload or clear the CDM flight.
 
 ## Tests (no browser)
 
