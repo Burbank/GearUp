@@ -241,6 +241,7 @@ Polar day/night (`cosH` out of [−1, 1]) → hide the chip.
 - Token forms: `25 20:25Z`, `20:25Z`, `2025Z`, `252025Z`.
 - **TAF max/min temps are not clock times.** `TX31/2706Z` / `TN27/2622Z` / `TNM02/0615Z` use **date + hour** (`DDHHZ`), never HHMM. Do not paint them as `.zulu-time` / `.zulu-old`. Hour 24–31 in a 4-digit `Z` group is also rejected.
 - A stamp **later than now + 1 minute** is rolled to **yesterday** (EGLL 1350Z read at 11:44Z is last night). `ZULU_FUTURE_MS = 60s`.
+- The **Departure ATIS N minutes ago** line uses the **publication Zulu in the ATIS text** vs current Zulu, not when the app fetched it and not FAA `updatedAt`. `23:53Z` at 00:36Z is ~43 minutes, even if the feed arrived a minute ago.
 - ATIS max age window for parsing day: 24 hours.
 - Red class: `.zulu-old` using `--stale`.
 

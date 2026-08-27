@@ -13,6 +13,7 @@ Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`. SW `gearup-v158`.
 - Listen: ARR uses LiveATC `_atis_arr` (EHAM `eham_atis_arr`). Button **LISTEN ARR**. Connecting spinner is a white ring + sweep.
 - DEPT selected with no recent departure copy: show arrival and **SHOWN DUE NO RECENT DEPT ATIS AVAIL.**
 - Cleanup: dead helpers/exports, one `pickAutoSide` per paint, no duplicate hold-path METAR.
+- Age line uses the ATIS-body Zulu vs now (KMIA `23:53Z` at 00:36Z is ~43 min), not FAA `updatedAt` / fetch time.
 
 ## 2026-08-26 — version 1.2
 

@@ -1808,12 +1808,12 @@
   }
 
   function atisIssuedAt(data) {
+    const fromText = zuluIssuedFromText(data && data.text);
+    if (fromText) return fromText;
     if (data && data.issued) {
       const clamped = clampPastIso(data.issued);
       if (clamped) return clamped;
     }
-    const fromText = zuluIssuedFromText(data && data.text);
-    if (fromText) return fromText;
     return "";
   }
 

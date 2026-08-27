@@ -9,6 +9,7 @@ const {
   parseGuruHtml,
   parseAirframesMessages,
   calendarDayKnown,
+  parseFaaDatisJson,
 } = require("../lib/parseAtis");
 
 const now = Date.parse("2026-08-26T11:44:00Z");
@@ -214,5 +215,32 @@ D-ATIS for EHAM (AMS)
   "EHAM"
 );
 assert.strictEqual(guruDated.issueDayKnown, true);
+
+assert.strictEqual(
+  issuedFromAtisBody(
+    "MIA DEP INFO O 23:53Z.\nWIND 090/08KT QNH 1014",
+    null,
+    Date.parse("2026-08-27T00:36:51Z")
+  ).issued,
+  "2026-08-26T23:53:00.000Z"
+);
+
+const faaDatis =
+  "MIA DEP INFO O 23:53Z. WIND 090/08KT QNH 1014 DEPARTURE RWY 09";
+const faaUpdated = new Date().toISOString();
+const faa = parseFaaDatisJson(
+  JSON.stringify([
+    {
+      type: "dep",
+      code: "O",
+      updatedAt: faaUpdated,
+      datis: faaDatis,
+    },
+  ]),
+  "KMIA"
+);
+assert.ok(faa);
+assert.notStrictEqual(faa.issued, faaUpdated);
+assert.strictEqual(faa.issued, issuedFromAtisBody(faaDatis).issued);
 
 console.log("zuluOnToday ok");
