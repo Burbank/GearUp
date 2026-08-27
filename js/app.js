@@ -1383,16 +1383,16 @@
     const min = Math.floor(ms / 60000);
     if (min < 1) return "just now";
     if (min < 60) {
-      return min === 1 ? "1 minute ago" : `${min} minutes ago`;
+      return min === 1 ? "1 minute old" : `${min} minutes old`;
     }
     const hr = Math.floor(min / 60);
     const rem = min % 60;
     const hours = hr === 1 ? "1 hour" : `${hr} hours`;
     let age;
-    if (!rem) age = `${hours} ago`;
+    if (!rem) age = `${hours} old`;
     else {
       const mins = rem === 1 ? "1 minute" : `${rem} minutes`;
-      age = `${hours} ${mins} ago`;
+      age = `${hours} ${mins} old`;
     }
     const d = new Date(t);
     const n = new Date();
