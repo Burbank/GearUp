@@ -1942,7 +1942,7 @@
     };
   }
 
-  function renderResult(data, { loading = false } = {}) {
+  function renderResult(data, { loading = false, forceDelay = false } = {}) {
     if (data && !loading && data.kind !== "error") lastAtisBundle = data;
     const view = loading ? data : displayedFromBundle(data) || data;
     const icao = (view && view.icao) || currentIcao;
@@ -1989,7 +1989,7 @@
       bodyEl.textContent = wantArr
         ? `No arrival ATIS is available for ${icao}.`
         : `No digital ATIS is available for ${icao}.`;
-      maybeLoadDelay(icao);
+      maybeLoadDelay(icao, { force: forceDelay });
       return;
     }
 
@@ -2007,7 +2007,7 @@
       hideWorstWind();
       bodyEl.className = "atis-body error";
       bodyEl.textContent = view.error || "Could not load ATIS.";
-      maybeLoadDelay(icao);
+      maybeLoadDelay(icao, { force: forceDelay });
       return;
     }
 
@@ -2077,7 +2077,7 @@
     if (!inferred.length) maybeOpenInferPreview(atisText, arrRwys);
     const R = typeof GearUpRwycond !== "undefined" ? GearUpRwycond : null;
     fillRwycond(atisRwycond, atisRwycondBody, R ? R.parse(atisText) : null);
-    maybeLoadDelay(icao);
+    maybeLoadDelay(icao, { force: forceDelay });
     if (lastMetarRaw && !metarBox.hidden) {
       paintOpsInto(metarText, lastMetarRaw, { runways: lastDepRunways });
     }
@@ -2231,8 +2231,9 @@
     }, 5000);
   }
 
-  async function fetchAtis(icao, { quiet = false } = {}) {
-    const url = quiet ? `/api/atis/${icao}?quiet=1` : `/api/atis/${icao}`;
+  async function fetchAtis(icao, { quiet = false, fresh = false } = {}) {
+    let url = quiet ? `/api/atis/${icao}?quiet=1` : `/api/atis/${icao}`;
+    if (fresh && !quiet) url += (url.includes("?") ? "&" : "?") + "fresh=1";
     const res = await fetch(url, { cache: "no-store" });
     let data;
     try {
@@ -2536,12 +2537,14 @@
     atisDelay.hidden = false;
   }
 
-  async function maybeLoadDelay(icao) {
+  async function maybeLoadDelay(icao, opts) {
     if (!isNasAirport(icao)) {
       hideAtisDelay();
       return;
     }
+    const force = !!(opts && opts.force);
     const held =
+      !force &&
       lastBriefHold.icao === icao &&
       lastBriefHold.wx &&
       lastBriefHold.wx.delay &&
@@ -2552,7 +2555,10 @@
     }
     const token = delayToken;
     try {
-      const res = await fetch(`/api/delay/${icao}`, { cache: "no-store" });
+      const path = force
+        ? `/api/delay/${icao}?fresh=1`
+        : `/api/delay/${icao}`;
+      const res = await fetch(path, { cache: "no-store" });
       const data = res.ok ? await res.json() : null;
       if (token !== delayToken || currentIcao !== icao) return;
       fillAtisNasDelay(data);
@@ -2831,11 +2837,13 @@
     );
   }
 
-  function fetchBriefPayload(code) {
+  function fetchBriefPayload(code, opts) {
+    const fresh = !!(opts && opts.fresh);
+    const q = fresh ? "?fresh=1" : "";
     const tafPromise = fetch(`/api/taf/${code}`, { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : { error: "Could not load TAF." }))
       .catch(() => ({ error: "Could not load TAF." }));
-    const wxPromise = fetch(`/api/briefwx/${code}`, { cache: "no-store" })
+    const wxPromise = fetch(`/api/briefwx/${code}${q}`, { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .catch(() => null);
     return { tafPromise, wxPromise };
@@ -2934,7 +2942,7 @@
     const stillHere = () => token === briefToken && currentTab === "taf";
 
     try {
-      const { tafPromise, wxPromise } = fetchBriefPayload(code);
+      const { tafPromise, wxPromise } = fetchBriefPayload(code, { fresh: force });
       const taf = await tafPromise;
       if (!stillHere()) return;
       lastBriefHold = {
@@ -3154,7 +3162,7 @@
       return cargoPreload[d] || Promise.resolve(held.data);
     }
     if (cargoPreload[d]) return cargoPreload[d];
-    cargoPreload[d] = fetchBoardDir(d, { ahead: 24 })
+    cargoPreload[d] = fetchBoardDir(d, { ahead: 24, force })
       .then((data) => {
         rememberCargoHold(d, data);
         if (
@@ -4007,6 +4015,7 @@
     let path = `/api/board?dir=${dir}`;
     if (ahead !== 9) path += "&ahead=" + ahead;
     if (/^[A-Z]{3}$/.test(route)) path += "&route=" + encodeURIComponent(route);
+    if (opts && opts.force) path += "&fresh=1";
     const res = await fetch(path, { cache: "no-store" });
     const data = await res.json().catch(() => ({}));
     if (res.status === 429) {
@@ -4131,7 +4140,10 @@
       let failed = null;
       for (let attempt = 0; attempt < 3; attempt += 1) {
         try {
-          payload = await fetchBoardDir(nextDir, { ahead: 24 });
+          payload = await fetchBoardDir(nextDir, {
+            ahead: 24,
+            force: !!(opts && opts.force),
+          });
           failed = null;
           break;
         } catch (err) {
@@ -4269,7 +4281,7 @@
         boardRefresh.disabled = true;
       }
       try {
-        await submitBoardFocus(focusKind.q, { stay: true });
+        await submitBoardFocus(focusKind.q, { stay: true, force });
       } finally {
         if (boardRefresh) {
           boardRefresh.disabled = false;
@@ -4288,7 +4300,7 @@
       const data =
         focusTicksOn()
           ? await ensureCargoPreload(dir, { force })
-          : await fetchBoardDir(dir, { ahead });
+          : await fetchBoardDir(dir, { ahead, force });
       if (token !== boardToken || currentTab !== "board") return;
       if (!data || !Array.isArray(data.flights)) {
         recoverBoardFetch(new Error("Could not load Schiphol board."), {
@@ -4666,10 +4678,10 @@
 
     atisInFlight[icao] = (async () => {
       try {
-        const data = await fetchAtis(icao);
+        const data = await fetchAtis(icao, { fresh: force });
         if (currentIcao !== icao) return;
         atisFetchedAt[icao] = Date.now();
-        renderResult(data);
+        renderResult(data, { forceDelay: force });
         renderPins();
         scheduleQuietAcars(icao, data);
         if (needsMetar(icao, data)) {

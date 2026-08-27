@@ -203,7 +203,11 @@ const server = http.createServer(async (req, res) => {
       const ahead = url.searchParams.get("ahead");
       const route = url.searchParams.get("route");
       const dir = url.searchParams.get("dir");
-      const boardOpts = { aheadHours: ahead, route };
+      const boardOpts = {
+        aheadHours: ahead,
+        route,
+        fresh: url.searchParams.get("fresh") === "1",
+      };
       const peek = peekBoard(dir, Date.now(), boardOpts);
       if (
         !peek.skipLimit &&
@@ -214,7 +218,7 @@ const server = http.createServer(async (req, res) => {
       }
       try {
         const data = await getBoard(dir, Date.now(), boardOpts);
-        sendJson(res, 200, data, BOARD_CACHE);
+        sendJson(res, 200, data, boardOpts.fresh ? "no-store" : BOARD_CACHE);
       } catch (err) {
         sendJson(res, err.statusCode || 502, {
           error: err.message || "Could not load Schiphol board",
@@ -264,6 +268,7 @@ const server = http.createServer(async (req, res) => {
                     const data = await fn(icao, {
                       quiet: url.searchParams.get("quiet") === "1",
                       kind: url.searchParams.get("kind"),
+                      fresh: url.searchParams.get("fresh") === "1",
                     });
         const cache = prefix === "/api/airport/" ? "public, max-age=86400" : "no-store";
         sendJson(res, 200, data, cache);

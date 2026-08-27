@@ -14,7 +14,7 @@ exports.handler = async (event) => {
   if (String((event && event.httpMethod) || "GET").toUpperCase() !== "GET") {
     return { statusCode: 405, headers, body: JSON.stringify({ error: "Method not allowed" }) };
   }
-  const boardOpts = { aheadHours: q.ahead, route: q.route };
+  const boardOpts = { aheadHours: q.ahead, route: q.route, fresh: q.fresh === "1" };
   const peek = peekBoard(q.dir, Date.now(), boardOpts);
   if (!peek.skipLimit) {
     const limited = netlifyLimited(event, { max: BOARD_MAX, bucket: "board" });
@@ -22,7 +22,10 @@ exports.handler = async (event) => {
   }
   try {
     const data = await getBoard(q.dir, Date.now(), boardOpts);
-    return { statusCode: 200, headers, body: JSON.stringify(data) };
+    const outHeaders = boardOpts.fresh
+      ? { ...headers, "Cache-Control": "no-store", "Netlify-CDN-Cache-Control": "no-store" }
+      : headers;
+    return { statusCode: 200, headers: outHeaders, body: JSON.stringify(data) };
   } catch (err) {
     return {
       statusCode: err.statusCode || 502,

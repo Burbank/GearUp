@@ -17,7 +17,8 @@ exports.handler = async (event) => {
 
   try {
     const quiet = q.quiet === "1" || q.quiet === "true";
-    const data = await getAtis(icao, { quiet });
+    const fresh = q.fresh === "1" || q.fresh === "true";
+    const data = await getAtis(icao, { quiet, fresh });
     return { statusCode: 200, headers, body: JSON.stringify(data) };
   } catch (err) {
     return {

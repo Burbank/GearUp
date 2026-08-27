@@ -14,7 +14,9 @@ exports.handler = async (event) => {
     "Cache-Control": "no-store",
   };
   try {
-    const data = await getBriefWx(icao);
+    const data = await getBriefWx(icao, {
+      fresh: q.fresh === "1" || q.fresh === "true",
+    });
     return { statusCode: 200, headers, body: JSON.stringify(data) };
   } catch (err) {
     return {

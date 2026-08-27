@@ -40,7 +40,7 @@ Schiphol and CDM go through the proxy, not the browser, so keys never sit in cli
 - **`boardClientOk`**: `/api/board` only if `Sec-Fetch-Site: same-origin` or Origin host matches Host. Agent `curl` gets **403**. That is intentional.
 - Board HTTP cache: `public, s-maxage=60, stale-while-revalidate=30` (function + `netlify.toml`).
 
-Client (v1.4) holds ATIS 90s, TAF 90s, board 60s so tab switches do not multiply those budgets. Refresh buttons pass `{ force: true }`. The 90s ATIS hold is wired (`atisFetchedAt`); do not fetch again on a same-airport tab return unless Refresh.
+Client (v1.4) holds ATIS 90s, TAF 90s, board 60s so tab switches do not multiply those budgets. Refresh and pull-to-refresh pass `{ force: true }` and `fresh=1`, which skip those holds and the in-process overheard / NAS / board caches. Tab return still uses the holds.
 
 ---
 

@@ -4,7 +4,9 @@ Session history for rebuild. Older narrative also lives in `CURSOR_general_logs/
 
 ## 2026-08-27 — version 1.4
 
-Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`. SW `gearup-v217`. Live: https://gearup4u.netlify.app
+Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`. SW `gearup-v218`. Live: https://gearup4u.netlify.app
+
+Hotfix: Refresh and pull-to-refresh actually refetch. They send `fresh=1` so overheard ATIS, NAS delay, TAF briefing lists, and the Schiphol board skip their 60s–3min in-process caches. Tab switches still use the 90s/60s holds.
 
 Hotfix: AMS CDM keeps the loaded flight when you open ADS-B. CDM and the airport globe are separate iframes. CLEAR still wipes the tab; overlay **×** only clears the board-pin CDM.
 

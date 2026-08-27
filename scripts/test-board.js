@@ -629,5 +629,7 @@ const peek = peekBoard("A", now, { aheadHours: 9 });
 assert.strictEqual(peek.filling, false);
 assert.strictEqual(peek.fresh, false);
 assert.strictEqual(peek.skipLimit, false);
+assert.strictEqual(peekBoard("A", now, { aheadHours: 9, fresh: true }).fresh, false);
+assert.strictEqual(peekBoard("A", now, { aheadHours: 9, fresh: true }).skipLimit, false);
 
 console.log("board ok");
