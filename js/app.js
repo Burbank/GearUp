@@ -741,13 +741,15 @@
     window.removeEventListener("touchmove", preventPinPageScroll, {
       capture: true,
     });
+    const wasLocked = document.documentElement.classList.contains("pin-scroll-lock");
     document.documentElement.classList.remove("pin-scroll-lock");
-    if (home) {
-      const y = Number(home.dataset.pinScroll || 0);
-      home.classList.remove("pin-scroll-lock");
-      home.scrollTop = y;
-      delete home.dataset.pinScroll;
-    }
+    if (!home) return;
+    const raw = home.dataset.pinScroll;
+    home.classList.remove("pin-scroll-lock");
+    delete home.dataset.pinScroll;
+    if (!wasLocked || raw == null || raw === "") return;
+    const y = Number(raw);
+    if (Number.isFinite(y)) home.scrollTop = y;
   }
 
   function pinDragEnd() {
