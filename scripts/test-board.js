@@ -5,6 +5,7 @@ const {
   airlineNameOf,
   amsterdamDayLabel,
   amsterdamYmd,
+  aheadHoursOf,
   boardDates,
   filterAndShape,
   formatRegistration,
@@ -18,6 +19,8 @@ const {
   isPrivate,
   isUpcoming,
   normalizeDir,
+  peekBoard,
+  schipholSearch,
   shapeFlight,
   statusInfo,
 } = require("../lib/board");
@@ -100,6 +103,7 @@ const inbound = {
 assert.strictEqual(isPassenger(kl), true);
 assert.strictEqual(isPassenger(cargo), false);
 assert.strictEqual(isCargo(cargo), true);
+assert.strictEqual(isCargo({ serviceType: "M" }), true);
 assert.strictEqual(isPrivate(biz), true);
 assert.strictEqual(isBoardFlight(kl), true);
 assert.strictEqual(isBoardFlight(cargo), true);
@@ -111,6 +115,13 @@ assert.strictEqual(isUpcoming(gone, "D", now), false);
 assert.strictEqual(isUpcoming(cancelled, "D", now), true);
 assert.strictEqual(isUpcoming(staleCnx, "D", now), false);
 assert.strictEqual(isUpcoming(inbound, "A", now), true);
+const earlyDep = {
+  ...kl,
+  actualOffBlockTime: "2026-08-26T11:40:00.000Z",
+  publicFlightState: { flightStates: ["DEP"] },
+};
+assert.strictEqual(isUpcoming(earlyDep, "D", now), false);
+assert.strictEqual(filterAndShape([earlyDep, codeshare, kl], "D", now).length, 1);
 
 const left = {
   ...kl,
@@ -173,7 +184,16 @@ const dep = filterAndShape(
   "D",
   now
 );
-assert.deepStrictEqual(dep, [
+function withoutSort(rows) {
+  return rows.map((row) => {
+    const copy = { ...row };
+    delete copy.sortMs;
+    return copy;
+  });
+}
+
+assert.ok(Number.isFinite(dep[0].sortMs));
+assert.deepStrictEqual(withoutSort(dep), [
   withPin(
     {
       id: "kl900",
@@ -265,7 +285,7 @@ assert.strictEqual(airlineNameOf(kl), "KLM");
 assert.strictEqual(airlineNameOf({ flightName: "QY1444", prefixIATA: "QY" }), "DHL");
 
 const arr = filterAndShape([inbound, landed], "A", now);
-assert.deepStrictEqual(arr, [
+assert.deepStrictEqual(withoutSort(arr), [
   withPin(
     {
       id: "ba431",
@@ -317,11 +337,14 @@ const named = filterAndShape([kl], "D", now, new Map([["JFK", "New York"]]));
 assert.strictEqual(named[0].route, "New York JFK");
 assert.deepStrictEqual(named[0].dests, ["JFK"]);
 
-const { matchFlight, classifyQuery, matchRoute, visibleFlights, findBoardRow, pinExtras } = require("../js/board");
+const { matchFlight, classifyQuery, matchRoute, matchFocus, visibleFlights, findBoardRow, pinExtras, pinExtraLine, filterBoardFlights, LIST_MAX, isHeavyJet, destIsEu, destIsNonEu, boardDayCaption } = require("../js/board");
 assert.strictEqual(matchFlight("KL0871", "KL871"), true);
 assert.strictEqual(matchFlight("KL0871", "871"), true);
-assert.strictEqual(matchFlight("KL0871", "KL1633"), false);
+assert.strictEqual(matchFlight("KL0871", "KL"), true);
+assert.strictEqual(matchFlight("HV5678", "KL"), false);
 assert.strictEqual(matchFlight("EZY2518", "2518"), true);
+assert.strictEqual(boardDayCaption("28 AUG", "2026-08-28"), "28 AUG (local)");
+assert.strictEqual(boardDayCaption("", ""), "");
 assert.deepStrictEqual(classifyQuery("bcn"), { kind: "route", q: "BCN" });
 assert.deepStrictEqual(classifyQuery("KL871"), { kind: "flight", q: "KL871" });
 assert.deepStrictEqual(classifyQuery("871"), { kind: "flight", q: "871" });
@@ -331,8 +354,22 @@ assert.strictEqual(matchRoute({ dests: ["JFK"] }, "BCN"), false);
 assert.strictEqual(matchRoute({ route: "Barcelona BCN" }, "BCN"), true);
 const bcnRow = { flight: "VY8301", dests: ["BCN"], route: "Barcelona BCN" };
 const jfkRow = { flight: "KL0871", dests: ["JFK"], route: "New York JFK" };
+assert.strictEqual(matchFocus(jfkRow, "KL"), true);
+assert.deepStrictEqual(visibleFlights([jfkRow, bcnRow], "KL"), [jfkRow]);
 assert.deepStrictEqual(visibleFlights([jfkRow, bcnRow], "BCN"), [bcnRow]);
 assert.strictEqual(visibleFlights([jfkRow, bcnRow], "").length, 2);
+const ehdRow = {
+  flight: "KL1234",
+  dests: ["JFK"],
+  route: "New York JFK",
+  reg: "PH-EHD",
+};
+assert.strictEqual(matchFocus(ehdRow, "EHD"), true);
+assert.strictEqual(matchFocus(ehdRow, "X-EHD"), true);
+assert.strictEqual(matchFocus(ehdRow, "PH-EHD"), true);
+assert.strictEqual(matchFocus(ehdRow, "BCN"), false);
+assert.deepStrictEqual(visibleFlights([jfkRow, ehdRow, bcnRow], "EHD"), [ehdRow]);
+assert.ok(visibleFlights([jfkRow, bcnRow], "BCN").every((row) => row.dests.includes("BCN")));
 
 const dup = [
   { flight: "KL0871", timeZ: "10:00Z" },
@@ -361,19 +398,24 @@ const extrasDep = pinExtras(
 assert.deepStrictEqual(
   extrasDep.map((item) => item.label),
   [
-    "Airline",
     "Destination",
     "Status",
-    "Terminal",
+    "Airline",
+    "Aircraft",
+    "Registration",
+    "Scheduled",
+    "Estimated",
+    "Gate",
     "Boarding",
     "Service",
   ]
 );
-assert.ok(!extrasDep.some((item) => item.label === "Aircraft"));
-assert.ok(!extrasDep.some((item) => item.label === "Gate"));
-const extrasJunk = pinExtras({ checkin: "[object Object]" }, "D");
+assert.ok(extrasDep.some((item) => item.label === "Gate" && item.value === "E22"));
+assert.ok(!extrasDep.some((item) => item.label === "Terminal"));
+assert.ok(!extrasDep.some((item) => item.label === "Check-in"));
+const extrasJunk = pinExtras({ codeshares: "[object Object]" }, "D");
 assert.ok(
-  extrasJunk.some((item) => item.label === "Check-in" && item.value === "unknown")
+  extrasJunk.some((item) => item.label === "Codeshares" && item.value === "unknown")
 );
 const extrasArr = pinExtras({ route: "LHR", belt: "8", actZ: "12:48Z" }, "A");
 assert.ok(extrasArr.some((item) => item.label === "Origin" && item.value === "LHR"));
@@ -437,10 +479,155 @@ const evening = Date.parse("2026-08-26T20:00:00Z");
 const days24 = boardDates(evening, 24 * 3600 * 1000);
 assert.ok(days24.some((d) => d.scheduleDate === "2026-08-26"));
 assert.ok(days24.some((d) => d.scheduleDate === "2026-08-27"));
+const days18 = boardDates(evening, 18 * 3600 * 1000);
+assert.ok(days18.some((d) => d.scheduleDate === "2026-08-26"));
+assert.ok(days18.some((d) => d.scheduleDate === "2026-08-27"));
+assert.strictEqual(aheadHoursOf(18), 18);
+assert.strictEqual(aheadHoursOf(24), 24);
+assert.strictEqual(aheadHoursOf("18"), 18);
+assert.strictEqual(aheadHoursOf(9), 9);
+assert.strictEqual(aheadHoursOf(undefined), 9);
+assert.strictEqual(schipholSearch("D").field, "scheduleDateTime");
+assert.strictEqual(schipholSearch("A").field, "estimatedLandingTime");
+assert.strictEqual(schipholSearch("D", 9 * 3600 * 1000).field, "scheduleDateTime");
+assert.strictEqual(schipholSearch("D", 24 * 3600 * 1000).field, "scheduleDateTime");
+assert.strictEqual(schipholSearch("A", 24 * 3600 * 1000).sort, "+scheduleTime");
+const nightCargo = {
+  flightName: "MP8341",
+  mainFlight: "MP8341",
+  serviceType: "F",
+  scheduleDateTime: "2026-08-27T00:10:00.000Z",
+  publicEstimatedOffBlockTime: null,
+  publicFlightState: { flightStates: ["SCH"] },
+};
+assert.strictEqual(isCargo(nightCargo), true);
+assert.strictEqual(
+  isUpcoming(nightCargo, "D", evening, 24 * 3600 * 1000),
+  true
+);
+
+const many = Array.from({ length: 70 }, (_, i) => ({
+  flight: "KL" + String(i).padStart(4, "0"),
+  dests: ["JFK"],
+  statusKind: i < 5 ? "done" : "",
+  cargo: i % 10 === 0,
+}));
+assert.strictEqual(LIST_MAX, 60);
+assert.strictEqual(filterBoardFlights(many, { showGone: false }).length, 65);
+assert.strictEqual(visibleFlights(many, "", { showGone: false }).length, 60);
+assert.ok(visibleFlights(many, "", { showGone: false }).every((row) => row.statusKind !== "done"));
+assert.strictEqual(visibleFlights(many, "", { showGone: true }).length, 60);
+assert.strictEqual(visibleFlights(many, "", { showGone: true, limit: 120 }).length, 70);
+assert.deepStrictEqual(
+  visibleFlights(many, "", { showGone: true, limit: 120 }).slice(60, 62).map((row) => row.flight),
+  ["KL0060", "KL0061"]
+);
+const cargoOnly = visibleFlights(many, "", {
+  cargoOnly: true,
+  showGone: true,
+  limit: 120,
+});
+assert.ok(cargoOnly.length > 0);
+assert.ok(cargoOnly.every((row) => row.cargo));
+assert.strictEqual(
+  visibleFlights(many, "", { cargoOnly: true, showGone: true }).length,
+  cargoOnly.length
+);
+assert.strictEqual(
+  pinExtraLine(
+    {
+      airline: "KLM",
+      route: "New York JFK",
+      statusLabel: "DELAYED",
+      aircraft: "77W",
+      reg: "PH-BVN",
+      gate: "E22",
+      terminal: "3",
+      boardingZ: "14:10Z",
+    },
+    "D"
+  ),
+  "New York JFK · DELAYED · KLM · 77W · PH-BVN · E22 · Boarding 14:10Z"
+);
 
 const afterMidnight = Date.parse("2026-08-26T23:06:00Z");
 assert.strictEqual(amsterdamYmd(afterMidnight), "2026-08-27");
 assert.strictEqual(includeDelaysForDate("2026-08-27", afterMidnight), true);
 assert.strictEqual(includeDelaysForDate("2026-08-26", afterMidnight), false);
+
+assert.strictEqual(isHeavyJet({ aircraft: "77W" }), true);
+assert.strictEqual(isHeavyJet({ aircraft: "73H" }), false);
+assert.strictEqual(isHeavyJet({ aircraft: "359" }), true);
+assert.strictEqual(isHeavyJet({ aircraft: "E90" }), false);
+
+global.GearUpAirports = {
+  getByIata(code) {
+    const map = {
+      BCN: { i: "LEBL" },
+      CDG: { i: "LFPG" },
+      AMS: { i: "EHAM" },
+      JFK: { i: "KJFK" },
+      LHR: { i: "EGLL" },
+    };
+    return map[String(code || "").toUpperCase()] || null;
+  },
+};
+const euRow = { dests: ["BCN"], aircraft: "32N", statusKind: "", sortMs: now + 30 * 60 * 1000 };
+const jfkHeavy = { dests: ["JFK"], aircraft: "77W", statusKind: "", sortMs: now + 30 * 60 * 1000 };
+const lhrRow = { dests: ["LHR"], aircraft: "320", statusKind: "cnx", sortMs: now + 8 * 3600 * 1000 };
+const laterHeavy = { dests: ["JFK"], aircraft: "77W", statusKind: "", sortMs: now + 5 * 3600 * 1000 };
+assert.strictEqual(destIsEu(euRow), true);
+assert.strictEqual(destIsEu(jfkHeavy), false);
+assert.strictEqual(destIsNonEu(jfkHeavy), true);
+assert.strictEqual(destIsNonEu(euRow), false);
+assert.strictEqual(destIsEu(lhrRow), false);
+assert.strictEqual(destIsNonEu(lhrRow), false);
+assert.deepStrictEqual(
+  filterBoardFlights([euRow, jfkHeavy, lhrRow], { showGone: true, heavyOnly: true }).map((r) => r.dests[0]),
+  ["JFK"]
+);
+assert.deepStrictEqual(
+  filterBoardFlights([euRow, jfkHeavy, lhrRow], { showGone: true, euOnly: true }).map((r) => r.dests[0]),
+  ["BCN"]
+);
+assert.deepStrictEqual(
+  filterBoardFlights([euRow, jfkHeavy, lhrRow], { showGone: true, noneuOnly: true }).map((r) => r.dests[0]),
+  ["JFK"]
+);
+assert.deepStrictEqual(
+  filterBoardFlights([euRow, jfkHeavy, lhrRow], { showGone: true, cancelledOnly: true }).map((r) => r.dests[0]),
+  ["LHR"]
+);
+const delayedRow = { dests: ["BCN"], aircraft: "32N", statusKind: "delay", sortMs: now + 30 * 60 * 1000 };
+assert.deepStrictEqual(
+  filterBoardFlights([euRow, delayedRow, lhrRow], { showGone: true, delayedOnly: true }).map((r) => r.dests[0]),
+  ["BCN"]
+);
+assert.deepStrictEqual(
+  filterBoardFlights([euRow, jfkHeavy, laterHeavy], { showGone: true, next2h: true, nowMs: now }).map(
+    (r) => r.dests[0] + r.aircraft
+  ),
+  ["BCN32N", "JFK77W"]
+);
+assert.deepStrictEqual(
+  filterBoardFlights([euRow, jfkHeavy], { showGone: true, heavyOnly: true, noneuOnly: true }).map(
+    (r) => r.dests[0]
+  ),
+  ["JFK"]
+);
+
+assert.deepStrictEqual(
+  visibleFlights([jfkRow, bcnRow], "KL", { showGone: true, noneuOnly: true }),
+  [jfkRow]
+);
+assert.deepStrictEqual(
+  visibleFlights([jfkRow, bcnRow], "KL", { showGone: true, euOnly: true }),
+  []
+);
+
+const peek = peekBoard("A", now, { aheadHours: 9 });
+assert.strictEqual(peek.filling, false);
+assert.strictEqual(peek.fresh, false);
+assert.strictEqual(peek.skipLimit, false);
 
 console.log("board ok");

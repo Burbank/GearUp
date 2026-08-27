@@ -53,5 +53,13 @@ assert.deepStrictEqual(
   Hl.arrRunways("ILS APCHRWY 20R").map((r) => r.id),
   ["20R"]
 );
+assert.deepStrictEqual(
+  Hl.depRunways("RUNWAY IN USE 06").map((r) => r.id),
+  ["06"]
+);
+assert.deepStrictEqual(
+  Hl.arrRunways("RUNWAY IN USE 24").map((r) => r.id),
+  ["24"]
+);
 
 console.log("acknowledge-info ok");

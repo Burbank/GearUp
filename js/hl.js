@@ -52,6 +52,7 @@
       /\b(MAIN|PRIMARY|SECONDARY|SEC|2ND)?\s*(?:DEP(?:ARTURES?)?|DEPG|TAKE\s*OFF|TKOF)\b(?:\s*[,:]+\s*|\s+)(?:(?:RWYS?|RW|RUNWAYS?)\s+)?(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
       /\b(MAIN|PRIMARY|SECONDARY|SEC|2ND)?\s*TL\s+(\d{1,2}\s*[LCR]?)/gi,
       /\b(?:RWYS?|RW|RUNWAYS?)\s+(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)\s+(?:IN USE|FOR (?:DEP(?:ARTURE)?|TAKE\s*OFF))/gi,
+      /\b(?:RWYS?|RW|RUNWAYS?)\s+IN USE\s+(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
       /\bUSING\s+(?:RWYS?|RW|RUNWAYS?)\s+(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
       /\b(?:RWYS?|RW|RUNWAYS?):\s*(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
     ];
@@ -72,6 +73,7 @@
     const rules = [
       /\b(MAIN|PRIMARY|SECONDARY|SEC|2ND)?\s*(?:ARR(?:IVALS?)?|LANDING|LDG|APP(?:ROACH)?|APCH)\b(?:\s*[,:]+\s*|\s+)(?:(?:RWYS?|RW|RUNWAYS?)\s+)?(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
       /\b(?:RWYS?|RW|RUNWAYS?)\s+(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)\s+(?:IN USE|FOR (?:ARR(?:IVAL)?|LANDING|LDG))/gi,
+      /\b(?:RWYS?|RW|RUNWAYS?)\s+IN USE\s+(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
       /\bUSING\s+(?:RWYS?|RW|RUNWAYS?)\s+(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
       /\bILS(?:\s+[A-Z])?\s+(?:RWYS?|RW)\s*(\d{1,2}\s*[LCR]?)/gi,
       /\b(?:RWYS?|RW|RUNWAYS?):\s*(\d{1,2}\s*[LCR]?(?:\s*(?:\/|,|&|AND)\s*\d{1,2}\s*[LCR]?)*)/gi,
@@ -89,6 +91,11 @@
 
   const TAIL_HL_KT = 9;
   const CROSS_HL_KT = 20;
+  const STRONG_MEAN_KT = 30;
+  const STRONG_GUST_KT = 35;
+  const QNH_HPA_HL = 990;
+  const QNH_INHG_HL = 29.23;
+  const INHG_TO_HPA = 33.86389;
 
   function tailwindKt(dir, spd, rwyHdg) {
     if (!Number.isFinite(spd) || !Number.isFinite(rwyHdg)) return 0;
@@ -150,13 +157,37 @@
   }
 
   function parseSignedC(token) {
-    const t = String(token || "").trim();
+    const t = String(token || "")
+      .trim()
+      .replace(/^(?:PLUS|POS)\s+/i, "");
     if (!t || t === "//") return null;
     const m = t.match(/^(M|-|MINUS\s+)?(\d{1,2})$/i);
     if (!m) return null;
     const n = Number(m[2]);
     if (!Number.isFinite(n)) return null;
     return m[1] ? -n : n;
+  }
+
+  const FAA_SPOKEN_F = new Set(["PANC", "PHNL", "TJSJ"]);
+
+  function isFaaSpokenTemp(icao) {
+    const code = String(icao || "").toUpperCase();
+    return code.startsWith("K") || FAA_SPOKEN_F.has(code);
+  }
+
+  function tempIsColdC(c) {
+    return Number.isFinite(c) && c <= 10;
+  }
+
+  function tempIsHotC(c) {
+    return Number.isFinite(c) && c > 35;
+  }
+
+  function tempTokenIsOps(c, opts) {
+    if (!Number.isFinite(c)) return false;
+    if (tempIsColdC(c)) return true;
+    if (opts && opts.spokenF) return c > 95;
+    return tempIsHotC(c);
   }
 
   function letterRange(text, letter) {
@@ -257,7 +288,13 @@
 
   function tempDew(text) {
     const raw = String(text || "");
-    const out = { tempC: null, dewC: null, temp: null, dew: null };
+    const out = {
+      tempC: null,
+      dewC: null,
+      temp: null,
+      dew: null,
+      tempSpoken: false,
+    };
     const metar = raw.match(/\s(M?\d{2})\/(M?\d{2}|\/\/)/);
     if (metar) {
       const tStart = metar.index + 1;
@@ -270,10 +307,11 @@
       }
     }
     const tSpoken = raw.match(
-      /\bT(?:EMP(?:ERATURE)?)?\s+((?:MINUS\s+)?-?\d{1,2})\b/i
+      /\bT(?:EMP(?:ERATURE)?)?\s+((?:(?:MINUS|PLUS)\s+)?-?\d{1,2})\b/i
     );
     if (tSpoken) {
       out.tempC = parseSignedC(tSpoken[1].replace(/MINUS\s+/i, "M"));
+      out.tempSpoken = true;
       out.temp = {
         start: tSpoken.index + tSpoken[0].length - tSpoken[1].length,
         end: tSpoken.index + tSpoken[0].length,
@@ -369,7 +407,7 @@
     let m;
     while ((m = re.exec(raw))) {
       const c = parseSignedC(m[1]);
-      if (!Number.isFinite(c) || c > 10) continue;
+      if (!tempTokenIsOps(c)) continue;
       const start = m.index + 2;
       out.push({ start, end: start + m[1].length, cls: "hl-ops" });
     }
@@ -581,14 +619,65 @@
       String.raw`\bBLSN\b`,
       String.raw`\bDRSN\b`,
       String.raw`\bSHSN\b`,
+      String.raw`\bBLSA\b`,
+      String.raw`\bBLDU\b`,
+      String.raw`\bDRSA\b`,
+      String.raw`\bDRDU\b`,
+      String.raw`BLOWING\s+(?:SAND|DUST)`,
+      String.raw`DRIFTING\s+(?:SAND|DUST)`,
       String.raw`(?<![A-Z0-9])[-+]?(?:SN|SG|PL|IC)\b`,
       String.raw`\bLIFR\b`,
       String.raw`\bIFR\b`,
+      String.raw`\bTS\b`,
+      String.raw`\bEMBD\b`,
+      String.raw`SFC\s+WNDS?`,
+      String.raw`MT(?:N)?\s*OBSC`,
+      String.raw`\bTC\s+[A-Z0-9]{2,}`,
+      String.raw`MOD(?:ERATE)?\s+TO\s+SEV(?:ERE)?`,
+      String.raw`\bTB\b`,
     ].join("|"),
     "gi"
   );
   const OPS_WORD_RE =
     /\b(?:OUT\s+OF\s+SERVICE|CLOSED|CLSD|INOPERATIVE|INOP|HAZARDOUS|HAZARD|HAZD|BIRDS?|OTS)\b/gi;
+  const CLOSE_WORD_RE = /^(?:CLOSED|CLSD)$/i;
+  const TAXIWAY_IN_SENTENCE_RE = /\b(?:TAXI\s*WAYS?|TWYS?|TXWY)\b/i;
+
+  function sentenceAround(text, index) {
+    const raw = String(text || "");
+    const i = Math.max(0, Number(index) || 0);
+    let start = 0;
+    for (let p = i - 1; p >= 0; p--) {
+      const ch = raw[p];
+      if (ch === "." || ch === "!" || ch === "?" || ch === "\n") {
+        start = p + 1;
+        break;
+      }
+    }
+    let end = raw.length;
+    for (let p = i; p < raw.length; p++) {
+      const ch = raw[p];
+      if (ch === "." || ch === "!" || ch === "?" || ch === "\n") {
+        end = p;
+        break;
+      }
+    }
+    return raw.slice(start, end);
+  }
+
+  function opsWordRanges(text) {
+    const raw = String(text || "");
+    const out = [];
+    OPS_WORD_RE.lastIndex = 0;
+    let m;
+    while ((m = OPS_WORD_RE.exec(raw))) {
+      if (CLOSE_WORD_RE.test(m[0]) && TAXIWAY_IN_SENTENCE_RE.test(sentenceAround(raw, m.index))) {
+        continue;
+      }
+      out.push({ start: m.index, end: m.index + m[0].length, cls: "hl-ops" });
+    }
+    return out;
+  }
 
   const PRESENT_WX_RE =
     /(?<![A-Z0-9])[-+]?(?:VC|RE)?(?:MI|PR|BC|DR|BL|SH|TS|FZ)*(?:DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PY|PO|SQ|FC|SS|DS)+\b/gi;
@@ -599,7 +688,148 @@
     if (u.charAt(0) === "+") return true;
     if (u.includes("TS")) return true;
     if (u.includes("GR") || u.includes("GS")) return true;
+    if (u.includes("BLSA") || u.includes("BLDU")) return true;
+    if (u.includes("DRSA") || u.includes("DRDU")) return true;
     return false;
+  }
+
+  function qnhIsLowHpa(hpa) {
+    return Number.isFinite(hpa) && hpa < QNH_HPA_HL;
+  }
+
+  function qnhIsLowInhg(inhg) {
+    return Number.isFinite(inhg) && inhg < QNH_INHG_HL;
+  }
+
+  function qnhRanges(text) {
+    const raw = String(text || "");
+    const out = [];
+    function add(start, end) {
+      if (start < end) out.push({ start, end, cls: "hl-ops" });
+    }
+    let m;
+    const codedQ = /\bQ(\d{4})\b/g;
+    while ((m = codedQ.exec(raw))) {
+      if (qnhIsLowHpa(Number(m[1]))) add(m.index, m.index + m[0].length);
+    }
+    const spokenQnh =
+      /\bQNH\s*(\d{2,4}(?:\.\d+)?)\s*(?:HPA|HECTOPASCALS?|IN(?:CH(?:ES)?)?(?:\s+OF\s+MERCURY)?)?/gi;
+    while ((m = spokenQnh.exec(raw))) {
+      const n = Number(m[1]);
+      if (!Number.isFinite(n)) continue;
+      let low = false;
+      if (n >= 2500 && n <= 3500) low = qnhIsLowInhg(n / 100);
+      else if (n >= 25 && n < 35) low = qnhIsLowInhg(n);
+      else low = qnhIsLowHpa(n);
+      if (low) add(m.index, m.index + m[0].length);
+    }
+    const codedA = /\bA(\d{4})\b/g;
+    while ((m = codedA.exec(raw))) {
+      if (qnhIsLowInhg(Number(m[1]) / 100)) add(m.index, m.index + m[0].length);
+    }
+    const altimeter = /\bALTIMETER\s+(\d{2}\.\d{2}|\d{4})\b/gi;
+    while ((m = altimeter.exec(raw))) {
+      const tok = m[1];
+      const inhg = tok.includes(".") ? Number(tok) : Number(tok) / 100;
+      if (qnhIsLowInhg(inhg)) add(m.index, m.index + m[0].length);
+    }
+    return out;
+  }
+
+  function brakingRanges(text) {
+    const raw = String(text || "");
+    const out = [];
+    const poor =
+      String.raw`(?:POOR|NIL|UNRELIABLE|LESS\s+THAN\s+POOR|MEDIUM\s+TO\s+POOR)`;
+    const re = new RegExp(
+      [
+        String.raw`\bBRAKING\s+ACTION(?:S)?\s+(?:REPORTED\s+)?(?:AS\s+)?` + poor,
+        String.raw`\b` + poor + String.raw`\s+BRAKING(?:\s+ACTION(?:S)?)?`,
+        String.raw`\bBA\s+` + poor,
+        String.raw`\bNIL\s+BRAKING\b`,
+      ].join("|"),
+      "gi"
+    );
+    let m;
+    while ((m = re.exec(raw))) {
+      out.push({ start: m.index, end: m.index + m[0].length, cls: "hl-ops" });
+    }
+    return out;
+  }
+
+  function minimaRanges(text) {
+    const raw = String(text || "");
+    const out = [];
+    function add(start, end) {
+      if (start < end) out.push({ start, end, cls: "hl-ops" });
+    }
+    const ft = String.raw`(?:\s*(?:FT|FEET))?`;
+    const toBy = String.raw`(?:\s+(?:TO|BY)\s+\d{2,4}` + ft + String.raw`)?`;
+    const apch =
+      String.raw`(?:(?:ILS|RNAV|RNP|GLS|LOC|VOR|NDB|CIRCLING|CAT(?:EGORY)?\s*[IVX1-3]+)\s+)?(?:APPROACH\s+)?`;
+    const change =
+      String.raw`(?:RAISED|INCREASED|REDUCED|AMENDED|CHANGED|HIGHER|PLUS|NOT\s+(?:AUTHORIZED|AVBL|AVAILABLE)|N/?A)`;
+    const patterns = [
+      new RegExp(
+        String.raw`\b` +
+          apch +
+          String.raw`(?:MINIMA|MINIMUMS)\s+` +
+          change +
+          toBy,
+        "gi"
+      ),
+      new RegExp(
+        String.raw`\b(?:RAISED|INCREASED|HIGHER|AMENDED|CHANGED)\s+` +
+          apch +
+          String.raw`(?:MINIMA|MINIMUMS|DA|DH|MDA|MDH|OCA|OCH)` +
+          toBy,
+        "gi"
+      ),
+      new RegExp(
+        String.raw`\b(?:DA|DH|MDA|MDH|OCA|OCH)(?:\s*/\s*H)?(?:\s*\(\s*H\s*\))?\s+[:=]?\s*\d{2,4}` +
+          ft +
+          String.raw`(?:\s+(?:RAISED|INCREASED|REDUCED|AMENDED|CHANGED)\s+TO\s+\d{2,4}` +
+          ft +
+          String.raw`)?`,
+        "gi"
+      ),
+      /\b(?:DECISION\s+(?:ALTITUDE|HEIGHT)|MINIMUM\s+DESCENT\s+(?:ALTITUDE|HEIGHT)|OBSTACLE\s+CLEARANCE\s+(?:ALTITUDE|HEIGHT))\s+\d{2,4}(?:\s*(?:FT|FEET))?/gi,
+      /\bCAT(?:EGORY)?\s*(?:II|III|2|3)[ABC]?\s+(?:APPROACH(?:ES)?\s+)?(?:NOT\s+(?:AUTHORIZED|AVBL|AVAILABLE)|NA)\b/gi,
+    ];
+    for (const re of patterns) {
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(raw))) add(m.index, m.index + m[0].length);
+    }
+    return out;
+  }
+
+  function spokenGustRanges(text) {
+    const raw = String(text || "");
+    const out = [];
+    const re =
+      /\b(?:GUSTS?(?:ING)?|MAX(?:IMUM)?)\s+(\d{2,3})\s*(?:KT|KTS|KNOTS)?\b/gi;
+    let m;
+    while ((m = re.exec(raw))) {
+      const kt = Number(m[1]);
+      if (Number.isFinite(kt) && kt >= STRONG_GUST_KT) {
+        out.push({ start: m.index, end: m.index + m[0].length, cls: "hl-ops" });
+      }
+    }
+    return out;
+  }
+
+  function speedOnlyWindRanges(text) {
+    const raw = String(text || "");
+    const out = [];
+    const re = /(?<![A-Z0-9/])(\d{2,3})\s*(KT|KTS|KNOTS|MPS|KMH)\b/gi;
+    let m;
+    while ((m = re.exec(raw))) {
+      const kt = ktFrom(m[1], m[2]);
+      if (!Number.isFinite(kt) || kt < STRONG_MEAN_KT) continue;
+      out.push({ start: m.index, end: m.index + m[0].length, cls: "hl-ops" });
+    }
+    return out;
   }
 
   function presentWxOpsRanges(text) {
@@ -638,7 +868,12 @@
       .concat(visRvrRanges(raw))
       .concat(ceilingRanges(raw))
       .concat(fzlRanges(raw, tempC))
-      .concat(rwyccRanges(raw));
+      .concat(rwyccRanges(raw))
+      .concat(qnhRanges(raw))
+      .concat(brakingRanges(raw))
+      .concat(minimaRanges(raw))
+      .concat(speedOnlyWindRanges(raw))
+      .concat(spokenGustRanges(raw));
   }
 
   function ranges(text, opts) {
@@ -652,7 +887,7 @@
       if (L) out.push(L);
     }
     out.push(...rwyRanges(raw, runways));
-    out.push(...collectRe(raw, OPS_WORD_RE));
+    out.push(...opsWordRanges(raw));
     out.push(...wxRanges(raw, { tempC: td.tempC }));
 
     const winds = windGroups(raw);
@@ -665,7 +900,9 @@
         Number.isFinite(w.gust) &&
         Number.isFinite(w.spd) &&
         w.gust - w.spd > 10;
-      if (flags.tail || flags.cross) {
+      const strongMean = Number.isFinite(w.spd) && w.spd >= STRONG_MEAN_KT;
+      const strongGust = Number.isFinite(w.gust) && w.gust >= STRONG_GUST_KT;
+      if (flags.tail || flags.cross || strongMean || strongGust) {
         out.push({ start: w.start, end: w.end, cls: "hl-ops" });
       } else if (gusty && w.gustStart != null) {
         out.push({ start: w.gustStart, end: w.gustEnd, cls: "hl-ops" });
@@ -673,11 +910,17 @@
         out.push({ start: w.start, end: w.end, cls: "hl-ops" });
       }
     }
+    out.push(...spokenGustRanges(raw));
     out.push(...tailDirRanges(raw, runways, winds));
     out.push(...tafTempRanges(raw));
     if (minSpd === Infinity) minSpd = null;
 
-    if (td.temp && Number.isFinite(td.tempC) && td.tempC <= 10) {
+    if (
+      td.temp &&
+      tempTokenIsOps(td.tempC, {
+        spokenF: td.tempSpoken && isFaaSpokenTemp(o.icao),
+      })
+    ) {
       out.push({ start: td.temp.start, end: td.temp.end, cls: "hl-ops" });
     }
     if (

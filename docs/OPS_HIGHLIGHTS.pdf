@@ -1,0 +1,640 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 7 0 R /F2 8 0 R >> >> >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /Font << /F1 7 0 R /F2 8 0 R >> >> >>
+endobj
+5 0 obj
+<< /Length 6067 >>
+stream
+0.100 0.120 0.140 rg
+0.00 756.00 612.00 36.00 re f
+BT
+/F2 11 Tf
+0.960 0.960 0.940 rg
+1 0 0 1 48.00 768.00 Tm
+(GearUp  \267  ops highlights) Tj
+ET
+BT
+/F1 9 Tf
+0.720 0.740 0.760 rg
+1 0 0 1 396.00 768.00 Tm
+(unofficial  \267  ATIS / METAR / TAF) Tj
+ET
+BT
+/F1 10 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 48.00 728.00 Tm
+(Bold amber marks \(.hl-ops\) on the ATIS body, METAR, TAF, and every extra card on the TAF tab \(SIGMET,) Tj
+ET
+BT
+/F1 10 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 48.00 715.00 Tm
+(G-AIRMET, PIREPs, NAS delay, SNOWTAM\). They are a scan aid only. They do not change official minima,) Tj
+ET
+BT
+/F1 10 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 48.00 702.00 Tm
+(and they are not a substitute for the chart or the ATIS itself.) Tj
+ET
+0.720 0.380 0.080 rg
+48.00 677.00 3.20 14.00 re f
+BT
+/F2 12 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 58.00 679.00 Tm
+(Wind) Tj
+ET
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 659.00 Tm
+(\267  Tailwind >= 9 kt \(rounded\), using the greater of mean and gust. Fully variable wind with no direction) Tj
+ET
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 646.00 Tm
+(\267  is treated as a pure tail.) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 633.00 Tm
+(Example LANDING RWY 06 \267 WIND 240 DEG, 9 KT) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 621.00 Tm
+(Not marked WIND 240 DEG, 8 KT on RWY 06) Tj
+ET
+0.820 0.820 0.820 RG
+0.4 w
+48.00 611.00 m 564.00 611.00 l S
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 601.00 Tm
+(\267  Crosswind > 20 kt \(rounded\), same speed \(mean or gust\).) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 588.00 Tm
+(Example LANDING RWY 06 \267 WIND 150 DEG, 21 KT) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 576.00 Tm
+(Not marked WIND 150 DEG, 20 KT) Tj
+ET
+0.820 0.820 0.820 RG
+0.4 w
+48.00 566.00 m 564.00 566.00 l S
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 556.00 Tm
+(\267  Strong wind on any heading, including on the nose: mean >= 30 kt or gust >= 35 kt. Whole group. Spoken) Tj
+ET
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 543.00 Tm
+(\267  GUSTS / MAX as well.) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 530.00 Tm
+(Example 24032G45KT WIND 240 DEG, 32 KT GUSTS 40 MAX 40) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 518.00 Tm
+(Not marked 24029KT on RWY 24 \(headwind\) GUSTS 18 MAX 18) Tj
+ET
+0.820 0.820 0.820 RG
+0.4 w
+48.00 508.00 m 564.00 508.00 l S
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 498.00 Tm
+(\267  TAF-tab SIGMET, G-AIRMET, PIREPs, NAS delay, and SNOWTAM use the same scanner. Unit-only strong wind) Tj
+ET
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 485.00 Tm
+(\267  \(no direction\) counts. Isolated TS, EMBD, SFC WND, MT OBSC, named TC, PIREP TB, MOD TO SEV.) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 472.00 Tm
+(Example SFC WIND 50KT SFC WND TS TC BIPARJOY /TB SEV MOD TO SEV) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 460.00 Tm
+(Not marked MOV NE 25KT a bare taxiway TC) Tj
+ET
+0.820 0.820 0.820 RG
+0.4 w
+48.00 450.00 m 564.00 450.00 l S
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 440.00 Tm
+(\267  Gusty coded group when gust minus mean > 10 kt \(gust digits only, unless the whole group already) Tj
+ET
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 427.00 Tm
+(\267  qualifies above\).) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 414.00 Tm
+(Example 24012G24KT \(the G24\)) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 402.00 Tm
+(Not marked spread of 10 kt or less, unless mean/gust already strong) Tj
+ET
+0.820 0.820 0.820 RG
+0.4 w
+48.00 392.00 m 564.00 392.00 l S
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 382.00 Tm
+(\267  VRB sector bound more than 90\260 from the paired runway heading.) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 369.00 Tm
+(Example variable sector that includes a tail or strong cross on that runway) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 357.00 Tm
+(Not marked a bound still within 90\260 of the runway) Tj
+ET
+0.820 0.820 0.820 RG
+0.4 w
+48.00 347.00 m 564.00 347.00 l S
+0.720 0.380 0.080 rg
+48.00 331.00 3.20 14.00 re f
+BT
+/F2 12 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 58.00 333.00 Tm
+(Altimeter / QNH) Tj
+ET
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 313.00 Tm
+(\267  QNH below 990 hPa, or altimeter below 29.23 inHg.) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 300.00 Tm
+(Example Q0987 QNH 987 HPA A2912 ALTIMETER 29.12) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 288.00 Tm
+(Not marked Q0990 Q1013 QNH 1003HPA A2992) Tj
+ET
+0.820 0.820 0.820 RG
+0.4 w
+48.00 278.00 m 564.00 278.00 l S
+0.720 0.380 0.080 rg
+48.00 262.00 3.20 14.00 re f
+BT
+/F2 12 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 58.00 264.00 Tm
+(Runway braking) Tj
+ET
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 244.00 Tm
+(\267  Braking action POOR, NIL, UNRELIABLE, MEDIUM TO POOR, or LESS THAN POOR.) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 231.00 Tm
+(Example BRAKING ACTION POOR BA NIL POOR BRAKING ACTION) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 219.00 Tm
+(Not marked BRAKING ACTION GOOD BA GOOD FAIR / MEDIUM alone) Tj
+ET
+0.820 0.820 0.820 RG
+0.4 w
+48.00 209.00 m 564.00 209.00 l S
+0.720 0.380 0.080 rg
+48.00 193.00 3.20 14.00 re f
+BT
+/F2 12 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 58.00 195.00 Tm
+(Blowing sand and dust) Tj
+ET
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 175.00 Tm
+(\267  Blowing \(and drifting\) sand or dust. Duststorm / sandstorm already counted.) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 162.00 Tm
+(Example BLSA BLDU BLOWING SAND BLOWING DUST DS SS) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 150.00 Tm
+(Not marked plain SA or DU without BL/DR moderate rain RA) Tj
+ET
+0.820 0.820 0.820 RG
+0.4 w
+48.00 140.00 m 564.00 140.00 l S
+0.720 0.380 0.080 rg
+48.00 124.00 3.20 14.00 re f
+BT
+/F2 12 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 58.00 126.00 Tm
+(Arrival minima \(DA, MDA, OCH\)) Tj
+ET
+BT
+/F1 8 Tf
+0.45 0.45 0.45 rg
+1 0 0 1 48.00 28 Tm
+(Not a minima, dispatch, or legal weather source. Thresholds in docs/CALCULATIONS.md section 7.) Tj
+ET
+BT
+/F1 8 Tf
+0.45 0.45 0.45 rg
+1 0 0 1 536.00 28 Tm
+(1 / 2) Tj
+ET
+endstream
+endobj
+6 0 obj
+<< /Length 6160 >>
+stream
+0.100 0.120 0.140 rg
+0.00 756.00 612.00 36.00 re f
+BT
+/F2 11 Tf
+0.960 0.960 0.940 rg
+1 0 0 1 48.00 768.00 Tm
+(GearUp  \267  ops highlights) Tj
+ET
+BT
+/F1 9 Tf
+0.720 0.740 0.760 rg
+1 0 0 1 396.00 768.00 Tm
+(unofficial  \267  ATIS / METAR / TAF) Tj
+ET
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 728.00 Tm
+(\267  Decision / descent / obstacle-clearance heights on the arrival ATIS: DA, DH, MDA, MDH, OCA, OCH plus) Tj
+ET
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 715.00 Tm
+(\267  a height. Spoken Decision Altitude/Height, Minimum Descent Altitude/Height, Obstacle Clearance) Tj
+ET
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 702.00 Tm
+(\267  Altitude/Height.) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 689.00 Tm
+(Example DA 250 FT MDA 450 FT OCH 186 DECISION HEIGHT 200 FT) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 677.00 Tm
+(Not marked density altitude DA1,800 runway type LDA) Tj
+ET
+0.820 0.820 0.820 RG
+0.4 w
+48.00 667.00 m 564.00 667.00 l S
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 657.00 Tm
+(\267  Minima changed or withdrawn: RAISED, INCREASED, AMENDED, REDUCED, NOT AUTHORIZED / NA. CAT II/III) Tj
+ET
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 644.00 Tm
+(\267  not authorized.) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 631.00 Tm
+(Example DA 250 FT RAISED TO 350 APPROACH MINIMUMS RAISED TO 400 FEET ILS MINIMA NOT AUTHORIZED) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 619.00 Tm
+(Not marked an unchanged published DA with no height and no change phrase) Tj
+ET
+0.820 0.820 0.820 RG
+0.4 w
+48.00 609.00 m 564.00 609.00 l S
+0.720 0.380 0.080 rg
+48.00 593.00 3.20 14.00 re f
+BT
+/F2 12 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 58.00 595.00 Tm
+(Weather, vis, ceiling, temperature) Tj
+ET
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 575.00 Tm
+(\267  Present-weather group if it is heavy \(+\), contains TS, or contains hail GR / small hail GS. Whole) Tj
+ET
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 562.00 Tm
+(\267  token.) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 549.00 Tm
+(Example +TSRAGR TSRA SHGR +RA) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 537.00 Tm
+(Not marked RA -RA BR) Tj
+ET
+0.820 0.820 0.820 RG
+0.4 w
+48.00 527.00 m 564.00 527.00 l S
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 517.00 Tm
+(\267  Ceiling BKN / OVC / VV below 400 ft. VV/// counts. Spoken CEILING / CIG / CLOUD BASE. SCT/FEW are) Tj
+ET
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 504.00 Tm
+(\267  not ceiling.) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 491.00 Tm
+(Example BKN003 OVC002CB VV/// CEILING 300 FT) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 479.00 Tm
+(Not marked BKN004 SCT003 CEILING 400 FT) Tj
+ET
+0.820 0.820 0.820 RG
+0.4 w
+48.00 469.00 m 564.00 469.00 l S
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 459.00 Tm
+(\267  Prevailing vis and RVR below 550 m \(CAT I RVR floor\). M0550 \(less than 550\) counts.) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 446.00 Tm
+(Example 0400 R27L/0500 R27L/M0550 VIS 500 M 1/4SM) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 434.00 Tm
+(Not marked 0550 R27L/0550 0800 1/2SM) Tj
+ET
+0.820 0.820 0.820 RG
+0.4 w
+48.00 424.00 m 564.00 424.00 l S
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 414.00 Tm
+(\267  Temperature <= 10\260C, or heat > 35\260C. METAR TT/Td and TAF TX/TN are always Celsius. US D-ATIS \(K*,) Tj
+ET
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 401.00 Tm
+(\267  PANC, PHNL, TJSJ\) speaks Fahrenheit: mark only above 95\260F.) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 388.00 Tm
+(Example 36/18 TX36/2706Z TN08/2622Z TEMPERATURE 38 TEMPERATURE 96 at KMIA) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 376.00 Tm
+(Not marked 35/18 TX31 TEMPERATURE 32 TEMPERATURE 88 at KMIA) Tj
+ET
+0.820 0.820 0.820 RG
+0.4 w
+48.00 366.00 m 564.00 366.00 l S
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 356.00 Tm
+(\267  Fog-risk dewpoint: |T - Td| <= 2\260C and the lightest wind in the copy is below 5 kt.) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 343.00 Tm
+(Example dewpoint digits next to a near-calm wind) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 331.00 Tm
+(Not marked the same spread with 5 kt or more) Tj
+ET
+0.820 0.820 0.820 RG
+0.4 w
+48.00 321.00 m 564.00 321.00 l S
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 311.00 Tm
+(\267  Other hazards already in the scanner: TS, CB, TCU, WS / LLWS, FZRA/FZDZ, SN/BLSN/DRSN, icing,) Tj
+ET
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 298.00 Tm
+(\267  turbulence, VA, hail, SNOWTAM / ice / slush wording, LIFR/IFR, birds, CLOSED / CLSD / INOP / OTS.) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 285.00 Tm
+(Example WS CB FZRA BLSN BIRDS RWY 24L CLOSED) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 273.00 Tm
+(Not marked ordinary FEW/SCT clouds NSW) Tj
+ET
+0.820 0.820 0.820 RG
+0.4 w
+48.00 263.00 m 564.00 263.00 l S
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 253.00 Tm
+(\267  Runway condition code digits 0-5 in a 6/6/6 group \(6 is dry and stays unmarked\).) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 240.00 Tm
+(Example 3/3/2) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 228.00 Tm
+(Not marked 6/6/6) Tj
+ET
+0.820 0.820 0.820 RG
+0.4 w
+48.00 218.00 m 564.00 218.00 l S
+BT
+/F2 10 Tf
+0.120 0.120 0.120 rg
+1 0 0 1 48.00 208.00 Tm
+(\267  ATIS ident letter; in-use runway numbers from the arrival/departure extract.) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 195.00 Tm
+(Example ATIS K RWY 06) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 62.00 183.00 Tm
+(Not marked a runway number that is not in use in that copy) Tj
+ET
+0.820 0.820 0.820 RG
+0.4 w
+48.00 173.00 m 564.00 173.00 l S
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 48.00 163.00 Tm
+(Rebuild the same way in js/hl.js. Do not invent a second set of thresholds. A sitting on GearUp is not a chart) Tj
+ET
+BT
+/F1 9 Tf
+0.380 0.380 0.380 rg
+1 0 0 1 48.00 151.00 Tm
+(amendment.) Tj
+ET
+BT
+/F1 8 Tf
+0.45 0.45 0.45 rg
+1 0 0 1 48.00 28 Tm
+(Not a minima, dispatch, or legal weather source. Thresholds in docs/CALCULATIONS.md section 7.) Tj
+ET
+BT
+/F1 8 Tf
+0.45 0.45 0.45 rg
+1 0 0 1 536.00 28 Tm
+(2 / 2) Tj
+ET
+endstream
+endobj
+7 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+8 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000121 00000 n 
+0000000257 00000 n 
+0000000393 00000 n 
+0000006512 00000 n 
+0000012724 00000 n 
+0000012821 00000 n 
+trailer
+<< /Size 9 /Root 1 0 R >>
+startxref
+12923
+%%EOF

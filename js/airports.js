@@ -44,7 +44,7 @@
   function load() {
     if (list.length) return Promise.resolve(list);
     if (loading) return loading;
-    loading = fetch("/data/airports.json", { cache: "force-cache" })
+    loading = fetch("/data/airports.json?v=211", { cache: "force-cache" })
       .then((res) => {
         if (!res.ok) throw new Error("airport index");
         return res.json();

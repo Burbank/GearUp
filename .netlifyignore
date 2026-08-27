@@ -1,0 +1,8 @@
+.env
+node_modules
+.netlify
+.cursor
+data/usage.json
+.DS_Store
+grok_report-2.pdf
+icons/fasttrack-your.png

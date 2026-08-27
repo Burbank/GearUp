@@ -71,6 +71,12 @@ assert.deepStrictEqual(
   ["WORST 06 LANDING WIND CALM"]
 );
 
+const variable = "RUNWAY IN USE 04\nWIND VARIABLE 2 KNOTS";
+assert.deepStrictEqual(
+  W.lines(variable, { kind: "departure", runways: Hl.depRunways(variable) }),
+  ["WORST 04 DEPARTURE WIND 220/02 T2 X0"]
+);
+
 const shear = "LANDING RWY 06\nLOW LEVEL WIND SHEAR ALL RWYS\nWIND 060 DEG 8 KT";
 assert.deepStrictEqual(
   W.lines(shear, { kind: "arrival", runways: [rwy("06")] }),
@@ -188,5 +194,47 @@ assert.strictEqual(windHit("LANDING RWY 06\nWIND 240 DEG, 8 KT", rwy06), false);
 assert.strictEqual(windHit("LANDING RWY 06\nWIND 240 DEG, 9 KT", rwy06), true);
 assert.strictEqual(windHit("LANDING RWY 06\nWIND 150 DEG, 20 KT", rwy06), false);
 assert.strictEqual(windHit("LANDING RWY 06\nWIND 150 DEG, 21 KT", rwy06), true);
+
+const rwy24 = [rwy("24")];
+assert.strictEqual(windHit("LANDING RWY 24\nWIND 240 DEG, 29 KT", rwy24), false);
+assert.strictEqual(windHit("LANDING RWY 24\nWIND 240 DEG, 30 KT", rwy24), true);
+
+const combined = `
+COMBINED ATIS
+DEPARTURES RWY 24L.
+ARRIVALS RWY 06.
+WIND 240 DEG, 10 KT.
+`.trim();
+assert.deepStrictEqual(Hl.depRunways(combined).map((r) => r.id), ["24L"]);
+assert.deepStrictEqual(Hl.arrRunways(combined).map((r) => r.id), ["06"]);
+assert.deepStrictEqual(
+  W.lines(combined, { kind: "departure", runways: Hl.depRunways(combined) }),
+  ["WORST 24L DEPARTURE WIND 240/10 H10 X0"]
+);
+assert.deepStrictEqual(
+  W.lines(combined, { kind: "arrival", runways: Hl.arrRunways(combined) }),
+  ["WORST 06 LANDING WIND 240/10 T10 X0"]
+);
+
+const combinedTwo = `
+DEPARTURES RWY 24L.
+WIND 250 DEG, 12 KT.
+ARRIVALS RWY 06.
+WIND 070 DEG, 8 KT.
+`.trim();
+assert.deepStrictEqual(
+  W.lines(combinedTwo, {
+    kind: "departure",
+    runways: Hl.depRunways(combinedTwo),
+  }),
+  ["WORST 24L DEPARTURE WIND 250/12 H12 X2"]
+);
+assert.deepStrictEqual(
+  W.lines(combinedTwo, {
+    kind: "arrival",
+    runways: Hl.arrRunways(combinedTwo),
+  }),
+  ["WORST 06 LANDING WIND 070/08 H8 X1"]
+);
 
 console.log("worstwind ok");

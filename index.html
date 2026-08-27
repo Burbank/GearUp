@@ -28,7 +28,7 @@
     />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src 'self'; media-src 'self' https:; frame-src 'self' https://mobile.ehamcdm.nl https://globe.airplanes.live; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src 'self'; media-src 'none'; frame-src 'self' https://mobile.ehamcdm.nl https://globe.airplanes.live; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
     />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link
@@ -48,12 +48,42 @@
     <link
       rel="apple-touch-icon"
       sizes="180x180"
-      href="/icons/apple-touch-icon.png?v=16"
+      href="/icons/apple-touch-icon.png?v=17"
     />
-    <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon.png?v=16" />
-    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png?v=16" />
+    <link
+      id="favicon"
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="/icons/favicon.png?v=17"
+      media="(prefers-color-scheme: light)"
+    />
+    <link
+      id="favicon-dark"
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="/icons/favicon-dark.png?v=17"
+      media="(prefers-color-scheme: dark)"
+    />
+    <link
+      id="icon-192"
+      rel="icon"
+      type="image/png"
+      sizes="192x192"
+      href="/icons/icon-192.png?v=17"
+      media="(prefers-color-scheme: light)"
+    />
+    <link
+      id="icon-192-dark"
+      rel="icon"
+      type="image/png"
+      sizes="192x192"
+      href="/icons/icon-192-dark.png?v=17"
+      media="(prefers-color-scheme: dark)"
+    />
     <script src="/js/theme.js"></script>
-    <link rel="stylesheet" href="/css/app.css?v=160" />
+    <link rel="stylesheet" href="/css/app.css?v=206" />
   </head>
   <body>
     <div id="app">
@@ -142,12 +172,14 @@
             then Add to Home Screen.
           </p>
           <p>
-            Not for operational use. US D-ATIS is from FAA (atis.info). Hong Kong
-            departure ATIS is from CAD. Canadian ATIS is from NAV CANADA AeroView.
-            Other fields are overheard ACARS (Airframes, with atis.guru as a
-            fallback) and may be stale — the digital copy can lag the live ATIS
-            broadcast. GearUp always opens on departure ATIS; ARR shows an
-            arrival copy when one was overheard.<br />
+            Not for operational use.<br />
+            US, Canadian, Hong Kong, and Czech ATIS are from official government
+            sources.<br />
+            METAR and TAF are sourced from NOAA.<br />
+            Other fields are overheard ACARS and may be stale — the digital copy
+            can lag the live ATIS broadcast.<br />
+            GearUp always opens on departure ATIS; ARR shows an arrival copy when
+            one was overheard.<br />
             EHAM, Amsterdam has more features such as flight board and slot
             information.
           </p>
@@ -159,7 +191,7 @@
             The author assumes no liability. EDUCATIONAL USE ONLY
           </p>
         </div>
-        <p class="home-version" aria-label="Version 1.3">1.3</p>
+        <p class="home-version" aria-label="Version 1.4">1.4</p>
       </section>
 
       <section id="detail" class="view view-detail" hidden>
@@ -192,7 +224,7 @@
             DEPT
           </button>
           <button type="button" id="pin-btn" class="icon-btn">Pin</button>
-          <button type="button" id="refresh-btn" class="icon-btn">
+          <button type="button" id="refresh-btn" class="icon-btn sweep-btn">
             Refresh
           </button>
         </header>
@@ -235,16 +267,7 @@
           >
             Stale ATIS below
           </button>
-          <button
-            type="button"
-            id="stale-listen"
-            class="icon-btn stale-listen"
-            hidden
-          >
-            LISTEN DEPT
-          </button>
         </div>
-        <audio id="atis-audio" preload="none" playsinline></audio>
         <p class="kind-row">
           <span id="kind-label" class="kind-label"></span>
           <span id="atis-age" class="atis-age" hidden></span>
@@ -256,6 +279,14 @@
           >
         </p>
         <div id="atis-body" class="atis-body"></div>
+        <div id="atis-inferdep" class="atis-panel inferdep" hidden>
+          <p class="worstwind-line">
+            <span id="atis-inferdep-line" class="worstwind-main inferdep-line"></span>
+            <span class="worstwind-aside"
+              ><span class="worstwind-note">UNOFFICIAL ESTIMATE</span></span
+            >
+          </p>
+        </div>
         <div
           id="atis-worstwind"
           class="atis-panel worstwind"
@@ -271,6 +302,10 @@
         <div id="atis-rwycond" class="atis-panel rwycond" hidden>
           <h2 class="wx-title">Runway condition</h2>
           <div id="atis-rwycond-body" class="wx-body"></div>
+        </div>
+        <div id="atis-delay" class="atis-panel rwycond" hidden>
+          <h2 class="wx-title">NAS delay</h2>
+          <div id="atis-delay-body" class="wx-body"></div>
         </div>
       </section>
 
@@ -302,7 +337,7 @@
               </p>
             </div>
           </div>
-          <button type="button" id="brief-refresh" class="icon-btn">
+          <button type="button" id="brief-refresh" class="icon-btn sweep-btn">
             Refresh
           </button>
         </header>
@@ -363,29 +398,21 @@
               <span id="board-local-tz" class="board-local-tz"></span>
             </time>
           </div>
-          <button
-            type="button"
-            id="board-focus-btn"
-            class="board-focus-btn"
-            aria-haspopup="dialog"
-            aria-controls="board-focus-dialog"
-            aria-label="Focus flight or route"
-          >
-            <span>FOCUS</span>
-            <span>FLT/RTE</span>
-          </button>
+          <p class="board-pin-hint">
+            TOUCH ROW 1 SEC TO PIN A FLIGHT
+          </p>
           <div class="board-chrome-end">
             <div class="brief-clockwrap">
               <time id="board-utc" class="utc-clock brief-utc">
                 <span id="board-utc-time">--:--</span
                 ><span class="utc-suffix">Z</span>
               </time>
-              <p class="board-utc-note">ALL TIMES IN UTC</p>
+              <p class="board-utc-note">ALL TIMES UTC</p>
             </div>
             <button
               type="button"
               id="board-refresh"
-              class="icon-btn board-refresh"
+              class="icon-btn board-refresh sweep-btn"
               aria-label="Refresh"
             >
               <span class="board-refresh-label">Refresh</span>
@@ -403,7 +430,7 @@
             </button>
           </div>
         </header>
-        <div class="board-dirs" role="tablist" aria-label="Board direction">
+        <div class="board-controls">
           <button
             type="button"
             id="board-dir-d"
@@ -430,12 +457,42 @@
           >
             ADS-B
           </button>
+          <button
+            type="button"
+            id="board-focus-btn"
+            class="board-dir board-focus-btn"
+            aria-haspopup="dialog"
+            aria-controls="board-focus-dialog"
+            aria-pressed="false"
+            aria-label="Focus flight, route, or registration"
+          >
+            <span>FOCUS</span>
+            <span>FLT/RTE</span>
+          </button>
+          <button
+            type="button"
+            id="board-show-gone"
+            class="board-dir board-filter-btn"
+            aria-pressed="false"
+          >
+            SHOW DEPARTED
+          </button>
+          <button
+            type="button"
+            id="board-filter-cargo"
+            class="board-dir board-filter-btn"
+            aria-pressed="false"
+          >
+            FILTER CARGO
+          </button>
         </div>
-        <p class="board-pin-hint">
-          Pin flight by clicking or long pressing its row.
-        </p>
         <p id="board-empty" class="brief-empty" hidden></p>
         <ul id="board-list" class="board-list" hidden></ul>
+        <div class="board-more-row">
+          <button type="button" id="board-show-more" class="board-dir board-more-btn" hidden>
+            SHOW MORE
+          </button>
+        </div>
       </section>
 
       <section id="slots" class="view view-slots" hidden>
@@ -484,10 +541,11 @@
           class="board-pin-cdm"
           title="Schiphol CDM"
           src="about:blank"
+          scrolling="yes"
           hidden
         ></iframe>
         <p id="board-pin-cdm-note" class="board-pin-note" hidden></p>
-        <dl id="board-pin-extra" class="board-pin-extra"></dl>
+        <p id="board-pin-extra" class="board-pin-extra"></p>
       </div>
     </div>
     <div id="board-focus-dialog" class="board-focus-dialog" hidden>
@@ -500,7 +558,7 @@
         <h2 id="board-focus-title">Focus</h2>
         <form id="board-focus-form" class="board-focus-form" autocomplete="off">
           <label class="sr-only" for="board-focus-input"
-            >Flight number or airport</label
+            >Flight number, airport, or registration</label
           >
           <input
             id="board-focus-input"
@@ -510,13 +568,39 @@
             autocapitalize="characters"
             autocomplete="off"
             spellcheck="false"
-            placeholder="KL871, 871, or BCN"
+            placeholder="KL871, BCN, or PH-EHD"
           />
-          <button type="submit" class="icon-btn">Go</button>
+          <button type="submit" class="icon-btn">GO</button>
         </form>
         <p id="board-focus-err" class="board-focus-err" hidden></p>
+        <div class="board-focus-ticks" id="board-focus-ticks">
+          <label class="board-focus-tick">
+            <input type="checkbox" id="focus-tick-last" disabled />
+            <span id="focus-tick-last-label">LAST</span>
+          </label>
+          <label class="board-focus-tick">
+            <input type="checkbox" id="focus-tick-heavy" />
+            <span>HEAVY JETS</span>
+          </label>
+          <label class="board-focus-tick">
+            <input type="checkbox" id="focus-tick-eu" />
+            <span>EU FLIGHTS</span>
+          </label>
+          <label class="board-focus-tick">
+            <input type="checkbox" id="focus-tick-noneu" />
+            <span>NON-EU</span>
+          </label>
+          <label class="board-focus-tick">
+            <input type="checkbox" id="focus-tick-next2h" />
+            <span>NEXT 2 HOURS</span>
+          </label>
+          <label class="board-focus-tick">
+            <input type="checkbox" id="focus-tick-status" />
+            <span id="focus-tick-status-label">CANCELLED</span>
+          </label>
+        </div>
         <button type="button" id="board-focus-cancel" class="board-focus-cancel">
-          Cancel
+          CANCEL/CLEAR
         </button>
       </div>
     </div>
@@ -530,6 +614,36 @@
         <h2 id="stale-dialog-title">Stale ATIS</h2>
         <div id="stale-dialog-body" class="stale-dialog-body"></div>
         <button type="button" id="stale-dialog-close" class="icon-btn">
+          Close
+        </button>
+      </div>
+    </div>
+    <div id="inferdep-preview-dialog" class="worstwind-dialog" hidden>
+      <div
+        class="worstwind-dialog-card inferdep-preview-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="inferdep-preview-title"
+      >
+        <h2 id="inferdep-preview-title">Preview</h2>
+        <p class="inferdep-preview-lead">
+          When DEPT only has an arrival ATIS, these two boxes sit under the
+          copy. Close to dismiss.
+        </p>
+        <div class="atis-panel inferdep">
+          <p class="worstwind-line">
+            <span id="inferdep-preview-line" class="worstwind-main inferdep-line"
+              >Inferred Departure Runways, 36L and/or 36C</span
+            >
+            <span class="worstwind-aside"
+              ><span class="worstwind-note">UNOFFICIAL ESTIMATE</span></span
+            >
+          </p>
+        </div>
+        <div class="atis-panel worstwind">
+          <div id="inferdep-preview-wind" class="wx-body"></div>
+        </div>
+        <button type="button" id="inferdep-preview-close" class="icon-btn">
           Close
         </button>
       </div>
@@ -561,12 +675,13 @@
     </div>
     <script src="/js/sun.js" defer></script>
     <script src="/js/tz.js" defer></script>
-    <script src="/js/hl.js" defer></script>
-    <script src="/js/worstwind.js" defer></script>
+    <script src="/js/hl.js?v=213" defer></script>
+    <script src="/js/worstwind.js?v=214" defer></script>
+    <script src="/js/ehamrwy.js" defer></script>
     <script src="/js/rwycond.js" defer></script>
     <script src="/js/cdm.js" defer></script>
-    <script src="/js/board.js" defer></script>
-    <script src="/js/airports.js" defer></script>
-    <script src="/js/app.js" defer></script>
+    <script src="/js/board.js?v=202" defer></script>
+    <script src="/js/airports.js?v=211" defer></script>
+    <script src="/js/app.js?v=215" defer></script>
   </body>
 </html>

@@ -1,11 +1,9 @@
 "use strict";
 
-const { getBoard } = require("../../lib/board");
+const { getBoard, peekBoard } = require("../../lib/board");
 const { BOARD_CACHE, BOARD_MAX, boardClientOk, netlifyForbidden, netlifyLimited } = require("../../lib/limit");
 
 exports.handler = async (event) => {
-  const limited = netlifyLimited(event, { max: BOARD_MAX, bucket: "board" });
-  if (limited) return limited;
   if (!boardClientOk(event)) return netlifyForbidden();
   const q = (event && event.queryStringParameters) || {};
   const headers = {
@@ -16,11 +14,14 @@ exports.handler = async (event) => {
   if (String((event && event.httpMethod) || "GET").toUpperCase() !== "GET") {
     return { statusCode: 405, headers, body: JSON.stringify({ error: "Method not allowed" }) };
   }
+  const boardOpts = { aheadHours: q.ahead, route: q.route };
+  const peek = peekBoard(q.dir, Date.now(), boardOpts);
+  if (!peek.skipLimit) {
+    const limited = netlifyLimited(event, { max: BOARD_MAX, bucket: "board" });
+    if (limited) return limited;
+  }
   try {
-    const data = await getBoard(q.dir, Date.now(), {
-      aheadHours: q.ahead,
-      route: q.route,
-    });
+    const data = await getBoard(q.dir, Date.now(), boardOpts);
     return { statusCode: 200, headers, body: JSON.stringify(data) };
   } catch (err) {
     return {

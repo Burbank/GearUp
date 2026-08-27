@@ -1,6 +1,6 @@
 # GearUp calculations
 
-All of these are **unofficial estimates**. Rebuild the same way; do not invent a second formula. Implementation lives in the files named. Unit tests: `scripts/test-worstwind.js`, `scripts/test-rwycond.js`, `scripts/test-zulu.js`.
+All of these are **unofficial estimates**. Rebuild the same way; do not invent a second formula. Implementation lives in the files named. Unit tests: `scripts/test-worstwind.js`, `scripts/test-rwycond.js`, `scripts/test-zulu.js`, `scripts/test-ehamrwy.js`, `scripts/test-czech-atis.js`.
 
 Times in the UI are UTC unless a local clock is shown next to them.
 
@@ -19,9 +19,9 @@ The strip is still labeled UNOFFICIAL ESTIMATE because it is a worst-heading / g
 
 `DEPARTURES` / `ARRIVALS` (plural) plus a comma then `RWY 25L` must match. Old `DEPARTURE\b` missed Hong Kong CAD. Same for `EXP ILS APCH, RWY 25C`.
 
-Departure extract (`depRunways`): DEP/DEPARTURE/DEPARTURES/DEPG/TAKE OFF/TKOF, `TL 22`, `RWY … IN USE / FOR DEP`, `USING RWY 34L/34R`.
+Departure extract (`depRunways`): DEP/DEPARTURE/DEPARTURES/DEPG/TAKE OFF/TKOF, `TL 22`, `RWY … IN USE / FOR DEP`, `RUNWAY IN USE 06`, `USING RWY 34L/34R`.
 
-Arrival extract (`arrRunways`): ARR/ARRIVAL/ARRIVALS/LANDING/LDG/APP/APCH, ILS RWY, USING RWY.
+Arrival extract (`arrRunways`): ARR/ARRIVAL/ARRIVALS/LANDING/LDG/APP/APCH, ILS RWY, `RUNWAY IN USE 06`, USING RWY.
 
 MAIN/PRIMARY vs SECONDARY/SEC/2ND prefixes set `role: "main" | "sec"` so a second wind pairs to the second runway.
 
@@ -135,6 +135,9 @@ WORST {rwy} {DEPARTURE|LANDING} WIND {ddd/ss|CALM}[ T#|H# X#]
 ```
 
 - DEPT ATIS → DEPARTURE; ARR ATIS → LANDING.
+- Combined ATIS: the DEPT/ARR toggle picks the strip immediately. DEPT uses departure runways and **DEPARTURE**; ARR uses arrival runways and **LANDING**, even when the same combined copy stays on screen. Do not keep `view.kind === "combined"` as a permanent departure strip.
+- If the copy has both a departure block and an arrival block, parse the wind from that block (fall back to the whole copy if that block has no wind).
+- Exception (EHAM only): when the DEPT tab is showing an arrival copy (`SHOWN DUE NO RECENT DEPT ATIS AVAIL.`), the strip uses **inferred takeoff** runways and **DEPARTURE**. See §17.
 - `ddd` is three digits; speed is two+ digits.
 - Aside, far right of the cell: `UNOFFICIAL ESTIMATE` and `| STALE` when the ATIS is stale.
 - Layout: flex `.worstwind-line` → `.worstwind-main` + `.worstwind-aside`. Never put the stamp/aside inside CSS multi-column article flow (this app has no newspaper columns, but do not inject into `#flow` if that layout is added later).
@@ -149,13 +152,22 @@ Primary + secondary runways → two lines; secondary wind pairs to secondary run
 
 - Tailwind highlight: along-runway tail **≥ 9 kt** (rounded), using max(mean, gust). Fully variable (no mean dir) uses speed as a pure tail.
 - Crosswind highlight: `|spd × sin(θ)|` rounded **> 20 kt**, same speed.
+- Strong wind (any direction, including on the nose): mean **≥ 30 kt** or gust **≥ 35 kt**. Whole group (`24032G45KT`, `WIND 240 DEG, 32 KT`). Spoken `GUSTS 40` / `MAX 40` too. `GUSTS 18` stays unmarked unless the gust-minus-mean spread is **> 10 kt** on a coded group.
 - VRB extremes: if a sector bound is >90° from the paired runway, highlight.
-- Other ops: ident letter, CLOSED/CLSD/INOP/OTS, T≤10°C, fog dewpoint, vis/RVR minima, TS/CB/WS, birds, etc.
+- Low QNH: **< 990 hPa** or **< 29.23 inHg**. `Q0987`, `QNH 987`, `A2912`, `ALTIMETER 29.12`. `Q0990` / `A2992` stay unmarked.
+- Braking action: **POOR**, **NIL**, **UNRELIABLE**, **MEDIUM TO POOR**, **LESS THAN POOR** (`BA POOR`, `BRAKING ACTION NIL`). `BRAKING ACTION GOOD` is not highlighted.
+- Blowing sand/dust: `BLSA`, `BLDU`, spoken `BLOWING SAND` / `BLOWING DUST` (and drifting `DRSA` / `DRDU`). Storms `DS` / `SS` already count.
+- Arrival minima changes: **DA, DH, MDA, MDH, OCA, OCH** with a height (`DA 250 FT`, `OCH 186`), plus **MINIMA/MINIMUMS RAISED/INCREASED/AMENDED/NOT AUTHORIZED**, FAA `APPROACH MINIMUMS RAISED TO 400 FEET`, and CAT II/III not authorized. Do **not** highlight density-altitude `DA1,800` or runway type `LDA`.
+- Other ops: ident letter, CLOSED/CLSD/INOP/OTS, **T≤10°C or T>35°C**, fog dewpoint, vis/RVR minima, TS/CB/WS, birds, etc. Do **not** highlight CLOSED/CLSD when the same sentence names a taxiway (`TAXIWAY SIERRA CLOSED`, `TWY S CLSD`). Runway closed still marks (`RWY 24L CLOSED`).
 - Present-weather groups (METAR/TAF): highlight the **whole token** if it is heavy (`+`), contains **TS**, or contains hail **GR** / small hail **GS**. `+TSRAGR` is one group. Plain `RA` is not highlighted.
 - Ceiling: **BKN/OVC/VV below 400 ft** (`BKN003` yes, `BKN004` no). `VV///` counts. Spoken `CEILING 300 FT` too. SCT/FEW are not ceiling.
 - Visibility / RVR: ICAO/EASA low-visibility operations are **RVR < 550 m** (CAT I floor). Highlight prevailing vis and RVR **below 550 m**. `M0550` (less than 550) counts; `0550` / `R27/0550` do not.
+- Heat: METAR `TT/Td` and TAF `TX`/`TN` are always **Celsius**. Highlight the temperature group when **> 35°C** (`36/22`, `TX36/2706Z`). Spoken `TEMPERATURE 38` on ICAO ATIS is Celsius. US D-ATIS (`K*`, PANC, PHNL, TJSJ) speaks **Fahrenheit** — highlight only above **95°F** (~35°C), so `TEMPERATURE 88` stays unmarked.
+- **Same scanner on the TAF tab.** SIGMET, G-AIRMET, PIREPs, NAS delay, and SNOWTAM copy use `Hl.ranges` (not a thinner subset). Strong wind also matches a unit-only group (`SFC WIND 50KT`, not `MOV NE 25KT`). Bulletin words: isolated `TS`, `EMBD`, `SFC WND`, `MT OBSC`, named `TC BIPARJOY`, PIREP `TB`, `MOD TO SEV`. Density-altitude card QNH uses the same **< 990 hPa** mark. Do not treat a bare `TC` (taxiway) as a cyclone.
 
 METAR pretty-print only (not ATIS body): `252025Z` → `25 20:25Z`, `08006KT` → `080/06KT`.
+
+Printable cheat sheet: `docs/OPS_HIGHLIGHTS.pdf`.
 
 ---
 
@@ -185,6 +197,10 @@ Taxiway notes (`TWY ALL WET`) count only if `isTwySurfaceNote`:
 False positive that must stay rejected:  
 `VACATE RWY33R VIA TWY ECHO NOT AVAILABLE UNLESS AUTHORIZED BY ATC PRIOR TO LANDING`.
 
+US ATIS also shows **NAS delay** below runway condition when a ground stop, ground delay, arrival/departure delay, or closure is in effect (`K*` plus PANC, PHNL, TJSJ). Same payload as the TAF card. Hidden when the list is empty. Fetched via `/api/delay/:icao` (server-side). Do not name the upstream host in the JSON.
+
+Public `/api/atis` JSON uses `overheard` (boolean). The client never sees upstream hostnames. Official US/Canada/Hong Kong/Czech D-ATIS is `overheard: false` (no METAR strip, official stale copy). Overheard copy is `overheard: true` (METAR + MAY NOT BE TODAY). Do not put source hostnames in `js/app.js` or in API JSON.
+
 ---
 
 ## 9. Density altitude
@@ -198,7 +214,7 @@ ISA = 15 − 1.98 × (PA / 1000)             # °C at that PA
 DA  = round((PA + 118.8 × (temp − ISA)) / 50) × 50
 ```
 
-Rounded to 50 ft. Shown as `DA1,800 ft · elev 30 ft · Q1011`. Needs METAR temp + QNH (Axxxx inHg × 0.338638 → hPa).
+Rounded to 50 ft. Shown as `DA1,800 ft · elev 30 ft · QNH1011` (DA and QNH labels 3 pt smaller than the digits). Needs METAR temp + QNH (Axxxx inHg × 0.338638 → hPa).
 
 ---
 
@@ -241,7 +257,7 @@ Polar day/night (`cosH` out of [−1, 1]) → hide the chip.
 - Token forms: `25 20:25Z`, `20:25Z`, `2025Z`, `252025Z`.
 - **TAF max/min temps are not clock times.** `TX31/2706Z` / `TN27/2622Z` / `TNM02/0615Z` use **date + hour** (`DDHHZ`), never HHMM. Do not paint them as `.zulu-time` / `.zulu-old`. Hour 24–31 in a 4-digit `Z` group is also rejected.
 - A stamp **later than now + 1 minute** is rolled to **yesterday** (EGLL 1350Z read at 11:44Z is last night). `ZULU_FUTURE_MS = 60s`.
-- The **Departure ATIS N minutes old** line uses the **publication Zulu in the ATIS text** vs current Zulu, not when the app fetched it and not FAA `updatedAt`. `23:53Z` at 00:36Z is ~43 minutes, even if the feed arrived a minute ago.
+- The ATIS header reads **Arrival ATIS is N minutes old, displayed METAR is older.** (or **more recent** / **the same age**). Age is publication Zulu vs now, not fetch time. METAR compare uses the displayed METAR observation minute vs the ATIS publication minute. No METAR on screen → age only, no compare clause.
 - ATIS max age window for parsing day: 24 hours.
 - Red class: `.zulu-old` using `--stale`.
 
@@ -262,11 +278,14 @@ Airport local and board local are **minute** displays. Only the ATIS UTC clock s
 `lib/board.js`
 
 - Cache **60s** per direction (D/A) in the Node process; CDN `s-maxage=60`.
-- Passenger service types J/C/G/Q/O/R; cargo F/H/A/K/L; private D/N if present.
-- Window: **now − 20 minutes** (departed/landed/cancelled) through **now + 9 hours** Amsterdam time. Fetch `scheduleDate` for today and, when that window crosses local midnight, tomorrow. `fromDateTime` lookback on the API is **3 hours**.
-- List paint: first **60** flights in that window. Flight-number Focus searches the 9-hour list first, then the other direction, then a **24-hour** fetch if still missing; if the hit is past 60, that row is appended.
+- Schiphol crawl: **one in-flight request** (coalesce). **Departures** always query **schedule** time (`scheduleDateTime`) from **now − 20 minutes**, so cargo that never gets a public off-block estimate is still in the payload. **Arrivals** 9-hour board still uses **estimated landing** time. The **24-hour** focus crawl uses schedule time and up to **160 pages**. On **429**, wait `Retry-After`. Cache **60s**. Cold `/api/board` waits for the finished crawl. Revalidate keeps the complete cache until `fill.done`; never overwrite it with a smaller partial.
+- Client paint: keep the current list on screen. Ignore partial payloads. Skip paint when the finished snapshot matches what is shown. One `replaceChildren` swap when the snapshot actually changes. Do not `hideViews` / “Loading…” while the board is already up.
+- Passenger service types J/C/G/Q/O/R; cargo F/H/A/K/L/M; private D/N if present.
+- Fetch `scheduleDate` for today and, when that window crosses local midnight, tomorrow. API `fromDateTime` lookback is **20 minutes** on estimated off-block / landing time (delayed flights still appear because their public estimate is in the window).
+- **FILTER CARGO:** keep the current board payload and show every operating cargo row that is still due to depart (or arrive). No 24-hour crawl, no Loading wait. There are not 60 cargo movements in the window.
+- **Focus overlay ticks** (AND): last-used query, Heavy jets, EU, Long-haul (exclusive with EU), Next 2 hours, Cancelled. Use the same 24-hour preload.
 - **Route Focus** (exactly three letters, e.g. `BCN`): always a rolling **24-hour** window on the current tab (departures = to, arrivals = from). Never the 9-hour list. `/api/board?ahead=24&route=BCN`.
-- Next-day marker: `dayKey` / `dayLabel` (e.g. `27 AUG`) when Amsterdam local date changes in the list.
+- Next-day marker: `dayKey` / `dayLabel` when **Amsterdam local date** changes in the list (times stay UTC). Caption is `28 AUG (local)` so a 22:10Z row after local midnight is not read as 28 August UTC or as “tomorrow evening.”
 - Registration pretty-print: `PHYHA` → `PH-YHA`; single-letter prefixes B/D/F/G/I/N.
 - Airline name from `prefixIATA` + `lib/airlines.json` (Schiphol does not send publicName on the flight).
 
@@ -274,7 +293,7 @@ Airport local and board local are **minute** displays. Only the ATIS UTC clock s
 
 ## 15. Pin city line
 
-`cityAlreadyInName`: fold accents, compare. Omit city if it is already in the airport name (`Amsterdam Airport Schiphol` does not also print Amsterdam). First word of city ≥4 letters also suppresses.
+`cityAlreadyInName`: fold accents, compare. Omit city if it is already in the airport name (`Amsterdam Airport Schiphol` does not also print Amsterdam). First word of city ≥4 letters also suppresses. Search suggestions use the same rule. OurAirports village municipalities are replaced with the common city in `scripts/build-airports.js` (`CITY_COMMON` / `NAME_COMMON`); old labels stay in keywords. Leipzig/Halle is **Leipzig**, not Schkeuditz.
 
 ---
 
@@ -288,7 +307,40 @@ These are **not** weather physics. They stop tab-switching from hammering proxie
 | TAF + briefwx | 90s per ICAO | TAF Refresh |
 | Board | 60s per D/A | Board Refresh |
 | atis.guru (server) | 3 min | n/a |
-| LiveATC probe | 10 min positive / 45s negative | n/a; ARR probes `_atis_arr` then `_arr_atis` then `_atis` |
 | Quiet ACARS | one 5s shot | cancelled on navigation |
 
 UTC interval is **stopped** while the tab is hidden. Seconds DOM writes only when the ATIS view is visible. Ages, sun, zulu colors, TAF remain, local HH:MM tick **once per UTC minute**.
+
+---
+
+## 17. EHAM inferred departure runways
+
+`js/ehamrwy.js` `infer(arrRunways, nowMs, windDir)`
+
+**Unofficial.** LVNL picks a **combination**, not independent landing and departure runways. Shown only on the DEPT tab when EHAM paints an **arrival** ATIS because there is no recent departure copy. Hidden on ARR, on a real dep/combined ATIS, and when no landing runway can be parsed.
+
+Phrase (Dep 1 first, then peak Dep 2):
+
+- one: `Inferred Departure Runway 36L`
+- two: `Inferred Departure Runways, 36L and/or 36C` or `09 and/or 36L`
+
+Families (pref 1 / 2 workhorses, then 3 / 4 / 5):
+
+| Landing set | Off / inbound | Outbound / overlap | Night |
+|-------------|----------------|--------------------|-------|
+| 06, or 06+36R | 36L | 36L+36C | 36L |
+| 06 + easterly wind (pref 3) | 09 | 09+36L | 36L |
+| 18R, 18C, or 18R+18C | 24 | 24+18L | 24 |
+| 36R+36C (pref 5a) | 36L | 36L+36C | 36L |
+| 27, or 27+18R (pref 4) | 24 | 24+18L | 24 |
+| 09 (in the mix) | 09 | 09+36L | 36L |
+
+Two landing runways on the ATIS ⇒ inbound (1 dep) unless the clock is also an outbound peak ⇒ overlap (2 dep). Night overrides peaks.
+
+Easterly: ATIS/METAR wind is at least **20° closer to 090 than to 360**. Night ignores that (09 not AVBL).
+
+Night (AIP): **2130–0530 UTC**, DST **2030–0430 UTC**. Takeoff ids kept: `36L`, `24`, `18C`.
+
+Peak banks are **Amsterdam local** (W25 UTC banks as local clock). Outbound: 07:00–07:20, 09:20–10:40, 11:40–12:40, 14:00–15:00, 16:20–18:00, 20:00–21:40. Inbound: 08:00–09:20, 11:00–11:40, 13:00–14:00, 15:20–16:20, 18:20–20:00. Half-open `[start, end)`.
+
+The wind strip then uses these takeoff ids with kind `departure`. ATIS body highlights stay on the **arrival** runways from the copy.

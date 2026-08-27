@@ -3,6 +3,12 @@
   functions = "netlify/functions"
 
 [[redirects]]
+  from = "/.env"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
   from = "/server.js"
   to = "/index.html"
   status = 404
@@ -22,6 +28,12 @@
 
 [[redirects]]
   from = "/docs/*"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/archive/*"
   to = "/index.html"
   status = 404
   force = true
@@ -61,17 +73,6 @@
   status = 200
 
 [[redirects]]
-  from = "/api/atis-audio/:icao"
-  query = {kind = ":kind"}
-  to = "/.netlify/functions/atis-audio?icao=:icao&kind=:kind"
-  status = 200
-
-[[redirects]]
-  from = "/api/atis-audio/:icao"
-  to = "/.netlify/functions/atis-audio?icao=:icao"
-  status = 200
-
-[[redirects]]
   from = "/api/metar/:icao"
   to = "/.netlify/functions/metar?icao=:icao"
   status = 200
@@ -95,6 +96,11 @@
 [[redirects]]
   from = "/api/briefwx/:icao"
   to = "/.netlify/functions/briefwx?icao=:icao"
+  status = 200
+
+[[redirects]]
+  from = "/api/delay/:icao"
+  to = "/.netlify/functions/delay?icao=:icao"
   status = 200
 
 [[headers]]
@@ -130,4 +136,4 @@
     Referrer-Policy = "no-referrer"
     X-Frame-Options = "DENY"
     Permissions-Policy = "camera=(), microphone=(), geolocation=()"
-    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src 'self'; media-src 'self' https:; frame-src 'self' https://mobile.ehamcdm.nl https://globe.airplanes.live; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self'; connect-src 'self'; media-src 'none'; frame-src 'self' https://mobile.ehamcdm.nl https://globe.airplanes.live; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"

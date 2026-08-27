@@ -53,12 +53,26 @@
     }
 
     const group = document.getElementById("theme-toggle");
-    if (!group) return;
-    group.querySelectorAll("[data-theme]").forEach((btn) => {
-      const on = btn.getAttribute("data-theme") === mode;
-      btn.classList.toggle("active", on);
-      btn.setAttribute("aria-pressed", on ? "true" : "false");
-    });
+    if (group) {
+      group.querySelectorAll("[data-theme]").forEach((btn) => {
+        const on = btn.getAttribute("data-theme") === mode;
+        btn.classList.toggle("active", on);
+        btn.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    }
+
+    const lightIcon = document.getElementById("favicon");
+    const darkIcon = document.getElementById("favicon-dark");
+    const light192 = document.getElementById("icon-192");
+    const dark192 = document.getElementById("icon-192-dark");
+    const lightMedia =
+      mode === "dim" ? "not all" : mode === "bright" ? "all" : "(prefers-color-scheme: light)";
+    const darkMedia =
+      mode === "bright" ? "not all" : mode === "dim" ? "all" : "(prefers-color-scheme: dark)";
+    if (lightIcon) lightIcon.setAttribute("media", lightMedia);
+    if (darkIcon) darkIcon.setAttribute("media", darkMedia);
+    if (light192) light192.setAttribute("media", lightMedia);
+    if (dark192) dark192.setAttribute("media", darkMedia);
   }
 
   function setThemeMode(mode) {

@@ -24,10 +24,168 @@ const TYPE_RANK = {
   small_airport: 2,
 };
 
+/** OurAirports municipality is often a village. Show the city crews actually search. */
+const CITY_COMMON = {
+  EDDP: "Leipzig",
+  EBBR: "Brussels",
+  LIMC: "Milan",
+  LIML: "Milan",
+  LIME: "Bergamo",
+  LGAV: "Athens",
+  WMKK: "Kuala Lumpur",
+  LROP: "Bucharest",
+  LJLJ: "Ljubljana",
+  LDZA: "Zagreb",
+  LFLL: "Lyon",
+  LFML: "Marseille",
+  LFPG: "Paris",
+  LFPO: "Paris",
+  LFSB: "Basel",
+  LFRN: "Rennes",
+  LFJL: "Metz",
+  EFHK: "Helsinki",
+  ENGM: "Oslo",
+  ENTO: "Sandefjord",
+  ESKN: "Stockholm",
+  LTFJ: "Istanbul",
+  LTBA: "Istanbul",
+  LTBJ: "Izmir",
+  LTDB: "Adana",
+  WIMM: "Medan",
+  WADD: "Denpasar",
+  PGUM: "Guam",
+  UKBB: "Kyiv",
+  VIND: "Noida",
+  ZLXN: "Xining",
+  ZULS: "Lhasa",
+  ZSPD: "Shanghai",
+  YSSY: "Sydney",
+  RPLL: "Manila",
+  VVNB: "Hanoi",
+  VDTI: "Phnom Penh",
+  FNBJ: "Luanda",
+  OMDW: "Dubai",
+  FDSK: "Manzini",
+  FWKI: "Lilongwe",
+  FIMP: "Mauritius",
+  GCFV: "Fuerteventura",
+  GCLP: "Gran Canaria",
+  RJGG: "Nagoya",
+  UHWW: "Vladivostok",
+  OPIS: "Islamabad",
+  LKMT: "Ostrava",
+  MMLO: "León",
+  VOGA: "Goa",
+  EDDK: "Cologne",
+  EDSB: "Karlsruhe",
+  LSZA: "Lugano",
+  LIRN: "Naples",
+  LIPZ: "Venice",
+  LIMF: "Turin",
+  LIRQ: "Florence",
+  LIRP: "Pisa",
+  EGCC: "Manchester",
+  EGSS: "London",
+  EGGW: "Luton",
+  EGPH: "Edinburgh",
+  EGNT: "Newcastle",
+  EGNM: "Leeds",
+  EGTE: "Exeter",
+  EGSH: "Norwich",
+  EGNX: "Nottingham",
+  PHNL: "Honolulu",
+  LEAS: "Asturias",
+  LEIB: "Ibiza",
+  LGSA: "Chania",
+  LATI: "Tirana",
+  LWSK: "Skopje",
+  ORER: "Erbil",
+  OEDF: "Dammam",
+  HESX: "Cairo",
+  OENN: "Neom",
+  OERS: "Red Sea",
+};
+
+/** Official names that nobody uses in the search box. */
+const NAME_COMMON = {
+  EDDP: "Leipzig/Halle Airport",
+  LIME: "Milan Bergamo Airport",
+  KMEM: "Memphis International Airport",
+  LZIB: "Bratislava Airport",
+};
+
+const KEEP_KEYS = {
+  EDDP: "Schkeuditz",
+  EBBR: "Zaventem",
+  LIMC: "Ferno",
+  LIML: "Segrate",
+  LIME: "Caravaggio Orio Serio",
+  LGAV: "Spata Artemida",
+  WMKK: "Sepang",
+  LROP: "Otopeni",
+  LJLJ: "Brnik",
+  LDZA: "Velika Gorica",
+  KMEM: "Frederick Smith",
+  LZIB: "Stefanik",
+  PGUM: "Hagatna Agana",
+  UKBB: "Boryspil",
+  WIMM: "Beringin",
+  OPIS: "Attock",
+  FIMP: "Plaine Magnien",
+  FWKI: "Lumbadzi",
+  FDSK: "Mpaka",
+  LFLL: "Colombier Saugnieu",
+  LFML: "Marignane",
+  EDSB: "Rheinmunster",
+  LSZA: "Agno",
+  LATI: "Rinas",
+  LWSK: "Ilinden",
+  LTBJ: "Gaziemir",
+  RJGG: "Tokoname Centrair",
+  UHWW: "Artyom",
+  LEAS: "Ranon",
+  LGSA: "Souda",
+};
+
+function pushKey(rec, raw) {
+  const t = fold(raw);
+  if (!t) return;
+  if (t === rec.i || t === rec.a || t === fold(rec.n) || t === fold(rec.c)) return;
+  const parts = String(rec.k || "")
+    .split(/\s+/)
+    .filter(Boolean);
+  const have = new Set(parts);
+  for (const w of t.split(/\s+/)) {
+    if (w && !have.has(w)) {
+      parts.push(w);
+      have.add(w);
+    }
+  }
+  if (parts.length) rec.k = parts.join(" ");
+}
+
+function applyCommonNames(rec) {
+  if (!rec || !rec.i) return rec;
+  const origName = rec.n;
+  const origCity = rec.c;
+  const nameTo = NAME_COMMON[rec.i];
+  const cityTo = CITY_COMMON[rec.i];
+  if (nameTo && nameTo !== origName) {
+    rec.n = nameTo;
+    pushKey(rec, origName);
+  }
+  if (cityTo && cityTo !== origCity) {
+    rec.c = cityTo;
+    pushKey(rec, origCity);
+  }
+  if (KEEP_KEYS[rec.i]) pushKey(rec, KEEP_KEYS[rec.i]);
+  return rec;
+}
+
 function fetchText(url) {
   return new Promise((resolve, reject) => {
     https
-      .get(url, { headers: { "User-Agent": "GearUp/1.3 airport index" } }, (res) => {
+      .get(url, { headers: { "User-Agent": "GearUp/1.4 airport index" } }, (res) => {
         if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
           fetchText(res.headers.location).then(resolve, reject);
           res.resume();
@@ -168,6 +326,7 @@ async function main() {
     const rec = { i: icao, n: name, c: city, r };
     if (iata) rec.a = iata;
     if (extra.length) rec.k = extra.join(" ");
+    applyCommonNames(rec);
     out.push(rec);
   }
 
@@ -188,7 +347,28 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+function applyExisting() {
+  const rows = JSON.parse(fs.readFileSync(OUT, "utf8"));
+  if (!Array.isArray(rows)) throw new Error("airports.json is not a list");
+  for (const rec of rows) applyCommonNames(rec);
+  fs.writeFileSync(OUT, JSON.stringify(rows));
+  console.log(`Applied common names to ${rows.length} airports in ${OUT}`);
+}
+
+if (require.main === module) {
+  if (process.argv.includes("--apply-only")) {
+    try {
+      applyExisting();
+    } catch (err) {
+      console.error(err);
+      process.exit(1);
+    }
+  } else {
+    main().catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+  }
+}
+
+module.exports = { fold, applyCommonNames, CITY_COMMON, NAME_COMMON };

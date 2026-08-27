@@ -134,7 +134,7 @@
         /(?<!\d)(\d{3})(?!\d)\s*(?:DEG(?:REES)?)?(?:\s+AT)?\s*[,/]?\s*(?<!\d)(\d{1,3})(?!\d)(?:G(\d{1,3}))?\s*(KT|KTS|KNOTS)?/i
       );
       const vrbSpd = win.match(
-        /\bVRB\s*\/?\s*(\d{1,3})(?:G(\d{1,3}))?\s*(KT|KTS|KNOTS|MPS|KMH)?/i
+        /\b(?:VRB|VARIABLE)\s*\/?\s*(\d{1,3})(?:G(\d{1,3}))?\s*(KT|KTS|KNOTS|MPS|KMH)?/i
       );
       const wind = {
         dir: null,
@@ -271,11 +271,30 @@
     return spoken.length ? spoken : all;
   }
 
+  function textForKind(text, kind) {
+    const raw = String(text || "");
+    const dep = raw.search(/\b(?:DEP(?:ARTURES?)?|TAKE\s*OFF|TKOF)\b/i);
+    const arr = raw.search(
+      /\b(?:ARR(?:IVALS?)?|LANDING|LDG|APP(?:ROACH)?|APCH)\b/i
+    );
+    if (dep < 0 || arr < 0 || dep === arr) return raw;
+    if (kind === "arrival") {
+      return arr < dep ? raw.slice(arr, dep) : raw.slice(arr);
+    }
+    return dep < arr ? raw.slice(dep, arr) : raw.slice(dep);
+  }
+
+  function windsForKind(text, kind) {
+    const sliced = pickWinds(parseWinds(textForKind(text, kind)));
+    if (sliced.length) return sliced;
+    return pickWinds(parseWinds(text));
+  }
+
   function lines(text, opts) {
     const o = opts || {};
     const runways = o.runways || [];
     const kind = o.kind === "arrival" ? "arrival" : "departure";
-    const winds = pickWinds(parseWinds(text));
+    const winds = windsForKind(text, kind);
     if (!runways.length || !winds.length) return [];
     const mains = runways.filter((r) => r.role !== "sec");
     const secs = runways.filter((r) => r.role === "sec");

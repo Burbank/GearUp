@@ -1,4 +1,4 @@
-const CACHE = "gearup-v160";
+const CACHE = "gearup-v215";
 const PRECACHE = [
   "/",
   "/index.html",
@@ -9,6 +9,7 @@ const PRECACHE = [
   "/js/tz.js",
   "/js/hl.js",
   "/js/worstwind.js",
+  "/js/ehamrwy.js",
   "/js/rwycond.js",
   "/js/cdm.js",
   "/js/board.js",
@@ -18,7 +19,10 @@ const PRECACHE = [
   "/icons/rightaway-flat.png",
   "/manifest.webmanifest",
   "/icons/icon-192.png",
+  "/icons/icon-192-dark.png",
   "/icons/apple-touch-icon.png",
+  "/icons/favicon.png",
+  "/icons/favicon-dark.png",
 ];
 
 self.addEventListener("install", (event) => {

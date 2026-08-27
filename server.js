@@ -8,10 +8,10 @@ const { getAtis } = require("./lib/atis");
 const { getTaf } = require("./lib/taf");
 const { getMetar } = require("./lib/metar");
 const { getAirport } = require("./lib/airport");
-const { findLiveAtis } = require("./lib/liveatc");
 const { getBriefWx } = require("./lib/briefwx");
+const { getDelay } = require("./lib/delay");
 const { proxyCdm, FRAME_CSP } = require("./lib/cdm");
-const { getBoard } = require("./lib/board");
+const { getBoard, peekBoard } = require("./lib/board");
 const { BOARD_CACHE, BOARD_MAX, RATE_LIMIT_MSG, boardClientOk, tooMany } = require("./lib/limit");
 const { isIcao, jsonHeaders } = require("./lib/icao");
 
@@ -171,9 +171,9 @@ function sendCdmHtml(res, html) {
 const APIS = [
   ["/api/atis/", getAtis, "Failed to fetch ATIS"],
   ["/api/taf/", getTaf, "Failed to fetch TAF"],
-  ["/api/atis-audio/", findLiveAtis, "No live ATIS stream"],
   ["/api/metar/", getMetar, "Failed to fetch METAR"],
   ["/api/briefwx/", getBriefWx, "Failed to fetch briefing weather"],
+  ["/api/delay/", getDelay, "Failed to fetch delay"],
   ["/api/airport/", getAirport, "Failed to fetch airport"],
 ];
 
@@ -190,38 +190,40 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname.startsWith("/api/")) {
     const isBoard =
       url.pathname === "/api/board" || url.pathname === "/api/board/";
-    if (
-      tooMany(
-        req,
-        isBoard ? { max: BOARD_MAX, bucket: "board" } : undefined
-      )
-    ) {
-      sendJson(res, 429, { error: RATE_LIMIT_MSG });
-      return;
-    }
-    if (isBoard && !boardClientOk(req)) {
-      sendJson(res, 403, { error: "Forbidden" });
-      return;
-    }
     if (isBoard) {
       if (req.method !== "GET" && req.method !== "HEAD") {
         res.writeHead(405, SECURITY);
         res.end();
         return;
       }
+      if (!boardClientOk(req)) {
+        sendJson(res, 403, { error: "Forbidden" });
+        return;
+      }
+      const ahead = url.searchParams.get("ahead");
+      const route = url.searchParams.get("route");
+      const dir = url.searchParams.get("dir");
+      const boardOpts = { aheadHours: ahead, route };
+      const peek = peekBoard(dir, Date.now(), boardOpts);
+      if (
+        !peek.skipLimit &&
+        tooMany(req, { max: BOARD_MAX, bucket: "board" })
+      ) {
+        sendJson(res, 429, { error: RATE_LIMIT_MSG });
+        return;
+      }
       try {
-        const ahead = url.searchParams.get("ahead");
-        const route = url.searchParams.get("route");
-        const data = await getBoard(url.searchParams.get("dir"), Date.now(), {
-          aheadHours: ahead,
-          route,
-        });
+        const data = await getBoard(dir, Date.now(), boardOpts);
         sendJson(res, 200, data, BOARD_CACHE);
       } catch (err) {
         sendJson(res, err.statusCode || 502, {
           error: err.message || "Could not load Schiphol board",
         });
       }
+      return;
+    }
+    if (tooMany(req)) {
+      sendJson(res, 429, { error: RATE_LIMIT_MSG });
       return;
     }
     if (url.pathname === "/api/cdm" || url.pathname === "/api/cdm/") {

@@ -28,13 +28,13 @@ Bundle is a static PWA. Weather and Schiphol traffic go through the same-origin 
 4. `node server.js` — listens on all interfaces, port 8787.
 5. Phone on same Wi-Fi: `http://<Mac-LAN-IP>:8787/`.
 6. Production: Netlify site `gearup4u`, publish `.`, functions `netlify/functions`. `netlify.toml` maps `/api/*`.
-7. After JS/CSS/HTML change: bump `sw.js` cache name **and** `index.html` `app.css?v=` **and** the Right Away mask `?v=` if the PNG changed. Old service-worker cache-first icons otherwise stick.
+7. After JS/CSS/HTML change: bump `sw.js` cache name **and** `index.html` `app.css?v=` **and** the Right Away mask `?v=` if the PNG changed. Old service-worker cache-first icons otherwise stick. App icons: `node scripts/generate-icons.js` (crops `GearUP.jpg` artwork to fill the square; writes light + inverted dark favicons). Bump `icons/*.png?v=` in `index.html` and `manifest.webmanifest`.
 
 ## Version
 
-Footer and `aria-label` on home: **1.3** (`index.html` `.home-version`).  
-User-Agent: `GearUp/1.3` in `lib/http.js`.  
-Service worker cache at 1.3 ship: `gearup-v160`.
+Footer and `aria-label` on home: **1.4** (`index.html` `.home-version`).  
+User-Agent: `GearUp/1.4` in `lib/http.js`.  
+Service worker cache at 1.4 ship: `gearup-v215`.
 
 When bumping later: change the footer, UA, SW cache string, CSS query, and mask query together.
 
@@ -47,6 +47,7 @@ When bumping later: change the footer, UA, SW cache string, CSS query, and mask 
 | `js/app.js` | Routing, pins, clocks, ATIS/TAF/board paint, holds, timers |
 | `js/hl.js` | Runway extract, ATIS format, ops highlights |
 | `js/worstwind.js` | Wind parse, worst heading, T/H/X |
+| `js/ehamrwy.js` | EHAM inferred dep runway from arrival ATIS |
 | `js/rwycond.js` | RCC / SNOWTAM / taxiway surface |
 | `js/sun.js` | Next sunrise/sunset |
 | `js/tz.js` | ICAO → IANA local clock |
@@ -54,7 +55,7 @@ When bumping later: change the footer, UA, SW cache string, CSS query, and mask 
 | `js/airports.js` | Load/search `data/airports.json` |
 | `js/board.js` | Client board helpers (match, compact flight) |
 | `js/cdm.js` | Parse EHAM CDM HTML (TOBT, runway) |
-| `sw.js` | Precache shell; **never** intercept `/api/` or LiveATC audio |
+| `sw.js` | Precache shell; **never** intercept `/api/` |
 | `server.js` | Local HTTPS-only proxy + static allowlist |
 | `lib/*` | Node fetchers: ATIS, TAF, METAR, airport, board, CDM, density, limit |
 | `netlify/functions/*` | Thin wrappers around `lib/` |
@@ -62,6 +63,7 @@ When bumping later: change the footer, UA, SW cache string, CSS query, and mask 
 | `icons/rightaway-flat.png` | Home overlay mask (transparent ink on transparent) |
 | `docs/branding/rightaway-source.png` | Approved handwritten scan |
 | `docs/CALCULATIONS.md` | Every formula |
+| `archive/liveatc-listen/` | Parked LiveATC listen (not in the live app) |
 | `docs/SAFETY.md` | Rate limits, CSP, unofficial nets |
 
 ## ATIS sources (order matters)
@@ -71,6 +73,7 @@ Implemented in `lib/atis.js`:
 - **K\*** plus PANC, PHNL, TJSJ → FAA D-ATIS JSON (`atis.info`), departure preferred.
 - **CY\*** → NAV CANADA AeroView first, atis.guru backup. Canadian datalink is often ARR-labelled; GearUp still shows it as the overheard copy.
 - **VHHH** → Hong Kong CAD departure page (`parseVhhhCad`).
+- **LKPR, LKTB, LKMT, LKKV** → Czech ANS text at `meteo.rlp.cz/txt/{ICAO}_atis.txt` (index `atis2.html`), HTML fallback, before ACARS.
 - **Everyone else** → Airframes ACARS A9 (preferred when usable) merged with atis.guru. Guru HTML is cached **3 minutes** in process (`GURU_CACHE_MS`).
 - Quiet follow-up: client waits **5 seconds** once if `acarsPending`, then `/api/atis/:icao?quiet=1` and merges without flashing if the visible text did not change.
 
@@ -103,8 +106,8 @@ Do not re-host a webfont. The script is a **CSS mask** behind **GearUp**:
 
 ```
 node scripts/test-hl.js
-node scripts/test-liveatc.js
 node scripts/test-worstwind.js
+node scripts/test-ehamrwy.js
 node scripts/test-rwycond.js
 node scripts/test-board.js
 node scripts/test-cdm.js
@@ -113,9 +116,10 @@ node scripts/test-tz.js
 node scripts/test-zulu.js
 node scripts/test-acknowledge.js
 node scripts/test-taf-temp-zulu.js
+node scripts/test-czech-atis.js
 ```
 
-Airport rebuild (large download): `node scripts/build-airports.js` → `data/airports.json`.
+Airport rebuild (large download): `node scripts/build-airports.js` → `data/airports.json`. Common city/name overrides: `CITY_COMMON` / `NAME_COMMON` in that script. Re-apply without download: `node scripts/build-airports.js --apply-only`.
 
 ## Deploy
 
@@ -134,6 +138,7 @@ iCloud-synced paths are fine for this Node app (unlike iOS codesign).
 - `atis.cache` — last ATIS JSON per ICAO
 - `atis.lastIcao`
 - Theme mode in `js/theme.js` (SYSTEM / BRIGHT / DIM)
+- `atis.inferPreviewSeen` — one-shot inferred-runway preview on EHAM
 
 ## Cache-bust checklist
 

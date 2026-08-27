@@ -34,13 +34,14 @@
     "Nov",
     "Dec",
   ];
-  const PIN_LONG_MS = 420;
-  const PIN_SLOP_PX = 12;
+  const PIN_LONG_MS = 700;
+  const PIN_SLOP_PX = 14;
   const PIN_SWIPE_PX = 80;
   const LS_PINS = "atis.pins";
   const LS_NODATIS = "atis.nodatis";
   const LS_CACHE = "atis.cache";
   const LS_LAST = "atis.lastIcao";
+  const LS_FOCUS_LAST = "atis.boardFocusLast";
   const SS_BOARD_PIN = "atis.boardPin";
   const SLOTS_URL = "/api/cdm";
 
@@ -74,11 +75,9 @@
   const atisLocalTz = document.getElementById("atis-local-tz");
   const staleEl = document.getElementById("stale");
   const staleText = document.getElementById("stale-text");
-  const staleListen = document.getElementById("stale-listen");
   const staleDialog = document.getElementById("stale-dialog");
   const staleDialogBody = document.getElementById("stale-dialog-body");
   const staleDialogClose = document.getElementById("stale-dialog-close");
-  const atisAudio = document.getElementById("atis-audio");
   const metarBox = document.getElementById("metar-box");
   const metarAgeEl = document.getElementById("metar-age");
   const metarText = document.getElementById("metar-text");
@@ -116,10 +115,18 @@
   const wxPirepBody = document.getElementById("wx-pirep-body");
   const atisWorstwind = document.getElementById("atis-worstwind");
   const atisWorstwindBody = document.getElementById("atis-worstwind-body");
+  const atisInferDep = document.getElementById("atis-inferdep");
+  const atisInferDepLine = document.getElementById("atis-inferdep-line");
+  const inferPreviewDialog = document.getElementById("inferdep-preview-dialog");
+  const inferPreviewClose = document.getElementById("inferdep-preview-close");
+  const inferPreviewLine = document.getElementById("inferdep-preview-line");
+  const inferPreviewWind = document.getElementById("inferdep-preview-wind");
   const worstwindDialog = document.getElementById("worstwind-dialog");
   const worstwindDialogClose = document.getElementById("worstwind-dialog-close");
   const atisRwycond = document.getElementById("atis-rwycond");
   const atisRwycondBody = document.getElementById("atis-rwycond-body");
+  const atisDelay = document.getElementById("atis-delay");
+  const atisDelayBody = document.getElementById("atis-delay-body");
   const wxSnowtam = document.getElementById("wx-snowtam");
   const wxSnowtamBody = document.getElementById("wx-snowtam-body");
   const wxSnowtamTitle = document.getElementById("wx-snowtam-title");
@@ -147,6 +154,14 @@
   const boardFocusInput = document.getElementById("board-focus-input");
   const boardFocusErr = document.getElementById("board-focus-err");
   const boardFocusCancel = document.getElementById("board-focus-cancel");
+  const focusTickLast = document.getElementById("focus-tick-last");
+  const focusTickLastLabel = document.getElementById("focus-tick-last-label");
+  const focusTickHeavy = document.getElementById("focus-tick-heavy");
+  const focusTickEu = document.getElementById("focus-tick-eu");
+  const focusTickNoneu = document.getElementById("focus-tick-noneu");
+  const focusTickNext2h = document.getElementById("focus-tick-next2h");
+  const focusTickStatus = document.getElementById("focus-tick-status");
+  const focusTickStatusLabel = document.getElementById("focus-tick-status-label");
   const boardPinOverlay = document.getElementById("board-pin-overlay");
   const boardPinTitle = document.getElementById("board-pin-title");
   const boardPinSub = document.getElementById("board-pin-sub");
@@ -154,20 +169,46 @@
   const boardPinCdm = document.getElementById("board-pin-cdm");
   const boardPinCdmNote = document.getElementById("board-pin-cdm-note");
   const boardPinExtra = document.getElementById("board-pin-extra");
+  const boardShowGoneBtn = document.getElementById("board-show-gone");
+  const boardFilterCargoBtn = document.getElementById("board-filter-cargo");
+  const boardShowMoreBtn = document.getElementById("board-show-more");
 
   let currentIcao = "";
   let pendingOpts = null;
   let currentTab = "atis";
   let boardDir = "D";
+  let boardPaintedDir = "";
   let boardToken = 0;
   let lastBoardHold = { D: null, A: null };
+  let cargoHold = { D: null, A: null };
+  const cargoPreload = { D: null, A: null };
   let lastBriefHold = { icao: "", at: 0, taf: null, wx: null };
+  let briefPreloadTimer = 0;
+  let briefPreloadToken = 0;
   const atisFetchedAt = Object.create(null);
   let clockTimer = 0;
   let boardFlights = [];
   let boardFocusQuery = "";
   let boardFocusSlot = null;
   let boardFocusToken = 0;
+  let boardFocusLast = "";
+  let boardFocusLastOn = false;
+  let boardFocusHeavy = false;
+  let boardFocusEu = false;
+  let boardFocusNoneu = false;
+  let boardFocusNext2h = false;
+  let boardFocusCancelled = false;
+  let boardFocusDelayed = false;
+  let boardShowGone = false;
+  let boardCargoOnly = false;
+  let boardListLimit = 60;
+  let boardAheadHours = 9;
+  let boardDataAhead = 9;
+  let boardMoreBusy = false;
+  let boardRetryTimer = 0;
+  let boardRetryN = 0;
+  const BOARD_RATE_MSG = "Too many refreshes — wait a moment.";
+  const atisInFlight = Object.create(null);
   let boardPin = null;
   let pinCdmToken = 0;
   let pinCdmLoadedFor = "";
@@ -186,42 +227,60 @@
   let adsbFrameUrl = "";
   let adsbFrameToken = 0;
   let metarToken = 0;
+  let delayToken = 0;
   let briefToken = 0;
   let tafValidUntil = null;
-  let liveToken = 0;
-  let liveFeed = null;
-  let listening = false;
-  let audioConnecting = false;
-  let lastAtisSource = "";
   let atisSide = "departure";
   let atisSideManual = false;
   let lastAtisBundle = null;
+  const sweepEnds = new WeakMap();
+  const SWEEP_MIN_MS = 1650;
+  const SWEEP_DONE_MS = 80;
 
-  function setListenConnecting(on) {
-    audioConnecting = on;
-    staleListen.classList.toggle("loading", on);
-    staleListen.setAttribute("aria-busy", on ? "true" : "false");
+  function startBtnSweep(btn) {
+    if (!btn) return;
+    const prev = sweepEnds.get(btn);
+    if (prev) clearTimeout(prev);
+    btn.classList.remove("sweep-done", "sweeping");
+    void btn.offsetWidth;
+    btn.classList.add("sweeping");
+    btn.setAttribute("aria-busy", "true");
+    btn.dataset.sweepAt = String(Date.now());
   }
 
-  function listenSide() {
-    return atisSide === "arrival" ? "arrival" : "departure";
+  function clearBtnSweep(btn) {
+    if (!btn) return;
+    const prev = sweepEnds.get(btn);
+    if (prev) clearTimeout(prev);
+    sweepEnds.delete(btn);
+    btn.classList.remove("sweeping", "sweep-done", "loading");
+    btn.removeAttribute("aria-busy");
+    delete btn.dataset.sweepAt;
   }
 
-  function listenIdleLabel(side) {
-    return (side || listenSide()) === "arrival" ? "LISTEN ARR" : "LISTEN DEPT";
-  }
-
-  function listenKindPhrase(feed, side) {
-    const k = (feed && feed.kind) || side || listenSide();
-    if (k === "arrival") return "arrival ATIS";
-    if (k === "departure") return "departure ATIS";
-    return "ATIS";
-  }
-
-  function feedFitsSide(feed, side) {
-    if (!feed || !feed.url) return false;
-    if (!feed.kind || feed.kind === "combined") return true;
-    return feed.kind === side;
+  function endBtnSweep(btn) {
+    if (!btn || !btn.classList.contains("sweeping")) {
+      if (btn) btn.classList.remove("loading");
+      return;
+    }
+    const prev = sweepEnds.get(btn);
+    if (prev) clearTimeout(prev);
+    const started = Number(btn.dataset.sweepAt || 0);
+    const wait = Math.max(0, SWEEP_MIN_MS - (Date.now() - started));
+    const finish = () => {
+      btn.classList.remove("sweeping", "loading");
+      btn.classList.add("sweep-done");
+      btn.setAttribute("aria-busy", "false");
+      const done = window.setTimeout(() => {
+        btn.classList.remove("sweep-done");
+        sweepEnds.delete(btn);
+      }, SWEEP_DONE_MS);
+      sweepEnds.set(btn, done);
+    };
+    if (wait) {
+      const t = window.setTimeout(finish, wait);
+      sweepEnds.set(btn, t);
+    } else finish();
   }
 
   function loadJson(key, fallback) {
@@ -254,9 +313,24 @@
     return new Set(Array.isArray(set) ? set : DEFAULT_NO_DATIS);
   }
 
+  function scrubCachedAtis(data) {
+    if (!data || typeof data !== "object") return data;
+    const out = { ...data };
+    if (typeof out.overheard !== "boolean") out.overheard = true;
+    delete out.source;
+    if (out.departureAtis) out.departureAtis = scrubCachedAtis(out.departureAtis);
+    if (out.arrivalAtis) out.arrivalAtis = scrubCachedAtis(out.arrivalAtis);
+    return out;
+  }
+
   function loadCache() {
-    const cache = loadJson(LS_CACHE, {});
-    return cache && typeof cache === "object" ? cache : {};
+    const raw = loadJson(LS_CACHE, {});
+    if (!raw || typeof raw !== "object") return {};
+    const out = {};
+    for (const [icao, data] of Object.entries(raw)) {
+      out[icao] = scrubCachedAtis(data);
+    }
+    return out;
   }
 
   function loadLastIcao() {
@@ -374,6 +448,12 @@
   }
 
   const FAA_EXTRA = new Set(["PANC", "PHNL", "TJSJ"]);
+  const CZECH_ATIS = new Set(["LKPR", "LKTB", "LKMT", "LKKV"]);
+
+  function isNasAirport(icao) {
+    const code = normalizeIcao(icao);
+    return code.startsWith("K") || FAA_EXTRA.has(code);
+  }
 
   function isOfficialDatis(icao) {
     const code = normalizeIcao(icao);
@@ -381,14 +461,20 @@
       code === "VHHH" ||
       code.startsWith("K") ||
       code.startsWith("CY") ||
-      FAA_EXTRA.has(code)
+      FAA_EXTRA.has(code) ||
+      CZECH_ATIS.has(code)
     );
+  }
+
+  function isOverheardAtis(data) {
+    if (!data) return true;
+    if (typeof data.overheard === "boolean") return data.overheard;
+    return true;
   }
 
   function needsMetar(icao, data) {
     if (!isOfficialDatis(icao)) return true;
-    const src = data && data.source;
-    return src === "atis.guru" || src === "airframes.io";
+    return isOverheardAtis(data);
   }
 
   let pins = loadPins();
@@ -422,7 +508,9 @@
 
   function airportLabel(ap) {
     const codes = [ap.i, ap.a].filter(Boolean).join(" · ");
-    const place = [ap.n, ap.c].filter(Boolean).join(" — ");
+    const city =
+      ap.c && !cityAlreadyInName(ap.n, ap.c) ? ap.c : "";
+    const place = [ap.n, city].filter(Boolean).join(" — ");
     return { codes, place };
   }
 
@@ -860,9 +948,20 @@
     const g = pinDrag;
     if (!g || event.pointerId !== g.id) return;
     const dx = (event.clientX || g.x) - g.x0;
+    const dy = (event.clientY || g.y) - g.y0;
+    const dist = Math.hypot(dx, dy);
+    const icao = g.icao;
+    const tap = dist < PIN_SLOP_PX * 1.6;
+
+    if (g.mode === "drag" && tap) {
+      g.btn.dataset.suppressClick = "1";
+      pinDragEnd();
+      renderPins();
+      openAtis(icao);
+      return;
+    }
     if (g.mode === "drag") {
-      if (dx <= -PIN_SWIPE_PX * 1.35 && Math.abs(dx) > Math.abs((event.clientY || g.y) - g.y0)) {
-        const icao = g.icao;
+      if (dx <= -PIN_SWIPE_PX * 1.35 && Math.abs(dx) > Math.abs(dy)) {
         pinDragEnd();
         renderPins();
         removePin(icao);
@@ -877,12 +976,13 @@
       return;
     }
     pinDragEnd();
+    if (tap && event.type === "pointercancel") openAtis(icao);
   }
 
   function setTab(name) {
     if (currentTab === "board" && name !== "board") clearBoardFocus();
     currentTab = name;
-    if (name === "board") tickBoardLocal();
+    if (name === "board") paintBoardClocks();
     syncBoardPinOverlay();
     for (const btn of tabButtons) {
       const on = btn.dataset.tab === name;
@@ -899,35 +999,13 @@
     slotsView.hidden = true;
   }
 
-  function stopAtisAudio() {
-    listening = false;
-    setListenConnecting(false);
-    atisAudio.pause();
-    atisAudio.removeAttribute("src");
-    try {
-      atisAudio.load();
-    } catch {
-      /* ignore */
-    }
-    staleListen.setAttribute("aria-pressed", "false");
-    staleListen.textContent = listenIdleLabel();
-  }
-
   function layoutStaleRow() {
-    const showFlag = !staleText.hidden;
-    const showListen = !staleListen.hidden;
-    staleEl.hidden = !(showFlag || showListen);
-    staleEl.classList.toggle("solo", !(showFlag && showListen));
+    staleEl.hidden = staleText.hidden;
   }
 
   function hideStaleBanner() {
-    liveToken += 1;
-    liveFeed = null;
-    stopAtisAudio();
     staleText.hidden = true;
-    staleListen.hidden = true;
     staleEl.hidden = true;
-    staleEl.classList.add("solo");
     closeStaleDialog();
   }
 
@@ -938,37 +1016,12 @@
     layoutStaleRow();
   }
 
-  function applyListenFeed(feed) {
-    const side = listenSide();
-    if (feed && feed.url && feedFitsSide(feed, side)) {
-      liveFeed = feed;
-      staleListen.hidden = false;
-      staleListen.disabled = false;
-      staleListen.classList.toggle("loading", audioConnecting);
-      staleListen.setAttribute("aria-pressed", listening && !audioConnecting ? "true" : "false");
-      staleListen.textContent = listening ? "Stop" : listenIdleLabel(side);
-      const kind = listenKindPhrase(feed, side);
-      staleListen.setAttribute(
-        "aria-label",
-        audioConnecting
-          ? `Connecting to live ${kind}`
-          : listening
-            ? `Stop live ${kind}`
-            : `Listen to live ${kind}`
-      );
-    } else if (!listening && !audioConnecting) {
-      liveFeed = null;
-      staleListen.hidden = true;
-    }
-    layoutStaleRow();
-  }
-
   function acarsStaleCopy() {
     return [
       ["p", "GearUp is an educational site. It is not for official use."],
       [
         "p",
-        "For airports in the United States, Canada, and Hong Kong, ATIS comes from government sources.",
+        "For airports in the United States, Canada, Hong Kong, and the Czech Republic, ATIS comes from government sources.",
       ],
       [
         "p",
@@ -984,10 +1037,6 @@
       [
         "p",
         "Tap ARR for a separate arrival ATIS when one was overheard. GearUp still opens on departure. Arrival is for the landing runway on a possible return.",
-      ],
-      [
-        "p",
-        "If this airport has a live audio feed, LISTEN DEPT or LISTEN ARR appears so you can hear the spoken ATIS for that side.",
       ],
       [
         "p",
@@ -1027,9 +1076,7 @@
   function openStaleDialog() {
     if (staleEl.hidden || staleText.hidden) return;
     fillStaleDialog(
-      isOfficialDatis(currentIcao) &&
-        lastAtisSource !== "atis.guru" &&
-        lastAtisSource !== "airframes.io"
+      isOfficialDatis(currentIcao) && !lastAtisOverheard
     );
     staleDialog.hidden = false;
     if (staleDialogClose) staleDialogClose.focus();
@@ -1039,73 +1086,6 @@
     if (!staleDialog || staleDialog.hidden) return;
     staleDialog.hidden = true;
     if (!staleEl.hidden && staleText) staleText.focus();
-  }
-
-  async function maybeOfferListen(icao) {
-    const token = ++liveToken;
-    const side = listenSide();
-    try {
-      const res = await fetch(
-        `/api/atis-audio/${icao}?kind=${encodeURIComponent(side)}`,
-        { cache: "no-store" }
-      );
-      const data = res.ok ? await res.json() : null;
-      if (token !== liveToken || currentIcao !== icao || currentTab !== "atis") return;
-      if (listenSide() !== side) return;
-      applyListenFeed(data && data.url ? data : null);
-    } catch {
-      if (token !== liveToken || currentIcao !== icao) return;
-      if (listenSide() !== side) return;
-      applyListenFeed(null);
-    }
-  }
-
-  function offerListen(icao) {
-    const side = listenSide();
-    const same =
-      liveFeed && liveFeed.icao === icao && feedFitsSide(liveFeed, side);
-    if (listening && liveFeed && !same) stopAtisAudio();
-    if (same) {
-      applyListenFeed(liveFeed);
-      return;
-    }
-    liveFeed = null;
-    if (!audioConnecting) {
-      staleListen.hidden = true;
-      layoutStaleRow();
-    }
-    maybeOfferListen(icao);
-  }
-
-  async function toggleAtisAudio() {
-    if (!liveFeed || !liveFeed.url) return;
-    if (listening || audioConnecting) {
-      stopAtisAudio();
-      applyListenFeed(liveFeed);
-      return;
-    }
-    listening = true;
-    setListenConnecting(true);
-    staleListen.textContent = "Stop";
-    staleListen.setAttribute("aria-pressed", "false");
-    const kind = listenKindPhrase(liveFeed);
-    staleListen.setAttribute("aria-label", `Connecting to live ${kind}`);
-    atisAudio.src = liveFeed.url;
-    try {
-      await atisAudio.play();
-    } catch {
-      stopAtisAudio();
-      applyListenFeed(liveFeed);
-    }
-  }
-
-  function listenStreamStarted() {
-    if (!listening) return;
-    setListenConnecting(false);
-    staleListen.textContent = "Stop";
-    staleListen.setAttribute("aria-pressed", "true");
-    const kind = listenKindPhrase(liveFeed);
-    staleListen.setAttribute("aria-label", `Stop live ${kind}`);
   }
 
   function showHome() {
@@ -1164,6 +1144,14 @@
     return parts;
   }
 
+  function paintBoardClocks(now) {
+    const d = now || new Date();
+    const hm = `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
+    setText(boardUtcTime, hm);
+    tickBoardLocal(d);
+    if (boardUtcEl) boardUtcEl.setAttribute("datetime", d.toISOString());
+  }
+
   function tickUtcClock() {
     if (document.hidden) {
       stopUtcClock();
@@ -1174,22 +1162,18 @@
     const hm = `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
     const hms = `${hm}:${pad2(d.getUTCSeconds())}`;
     if (!detail.hidden) setText(utcTimeEl, hms);
+    setText(briefUtcTime, hm);
+    setText(briefUtcDay, day);
+    if (currentTab === "board") paintBoardClocks(d);
     const minKey = day + hm;
     if (minKey === lastClockMin) return;
     lastClockMin = minKey;
     setText(utcTimeEl, hms);
     setText(utcDayEl, day);
-    setText(briefUtcTime, hm);
-    setText(briefUtcDay, day);
     tickAirportLocal(d);
-    if (currentTab === "board") {
-      setText(boardUtcTime, hm);
-      tickBoardLocal(d);
-    }
     const iso = d.toISOString();
     if (utcClockEl) utcClockEl.setAttribute("datetime", iso);
     if (briefUtcEl) briefUtcEl.setAttribute("datetime", iso);
-    if (boardUtcEl) boardUtcEl.setAttribute("datetime", iso);
     tickBriefSun(d);
     tickTafRemain();
     tickZuluColors();
@@ -1357,6 +1341,7 @@
   let lastTafIssued = "";
   let lastDepRunways = [];
   let lastAtisIssued = "";
+  let lastAtisOverheard = true;
   let lastAtisShown = null;
   let quietAcarsTimer = 0;
   let quietAcarsToken = 0;
@@ -1375,37 +1360,41 @@
     return `${hr} h ${rem} min ago`;
   }
 
-  function formatAtisAge(issued) {
+  function formatAtisAgePhrase(issued) {
     const t = Date.parse(issued);
     if (Number.isNaN(t)) return "";
     const ms = Date.now() - t;
     if (ms < 0) return "";
     const min = Math.floor(ms / 60000);
-    if (min < 1) return "just now";
-    if (min < 60) {
-      return min === 1 ? "1 minute old" : `${min} minutes old`;
-    }
+    if (min < 1) return "less than 1 minute old";
+    if (min < 60) return min === 1 ? "1 minute old" : `${min} minutes old`;
     const hr = Math.floor(min / 60);
     const rem = min % 60;
     const hours = hr === 1 ? "1 hour" : `${hr} hours`;
-    let age;
-    if (!rem) age = `${hours} old`;
-    else {
-      const mins = rem === 1 ? "1 minute" : `${rem} minutes`;
-      age = `${hours} ${mins} old`;
+    if (!rem) return `${hours} old`;
+    const mins = rem === 1 ? "1 minute" : `${rem} minutes`;
+    return `${hours} ${mins} old`;
+  }
+
+  function minuteStamp(issued) {
+    const t = Date.parse(issued);
+    if (!Number.isFinite(t)) return null;
+    return Math.floor(t / 60000);
+  }
+
+  function formatAtisHeaderAge(issued) {
+    const age = formatAtisAgePhrase(issued);
+    if (!age) return "";
+    let text = `is ${age}`;
+    const atisMin = minuteStamp(issued);
+    const metarMin =
+      metarBox && !metarBox.hidden ? minuteStamp(lastMetarObserved) : null;
+    if (atisMin != null && metarMin != null) {
+      if (metarMin < atisMin) text += ", displayed METAR is older";
+      else if (metarMin > atisMin) text += ", displayed METAR is more recent";
+      else text += ", displayed METAR is the same age";
     }
-    const d = new Date(t);
-    const n = new Date();
-    if (
-      d.getUTCFullYear() !== n.getUTCFullYear() ||
-      d.getUTCMonth() !== n.getUTCMonth() ||
-      d.getUTCDate() !== n.getUTCDate()
-    ) {
-      return `${age} · ${d.getUTCDate()} ${MONTHS_UTC[d.getUTCMonth()]} ${pad2(
-        d.getUTCHours()
-      )}${pad2(d.getUTCMinutes())}Z`;
-    }
-    return age;
+    return `${text}.`;
   }
 
   function setDeptNote(on, mode) {
@@ -1422,12 +1411,7 @@
   function issueDayUncertain(data) {
     if (!data || !data.text) return false;
     const icao = normalizeIcao(data.icao || currentIcao);
-    const src = String(data.source || "");
-    if (
-      isOfficialDatis(icao) &&
-      src !== "atis.guru" &&
-      src !== "airframes.io"
-    ) {
+    if (isOfficialDatis(icao) && !isOverheardAtis(data)) {
       return false;
     }
     if (data.issueDayKnown === true) return false;
@@ -1452,7 +1436,7 @@
 
   function tickAges() {
     if (!metarBox.hidden) setAgeEl(metarAgeEl, lastMetarObserved);
-    setAgeEl(atisAgeEl, lastAtisIssued, formatAtisAge);
+    setAgeEl(atisAgeEl, lastAtisIssued, formatAtisHeaderAge);
     if (atisAgeEl && lastAtisIssued) {
       const t = Date.parse(lastAtisIssued);
       atisAgeEl.classList.toggle("zulu-old", isZuluOld(t));
@@ -1469,6 +1453,7 @@
     metarText.textContent = "";
     metarAgeEl.hidden = true;
     metarAgeEl.textContent = "";
+    tickAges();
   }
 
   function parseObservedAt(m) {
@@ -1489,6 +1474,7 @@
       metarText.textContent = "";
       metarAgeEl.hidden = true;
       metarAgeEl.textContent = "";
+      tickAges();
       return;
     }
     lastMetarObserved = parseObservedAt(m);
@@ -1694,7 +1680,13 @@
     const zuluRef = o.zuluRef;
     const Hl = typeof GearUpHl !== "undefined" ? GearUpHl : null;
     if (Hl) {
-      Hl.paint(el, raw, Hl.ranges(raw, o).concat(zuluRanges(raw, staleMs, zuluRef)));
+      Hl.paint(
+        el,
+        raw,
+        Hl.ranges(raw, Object.assign({ icao: currentIcao }, o)).concat(
+          zuluRanges(raw, staleMs, zuluRef)
+        )
+      );
       return;
     }
     el.replaceChildren();
@@ -1958,13 +1950,16 @@
 
     if (loading) {
       lastAtisIssued = "";
+      lastAtisOverheard = true;
       lastAtisShown = null;
       kindLabel.textContent = "Departure ATIS";
       setAgeEl(atisAgeEl, "");
       setDayNote(false);
       setDeptNote(false);
-      if (!listening) hideStaleBanner();
+      hideStaleBanner();
       hideAtisRwycond();
+      hideAtisDelay({ cancel: true });
+      hideInferDep();
       hideWorstWind();
       bodyEl.className = "atis-body loading";
       bodyEl.textContent = (view && view.text) || "Loading…";
@@ -1973,6 +1968,7 @@
 
     if (view.kind === "empty") {
       lastAtisIssued = "";
+      lastAtisOverheard = isOverheardAtis(view);
       lastAtisShown = view;
       const wantArr = atisSide === "arrival";
       kindLabel.textContent = wantArr ? "No arrival ATIS" : "No D-ATIS";
@@ -1983,29 +1979,32 @@
         "shown"
       );
       setStaleFlag(false);
-      offerListen(icao);
       hideAtisRwycond();
+      hideInferDep();
       hideWorstWind();
       bodyEl.className = "atis-body empty";
       bodyEl.textContent = wantArr
         ? `No arrival ATIS is available for ${icao}.`
         : `No digital ATIS is available for ${icao}.`;
+      maybeLoadDelay(icao);
       return;
     }
 
     if (view.kind === "error") {
       lastAtisIssued = "";
+      lastAtisOverheard = true;
       lastAtisShown = view;
       kindLabel.textContent = "ATIS";
       setAgeEl(atisAgeEl, "");
       setDayNote(false);
       setDeptNote(false);
       setStaleFlag(false);
-      offerListen(icao);
       hideAtisRwycond();
+      hideInferDep();
       hideWorstWind();
       bodyEl.className = "atis-body error";
       bodyEl.textContent = view.error || "Could not load ATIS.";
+      maybeLoadDelay(icao);
       return;
     }
 
@@ -2015,10 +2014,10 @@
         : view.kind === "combined"
           ? "Combined ATIS"
           : "Departure ATIS";
-    lastAtisSource = view.source || "";
+    lastAtisOverheard = isOverheardAtis(view);
     lastAtisIssued = atisIssuedAt(view);
     lastAtisShown = view;
-    setAgeEl(atisAgeEl, lastAtisIssued, formatAtisAge);
+    setAgeEl(atisAgeEl, lastAtisIssued, formatAtisHeaderAge);
     setDayNote(issueDayUncertain(view));
     const dep = sideFromBundle(data, "departure");
     const noRecentDep = !usableShown(dep) || isStaleAtis(dep);
@@ -2030,28 +2029,52 @@
 
     const stale = isStaleAtis(view);
     setStaleFlag(stale);
-    offerListen(icao);
 
     bodyEl.className = "atis-body";
     const Hl = typeof GearUpHl !== "undefined" ? GearUpHl : null;
     const atisText =
       Hl && Hl.formatAtis ? Hl.formatAtis(view.text || "") : view.text || "";
-    let rwys = [];
+    let arrRwys = [];
+    let depRwys = [];
     if (Hl) {
-      const primary = view.kind === "arrival" ? Hl.arrRunways : Hl.depRunways;
-      const fallback = view.kind === "arrival" ? Hl.depRunways : Hl.arrRunways;
-      if (primary) rwys = primary(atisText);
-      if (!rwys.length && fallback) rwys = fallback(atisText);
+      if (Hl.arrRunways) arrRwys = Hl.arrRunways(atisText);
+      if (Hl.depRunways) depRwys = Hl.depRunways(atisText);
     }
-    lastDepRunways = rwys;
+    const highlightRwys =
+      atisSide === "arrival"
+        ? arrRwys.length
+          ? arrRwys
+          : depRwys
+        : depRwys.length
+          ? depRwys
+          : arrRwys;
+    const showInfer =
+      normalizeIcao(icao) === "EHAM" &&
+      atisSide === "departure" &&
+      view.kind === "arrival" &&
+      noRecentDep;
+    const inferred = showInfer ? fillInferDep(arrRwys, atisText) : [];
+    if (!showInfer) hideInferDep();
+    lastDepRunways = inferred.length ? inferred : highlightRwys;
     paintOpsInto(bodyEl, atisText, {
       letter: view.letter,
-      runways: lastDepRunways,
+      runways: highlightRwys,
       zuluRef: lastAtisIssued,
     });
-    fillWorstWind(atisText, view.kind, lastDepRunways, stale);
+    fillWorstWind(
+      atisText,
+      inferred.length
+        ? "departure"
+        : atisSide === "arrival"
+          ? "arrival"
+          : "departure",
+      lastDepRunways,
+      stale
+    );
+    if (!inferred.length) maybeOpenInferPreview(atisText, arrRwys);
     const R = typeof GearUpRwycond !== "undefined" ? GearUpRwycond : null;
     fillRwycond(atisRwycond, atisRwycondBody, R ? R.parse(atisText) : null);
+    maybeLoadDelay(icao);
     if (lastMetarRaw && !metarBox.hidden) {
       paintOpsInto(metarText, lastMetarRaw, { runways: lastDepRunways });
     }
@@ -2134,6 +2157,10 @@
   }
 
   function fresherSide(a, b) {
+    const aOff = a && a.overheard === false;
+    const bOff = b && b.overheard === false;
+    if (bOff && !aOff && usableShown(b)) return stripAtisSides(b);
+    if (aOff && !bOff && usableShown(a)) return stripAtisSides(a);
     if (acarsIsImprovement(b, a)) return b ? stripAtisSides(b) : null;
     if (usableShown(a)) return stripAtisSides(a);
     if (usableShown(b)) return stripAtisSides(b);
@@ -2164,6 +2191,7 @@
       issuedText: newest ? newest.issuedText : "",
       heardAt: newest ? newest.heardAt : null,
       issueDayKnown: newest ? newest.issueDayKnown : undefined,
+      overheard: newest ? newest.overheard === true : next.overheard === true,
       departureAtis: dep,
       arrivalAtis: arr,
       acarsPending: false,
@@ -2246,8 +2274,15 @@
   function paintWxInto(el, text) {
     const raw = String(text || "");
     const Hl = typeof GearUpHl !== "undefined" ? GearUpHl : null;
-    if (Hl && Hl.paint && Hl.wxRanges) {
-      Hl.paint(el, raw, Hl.wxRanges(raw));
+    if (Hl && Hl.paint && Hl.ranges) {
+      Hl.paint(
+        el,
+        raw,
+        Hl.ranges(raw, {
+          icao: currentIcao,
+          runways: runwaysForPaint(),
+        })
+      );
       return;
     }
     el.textContent = raw;
@@ -2285,6 +2320,31 @@
     return true;
   }
 
+  function hideInferDep() {
+    if (!atisInferDep) return;
+    atisInferDep.hidden = true;
+    if (atisInferDepLine) atisInferDepLine.textContent = "";
+  }
+
+  function fillInferDep(arrRunways, text) {
+    hideInferDep();
+    const E = typeof GearUpEhamRwy !== "undefined" ? GearUpEhamRwy : null;
+    if (!E || !E.infer || !atisInferDep || !atisInferDepLine) return [];
+    let dir = null;
+    const W = typeof GearUpWorstWind !== "undefined" ? GearUpWorstWind : null;
+    if (W && W.parseWinds) {
+      const winds = W.parseWinds(text || "");
+      const w = winds.find((x) => Number.isFinite(x.dir));
+      if (w) dir = w.dir;
+    }
+    const inf = E.infer(arrRunways, Date.now(), dir);
+    const rwys = inf && Array.isArray(inf.runways) ? inf.runways : [];
+    if (!rwys.length || !inf.phrase) return [];
+    atisInferDepLine.textContent = inf.phrase;
+    atisInferDep.hidden = false;
+    return rwys;
+  }
+
   function hideWorstWind() {
     if (!atisWorstwind) return;
     atisWorstwind.hidden = true;
@@ -2304,22 +2364,9 @@
     if (atisWorstwind && !atisWorstwind.hidden) atisWorstwind.focus();
   }
 
-  function fillWorstWind(text, kind, runways, stale) {
-    if (!atisWorstwind || !atisWorstwindBody) return;
-    clearNode(atisWorstwindBody);
-    const W = typeof GearUpWorstWind !== "undefined" ? GearUpWorstWind : null;
-    const rows =
-      W && W.lines
-        ? W.lines(text, {
-            kind: kind === "arrival" ? "arrival" : "departure",
-            runways: runways || [],
-          })
-        : [];
-    if (!rows.length) {
-      atisWorstwind.hidden = true;
-      closeWorstwindDialog();
-      return;
-    }
+  function paintWorstWindBody(container, rows, stale) {
+    if (!container) return;
+    clearNode(container);
     for (const line of rows) {
       const p = document.createElement("p");
       const parts = String(line).match(
@@ -2387,8 +2434,72 @@
         aside.appendChild(staleNote);
       }
       p.appendChild(aside);
-      atisWorstwindBody.appendChild(p);
+      container.appendChild(p);
     }
+  }
+
+  function closeInferPreview() {
+    if (!inferPreviewDialog || inferPreviewDialog.hidden) return;
+    inferPreviewDialog.hidden = true;
+    try {
+      localStorage.setItem("atis.inferPreviewSeen", "1");
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function maybeOpenInferPreview(text, arrRunways) {
+    if (!inferPreviewDialog || !inferPreviewLine) return;
+    if (normalizeIcao(currentIcao) !== "EHAM") return;
+    if (atisSide !== "departure") return;
+    try {
+      if (localStorage.getItem("atis.inferPreviewSeen") === "1") return;
+    } catch {
+      /* ignore */
+    }
+    const E = typeof GearUpEhamRwy !== "undefined" ? GearUpEhamRwy : null;
+    const W = typeof GearUpWorstWind !== "undefined" ? GearUpWorstWind : null;
+    let dir = null;
+    if (W && W.parseWinds) {
+      const winds = W.parseWinds(text || "");
+      const w = winds.find((x) => Number.isFinite(x.dir));
+      if (w) dir = w.dir;
+    }
+    const arr =
+      arrRunways && arrRunways.length ? arrRunways : [{ id: "06" }];
+    const inf = E && E.infer ? E.infer(arr, Date.now(), dir) : null;
+    const rwys = inf && inf.runways && inf.runways.length ? inf.runways : [];
+    inferPreviewLine.textContent =
+      (inf && inf.phrase) || "Inferred Departure Runway 36L";
+    const sample = text || "WIND 240 DEG, 11 KT.";
+    const rows =
+      W && W.lines && rwys.length
+        ? W.lines(sample, { kind: "departure", runways: rwys })
+        : [
+            "WORST 36L DEPARTURE WIND 240/11 T2 X9",
+            "WORST 36C DEPARTURE WIND 240/11 H5 X10",
+          ];
+    paintWorstWindBody(inferPreviewWind, rows, false);
+    inferPreviewDialog.hidden = false;
+    if (inferPreviewClose) inferPreviewClose.focus();
+  }
+
+  function fillWorstWind(text, kind, runways, stale) {
+    if (!atisWorstwind || !atisWorstwindBody) return;
+    const W = typeof GearUpWorstWind !== "undefined" ? GearUpWorstWind : null;
+    const rows =
+      W && W.lines
+        ? W.lines(text, {
+            kind: kind === "arrival" ? "arrival" : "departure",
+            runways: runways || [],
+          })
+        : [];
+    if (!rows.length) {
+      atisWorstwind.hidden = true;
+      closeWorstwindDialog();
+      return;
+    }
+    paintWorstWindBody(atisWorstwindBody, rows, stale);
     atisWorstwind.hidden = false;
   }
 
@@ -2396,6 +2507,56 @@
     if (!atisRwycond) return;
     atisRwycond.hidden = true;
     if (atisRwycondBody) clearNode(atisRwycondBody);
+  }
+
+  function hideAtisDelay(opts) {
+    if (opts && opts.cancel) delayToken += 1;
+    if (!atisDelay) return;
+    atisDelay.hidden = true;
+    if (atisDelayBody) clearNode(atisDelayBody);
+  }
+
+  function fillAtisNasDelay(data) {
+    if (!atisDelay || !atisDelayBody) return;
+    if (!data || !data.applicable || data.error) {
+      hideAtisDelay();
+      return;
+    }
+    const items = (data.items || []).map((row) => ({
+      head: delayLine(row),
+    }));
+    if (!items.length) {
+      hideAtisDelay();
+      return;
+    }
+    fillWxList(atisDelayBody, items);
+    atisDelay.hidden = false;
+  }
+
+  async function maybeLoadDelay(icao) {
+    if (!isNasAirport(icao)) {
+      hideAtisDelay();
+      return;
+    }
+    const held =
+      lastBriefHold.icao === icao &&
+      lastBriefHold.wx &&
+      lastBriefHold.wx.delay &&
+      Date.now() - lastBriefHold.at < BRIEF_HOLD_MS;
+    if (held) {
+      fillAtisNasDelay(lastBriefHold.wx.delay);
+      return;
+    }
+    const token = delayToken;
+    try {
+      const res = await fetch(`/api/delay/${icao}`, { cache: "no-store" });
+      const data = res.ok ? await res.json() : null;
+      if (token !== delayToken || currentIcao !== icao) return;
+      fillAtisNasDelay(data);
+    } catch {
+      if (token !== delayToken) return;
+      if (!atisDelay || atisDelay.hidden) hideAtisDelay();
+    }
   }
 
   function fillRwycond(block, body, parsed, titleEl) {
@@ -2522,6 +2683,7 @@
         data.delay.error || "None at this field."
       );
       wxDelay.hidden = false;
+      fillAtisNasDelay(data.delay);
     }
 
     const sigs = (data.sigmets || []).map((row) => ({
@@ -2542,14 +2704,27 @@
       const da = data.densityAltitude;
       const bits = [];
       const daTok = document.createElement("span");
-      daTok.className = "wx-da-value";
-      daTok.textContent = `DA${da.ft.toLocaleString("en-US")} ft`;
+      const daLbl = document.createElement("span");
+      daLbl.className = "wx-da-label";
+      daLbl.textContent = "DA";
+      daTok.appendChild(daLbl);
+      daTok.appendChild(
+        document.createTextNode(`${da.ft.toLocaleString("en-US")} ft`)
+      );
       bits.push(daTok);
       if (Number.isFinite(da.elevFt)) {
         bits.push(document.createTextNode(` · elev ${da.elevFt} ft`));
       }
       if (Number.isFinite(da.qnhHpa)) {
-        bits.push(document.createTextNode(` · Q${Math.round(da.qnhHpa)}`));
+        bits.push(document.createTextNode(" · "));
+        const qLbl = document.createElement("span");
+        qLbl.className = "wx-da-label";
+        qLbl.textContent = "QNH";
+        bits.push(qLbl);
+        const qVal = document.createElement("span");
+        if (da.qnhHpa < 990) qVal.className = "hl-ops";
+        qVal.textContent = String(Math.round(da.qnhHpa));
+        bits.push(qVal);
       }
       clearNode(wxDaBody);
       const line = document.createElement("p");
@@ -2562,9 +2737,16 @@
       clearNode(wxRhBody);
       const line = document.createElement("p");
       line.className = "wx-pair-line";
-      const bits = [`${rh.tempC}°C`, `DP ${rh.dewC}°C`, `${rh.rh}%`];
-      if (Number.isFinite(rh.feelC)) bits.push(`feel ${rh.feelC}°C`);
-      line.textContent = bits.join(" · ");
+      const tSpan = document.createElement("span");
+      if (Number.isFinite(rh.tempC) && (rh.tempC > 35 || rh.tempC <= 10)) {
+        tSpan.className = "hl-ops";
+      }
+      tSpan.textContent = `${rh.tempC}°C`;
+      line.appendChild(tSpan);
+      line.appendChild(document.createTextNode(` · DP ${rh.dewC}°C · ${rh.rh}%`));
+      if (Number.isFinite(rh.feelC)) {
+        line.appendChild(document.createTextNode(` · feel ${rh.feelC}°C`));
+      }
       wxRhBody.appendChild(line);
       wxRh.hidden = false;
     }
@@ -2629,6 +2811,60 @@
     tickTafRemain();
   }
 
+  function cancelBriefPreload() {
+    briefPreloadToken += 1;
+    if (briefPreloadTimer) {
+      clearTimeout(briefPreloadTimer);
+      briefPreloadTimer = 0;
+    }
+  }
+
+  function briefHoldFresh(code) {
+    return (
+      lastBriefHold.icao === code &&
+      lastBriefHold.taf &&
+      !lastBriefHold.taf.error &&
+      Date.now() - lastBriefHold.at < BRIEF_HOLD_MS
+    );
+  }
+
+  function fetchBriefPayload(code) {
+    const tafPromise = fetch(`/api/taf/${code}`, { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : { error: "Could not load TAF." }))
+      .catch(() => ({ error: "Could not load TAF." }));
+    const wxPromise = fetch(`/api/briefwx/${code}`, { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .catch(() => null);
+    return { tafPromise, wxPromise };
+  }
+
+  async function preloadBrief(code) {
+    if (briefHoldFresh(code)) return;
+    const token = briefPreloadToken;
+    try {
+      const { tafPromise, wxPromise } = fetchBriefPayload(code);
+      const [taf, wx] = await Promise.all([tafPromise, wxPromise]);
+      if (token !== briefPreloadToken || currentIcao !== code) return;
+      lastBriefHold = { icao: code, at: Date.now(), taf, wx };
+      if (currentTab === "atis") fillAtisNasDelay(wx && wx.delay);
+    } catch {
+      /* keep whatever TAF we already have */
+    }
+  }
+
+  function scheduleBriefPreload(icao) {
+    cancelBriefPreload();
+    const code = normalizeIcao(icao);
+    if (code.length !== 4) return;
+    const token = briefPreloadToken;
+    briefPreloadTimer = setTimeout(() => {
+      briefPreloadTimer = 0;
+      if (token !== briefPreloadToken) return;
+      if (currentIcao !== code || currentTab !== "atis") return;
+      preloadBrief(code);
+    }, 0);
+  }
+
   function showBriefEmpty() {
     hideViews();
     setTab("taf");
@@ -2650,6 +2886,7 @@
     const force = !!(opts && opts.force);
     const code = normalizeIcao(icao);
     cancelQuietAcars();
+    cancelBriefPreload();
     hideStaleBanner();
     hideViews();
     setTab("taf");
@@ -2670,62 +2907,143 @@
       tickBriefSun(new Date());
       tickAirportLocal(new Date());
     });
-    if (
-      !force &&
-      lastBriefHold.icao === code &&
-      lastBriefHold.taf &&
-      Date.now() - lastBriefHold.at < BRIEF_HOLD_MS
-    ) {
-      briefRefresh.disabled = false;
+    if (!force && briefHoldFresh(code)) {
       renderTaf(lastBriefHold.taf);
       if (lastBriefHold.wx) renderBriefWx(lastBriefHold.wx);
+      briefRefresh.disabled = false;
       return;
     }
+    if (!force && lastBriefHold.icao === code && lastBriefHold.taf) {
+      renderTaf(lastBriefHold.taf);
+      if (lastBriefHold.wx) renderBriefWx(lastBriefHold.wx);
+    } else {
+      tafBody.className = "atis-body loading";
+      tafBody.textContent = "Loading…";
+      tafIssued.hidden = true;
+      tafRemain.textContent = "";
+      hideWxBlocks();
+      renderSnowtamCard(code);
+    }
+    if (force) startBtnSweep(briefRefresh);
     briefRefresh.disabled = true;
-    tafBody.className = "atis-body loading";
-    tafBody.textContent = "Loading…";
-    tafIssued.hidden = true;
-    tafRemain.textContent = "";
-    hideWxBlocks();
-    renderSnowtamCard(code);
 
     const token = ++briefToken;
     const stillHere = () => token === briefToken && currentTab === "taf";
 
-    const tafPromise = fetch(`/api/taf/${code}`, { cache: "no-store" })
-      .then((res) => (res.ok ? res.json() : { error: "Could not load TAF." }))
-      .catch(() => ({ error: "Could not load TAF." }));
-    const wxPromise = fetch(`/api/briefwx/${code}`, { cache: "no-store" })
-      .then((res) => (res.ok ? res.json() : null))
-      .catch(() => null);
-
     try {
+      const { tafPromise, wxPromise } = fetchBriefPayload(code);
       const taf = await tafPromise;
       if (!stillHere()) return;
-      lastBriefHold.icao = code;
-      lastBriefHold.at = Date.now();
-      lastBriefHold.taf = taf;
+      lastBriefHold = {
+        icao: code,
+        at: Date.now(),
+        taf,
+        wx: lastBriefHold.icao === code ? lastBriefHold.wx : null,
+      };
       renderTaf(taf);
+      const wx = await wxPromise;
+      if (!stillHere()) return;
+      lastBriefHold.wx = wx;
+      renderBriefWx(wx);
     } catch {
       if (!stillHere()) return;
       renderTaf({ error: "Could not load TAF." });
     } finally {
-      if (token === briefToken) briefRefresh.disabled = false;
+      if (token === briefToken) {
+        briefRefresh.disabled = false;
+        if (force) endBtnSweep(briefRefresh);
+      }
     }
+  }
 
-    const wx = await wxPromise;
-    if (!stillHere()) return;
-    lastBriefHold.wx = wx;
-    renderBriefWx(wx);
+  function boardViewOpts() {
+    return {
+      showGone: boardShowGone,
+      cargoOnly: boardCargoOnly,
+      limit: focusTicksOn() ? 60 : boardFocusQuery || boardCargoOnly ? 0 : boardListLimit,
+      heavyOnly: boardFocusHeavy,
+      euOnly: boardFocusEu,
+      noneuOnly: boardFocusNoneu,
+      next2h: boardFocusNext2h,
+      cancelledOnly: boardDir !== "A" && boardFocusCancelled,
+      delayedOnly: boardDir === "A" && boardFocusDelayed,
+    };
+  }
+
+  function focusTicksOn() {
+    return !!(
+      boardFocusHeavy ||
+      boardFocusEu ||
+      boardFocusNoneu ||
+      boardFocusNext2h ||
+      (boardDir === "A" ? boardFocusDelayed : boardFocusCancelled)
+    );
+  }
+
+  function needsWideBoard() {
+    return !!(focusTicksOn() || boardFocusQuery);
+  }
+
+  function desiredAheadHours() {
+    return needsWideBoard() ? 24 : boardAheadHours;
+  }
+
+  function resetBoardPaging() {
+    boardListLimit = 60;
+    if (!needsWideBoard()) boardAheadHours = 9;
+    else boardAheadHours = 24;
+  }
+
+  function syncGoneLabel() {
+    if (!boardShowGoneBtn) return;
+    boardShowGoneBtn.textContent =
+      boardDir === "A" ? "SHOW ARRIVED" : "SHOW DEPARTED";
+  }
+
+  function syncBoardFilterBtns() {
+    if (boardShowGoneBtn) {
+      boardShowGoneBtn.classList.toggle("active", boardShowGone);
+      boardShowGoneBtn.setAttribute("aria-pressed", boardShowGone ? "true" : "false");
+    }
+    if (boardFilterCargoBtn) {
+      boardFilterCargoBtn.classList.toggle("active", boardCargoOnly);
+      boardFilterCargoBtn.setAttribute(
+        "aria-pressed",
+        boardCargoOnly ? "true" : "false"
+      );
+    }
+  }
+
+  function syncBoardMoreBtn(flights) {
+    if (!boardShowMoreBtn) return;
+    const api = boardApi();
+    const lock = pinOverlayIsOpen() || boardMoreBusy;
+    boardShowMoreBtn.disabled = lock;
+    if (boardFocusQuery || focusTicksOn() || boardCargoOnly) {
+      boardShowMoreBtn.hidden = true;
+      return;
+    }
+    const list =
+      api && api.filterBoardFlights
+        ? api.filterBoardFlights(flights, boardViewOpts())
+        : Array.isArray(flights)
+          ? flights
+          : [];
+    const moreInList = list.length > boardListLimit;
+    const canExtend = desiredAheadHours() < 24 && boardDataAhead < 24;
+    boardShowMoreBtn.hidden = !(moreInList || canExtend);
   }
 
   function setBoardDir(dir) {
     boardDir = dir === "A" ? "A" : "D";
+    resetBoardRetry();
     for (const btn of boardDirBtns) {
       const on = btn.dataset.dir === boardDir;
       btn.classList.toggle("active", on);
       btn.setAttribute("aria-selected", on ? "true" : "false");
     }
+    syncGoneLabel();
+    syncFocusTicks();
   }
 
   function paintBoard(data, errorText, opts) {
@@ -2733,6 +3051,10 @@
     const flights =
       !errorText && data && Array.isArray(data.flights) ? data.flights : [];
     boardFlights = flights;
+    if (!errorText && data && Number.isFinite(Number(data.aheadHours))) {
+      const hours = Number(data.aheadHours);
+      boardDataAhead = hours === 18 || hours === 24 ? hours : 9;
+    }
     if (errorText) {
       boardList.hidden = true;
       boardEmpty.hidden = false;
@@ -2740,18 +3062,26 @@
       if (api) api.paintRows(boardList, []);
       applyBoardFocus();
       refreshBoardPinExtras();
+      syncBoardMoreBtn([]);
       return;
     }
-    const shown = api ? api.visibleFlights(flights, boardFocusQuery) : flights;
+    const shown = api
+      ? api.visibleFlights(flights, boardFocusQuery, boardViewOpts())
+      : flights;
     if (!shown.length) {
       boardList.hidden = true;
       boardEmpty.hidden = false;
+      const pending = !!(data && (data.partial || data.revalidating));
       const kind = api ? api.classifyQuery(boardFocusQuery) : { kind: "" };
-      if (kind.kind === "route") {
+      if (pending && !kind.q) {
+        boardEmpty.textContent = "Loading…";
+      } else if (boardCargoOnly) {
         boardEmpty.textContent =
-          boardDir === "A"
-            ? `No arrivals from ${kind.q}.`
-            : `No departures to ${kind.q}.`;
+          boardDir === "A" ? "No cargo arrivals." : "No cargo departures.";
+      } else if (kind.q) {
+        boardEmpty.textContent = `No flights matching ${kind.q}.`;
+      } else if (focusTicksOn()) {
+        boardEmpty.textContent = "No flights match these filters.";
       } else {
         boardEmpty.textContent =
           boardDir === "A" ? "No upcoming arrivals." : "No upcoming departures.";
@@ -2759,13 +3089,155 @@
       if (api) api.paintRows(boardList, []);
       applyBoardFocus();
       refreshBoardPinExtras();
+      if (pending && !kind.q) {
+        if (boardShowMoreBtn) boardShowMoreBtn.hidden = true;
+      } else {
+        syncBoardMoreBtn(flights);
+      }
       return;
     }
     boardEmpty.hidden = true;
     boardList.hidden = false;
+    boardPaintedDir = boardDir;
     if (api) api.paintRows(boardList, shown);
     applyBoardFocus({ scroll: !!(opts && opts.scroll) });
     refreshBoardPinExtras();
+    syncBoardMoreBtn(flights);
+  }
+
+  function boardDataSignature(data) {
+    const flights = data && Array.isArray(data.flights) ? data.flights : [];
+    return flights
+      .map((row) =>
+        [
+          row.flight,
+          row.timeZ,
+          row.timeNewZ,
+          row.statusKind,
+          row.statusLabel,
+          row.gate,
+          row.reg,
+          row.route,
+        ].join("\t")
+      )
+      .join("\n");
+  }
+
+  function rememberCargoHold(dir, data) {
+    if (!data || !Array.isArray(data.flights)) return;
+    if (Number(data.aheadHours) !== 24 || data.partial) return;
+    cargoHold[dir] = { at: Date.now(), data, aheadHours: 24 };
+  }
+
+  function cargoHoldFor(dir) {
+    const held = cargoHold[dir];
+    if (held && held.data && Array.isArray(held.data.flights)) return held;
+    return null;
+  }
+
+  function boardHoldForView(dir) {
+    if (needsWideBoard()) {
+      const wide = cargoHoldFor(dir);
+      if (wide) return wide;
+    }
+    return boardHoldFor(dir);
+  }
+
+  function ensureCargoPreload(dir, opts) {
+    const d = dir === "A" ? "A" : "D";
+    const force = !!(opts && opts.force);
+    const held = cargoHoldFor(d);
+    if (!force && held && Date.now() - held.at < 60000) {
+      return cargoPreload[d] || Promise.resolve(held.data);
+    }
+    if (cargoPreload[d]) return cargoPreload[d];
+    cargoPreload[d] = fetchBoardDir(d, { ahead: 24 })
+      .then((data) => {
+        rememberCargoHold(d, data);
+        if (
+          needsWideBoard() &&
+          boardDir === d &&
+          currentTab === "board" &&
+          data &&
+          !data.partial
+        ) {
+          paintBoard(data);
+        }
+        return data;
+      })
+      .catch(() => null)
+      .finally(() => {
+        cargoPreload[d] = null;
+      });
+    return cargoPreload[d];
+  }
+
+  function commitBoard(dir, data, opts) {
+    if (!data || !Array.isArray(data.flights)) return;
+    const preload = !!(opts && opts.preload);
+    const pending = !!(data.partial || data.revalidating);
+    rememberCargoHold(dir, data);
+    if (preload) {
+      if (
+        needsWideBoard() &&
+        dir === boardDir &&
+        currentTab === "board" &&
+        !data.partial
+      ) {
+        paintBoard(data, null, opts);
+      }
+      return;
+    }
+    const held = boardHoldForView(dir);
+    const hadList = !!(
+      held &&
+      held.data &&
+      Array.isArray(held.data.flights) &&
+      held.data.flights.length
+    );
+    if (hadList && data.partial) {
+      if (pending) scheduleBoardRetry();
+      return;
+    }
+    const aheadRaw = Number(data.aheadHours);
+    const ahead = aheadRaw === 18 || aheadRaw === 24 ? aheadRaw : desiredAheadHours();
+    if (
+      hadList &&
+      boardPaintedDir === dir &&
+      Number(held.aheadHours) === ahead &&
+      boardDataSignature(held.data) === boardDataSignature(data)
+    ) {
+      if (!boardCargoOnly && !focusTicksOn()) {
+        lastBoardHold[dir] = {
+          at: Date.now(),
+          data,
+          aheadHours: ahead,
+          cargo: false,
+        };
+      }
+      if (pending) scheduleBoardRetry();
+      else {
+        boardRetryN = 0;
+        ensureCargoPreload(dir);
+        ensureCargoPreload(dir === "A" ? "D" : "A");
+      }
+      return;
+    }
+    if (!boardCargoOnly && !focusTicksOn()) {
+      lastBoardHold[dir] = {
+        at: Date.now(),
+        data,
+        aheadHours: ahead,
+        cargo: false,
+      };
+    }
+    paintBoard(data, null, opts);
+    if (pending) scheduleBoardRetry();
+    else {
+      boardRetryN = 0;
+      ensureCargoPreload(dir);
+      ensureCargoPreload(dir === "A" ? "D" : "A");
+    }
   }
 
   function boardApi() {
@@ -2798,11 +3270,19 @@
     if (boardFocusBtn) boardFocusBtn.disabled = lock;
     for (const btn of boardDirBtns) btn.disabled = lock;
     if (boardAdsbBtn) boardAdsbBtn.disabled = lock;
+    if (boardShowGoneBtn) boardShowGoneBtn.disabled = lock;
+    if (boardFilterCargoBtn) boardFilterCargoBtn.disabled = lock;
+    if (boardShowMoreBtn) boardShowMoreBtn.disabled = lock || boardMoreBusy;
     if (lock) closeBoardFocusDialog();
   }
 
   function openBoardFocusDialog() {
     if (!boardFocusDialog || pinOverlayIsOpen()) return;
+    if (!boardFocusDialog.hidden) {
+      closeBoardFocusDialog();
+      return;
+    }
+    syncFocusTicks();
     boardFocusDialog.hidden = false;
     setBoardFocusErr("");
     if (boardFocusInput) {
@@ -2812,13 +3292,24 @@
     }
   }
 
-  function clearBoardFocus() {
+  function clearBoardFocus(opts) {
     boardFocusToken += 1;
     boardFocusQuery = "";
     boardFocusSlot = null;
+    boardFocusLastOn = false;
+    if (opts && opts.ticks) {
+      boardFocusHeavy = false;
+      boardFocusEu = false;
+      boardFocusNoneu = false;
+      boardFocusNext2h = false;
+      boardFocusCancelled = false;
+      boardFocusDelayed = false;
+      if (boardFocusInput) boardFocusInput.value = "";
+    }
     closeBoardFocusDialog();
+    syncFocusTicks();
     if (currentTab === "board") {
-      const held = lastBoardHold[boardDir];
+      const held = boardHoldForView(boardDir);
       if (held && held.data) {
         paintBoard(held.data);
         return;
@@ -2829,8 +3320,86 @@
     applyBoardFocus();
   }
 
+  function loadStoredFocusLast() {
+    try {
+      const raw = String(localStorage.getItem(LS_FOCUS_LAST) || "")
+        .replace(/[^A-Za-z0-9]/g, "")
+        .toUpperCase();
+      return raw.length >= 2 ? raw : "";
+    } catch {
+      return "";
+    }
+  }
+
+  function saveFocusLast(query) {
+    const q = String(query || "")
+      .replace(/[^A-Za-z0-9]/g, "")
+      .toUpperCase();
+    if (q.length < 2) return;
+    boardFocusLast = q;
+    try {
+      localStorage.setItem(LS_FOCUS_LAST, q);
+    } catch {
+      /* private mode */
+    }
+    syncFocusTicks();
+  }
+
+  function syncFocusTicks() {
+    if (focusTickLast) {
+      focusTickLast.disabled = !boardFocusLast;
+      focusTickLast.checked = !!(boardFocusLastOn && boardFocusQuery);
+    }
+    if (focusTickLastLabel) {
+      focusTickLastLabel.textContent = boardFocusLast
+        ? "LAST " + boardFocusLast
+        : "LAST";
+    }
+    if (focusTickHeavy) focusTickHeavy.checked = boardFocusHeavy;
+    if (focusTickEu) focusTickEu.checked = boardFocusEu;
+    if (focusTickNoneu) focusTickNoneu.checked = boardFocusNoneu;
+    if (focusTickNext2h) focusTickNext2h.checked = boardFocusNext2h;
+    if (focusTickStatusLabel) {
+      focusTickStatusLabel.textContent =
+        boardDir === "A" ? "DELAYED" : "CANCELLED";
+    }
+    if (focusTickStatus) {
+      focusTickStatus.checked =
+        boardDir === "A" ? boardFocusDelayed : boardFocusCancelled;
+    }
+  }
+
+  function adoptFocusQueryFromInput() {
+    const api = boardApi();
+    const raw = boardFocusInput ? boardFocusInput.value : "";
+    const kind = api ? api.classifyQuery(raw) : { kind: "", q: "" };
+    if (!kind.q || kind.q.length < 2) return;
+    boardFocusQuery = kind.q;
+    boardFocusSlot = null;
+    saveFocusLast(kind.q);
+    boardFocusLastOn = true;
+  }
+
+  function applyFocusTickFilters() {
+    adoptFocusQueryFromInput();
+    syncFocusTicks();
+    if (currentTab !== "board") {
+      applyBoardFocus();
+      return;
+    }
+    if (focusTicksOn()) boardListLimit = 60;
+    const held = boardHoldForView(boardDir);
+    if (held) paintBoard(held.data);
+    else applyBoardFocus();
+    if (needsWideBoard()) ensureCargoPreload(boardDir);
+  }
+
   function applyBoardFocus(opts) {
-    if (boardFocusBtn) boardFocusBtn.classList.toggle("active", !!boardFocusQuery);
+    if (boardFocusBtn) {
+      const on = !!(boardFocusQuery || focusTicksOn());
+      boardFocusBtn.classList.toggle("active", on);
+      boardFocusBtn.setAttribute("aria-pressed", on ? "true" : "false");
+    }
     if (!boardList) return;
     const api = boardApi();
     const cdm = cdmApi();
@@ -2839,13 +3408,19 @@
         ? cdm.formatCdmSlot(boardFocusSlot)
         : "";
     let hit = null;
-    const kind = api ? api.classifyQuery(boardFocusQuery) : { kind: "" };
     for (const li of boardList.querySelectorAll(".board-row")) {
       const on = !!(
         boardFocusQuery &&
         api &&
-        kind.kind === "flight" &&
-        api.matchFlight(li.dataset.flight, boardFocusQuery)
+        api.matchFocus &&
+        api.matchFocus(
+          {
+            flight: li.dataset.flight,
+            dests: li.dataset.dests,
+            reg: li.dataset.reg,
+          },
+          boardFocusQuery
+        )
       );
       li.classList.toggle("board-row-focus", on);
       const meta = li.querySelector(".board-meta");
@@ -2916,28 +3491,20 @@
         (row && row.flight) || (boardPin && boardPin.flight) || "";
     }
     if (boardPinSub) {
-      const bits = [
-        row && row.route,
-        row && row.statusLabel,
-        row && row.airline,
-      ].filter(Boolean);
-      boardPinSub.textContent = bits.join(" · ");
-      boardPinSub.hidden = !bits.length;
+      const api = boardApi();
+      const dir = boardPin ? boardPin.dir : "D";
+      const line =
+        api && api.pinExtraLine
+          ? api.pinExtraLine(row || {}, dir)
+          : [row && row.route, row && row.statusLabel, row && row.airline]
+              .filter(Boolean)
+              .join(" · ");
+      boardPinSub.textContent = line;
+      boardPinSub.hidden = !line;
     }
-    if (!boardPinExtra) return;
-    boardPinExtra.replaceChildren();
-    const api = boardApi();
-    const dir = boardPin ? boardPin.dir : "D";
-    const items =
-      api && api.pinExtras ? api.pinExtras(row || {}, dir) : [];
-    for (const item of items) {
-      const wrap = document.createElement("div");
-      const dt = document.createElement("dt");
-      dt.textContent = item.label;
-      const dd = document.createElement("dd");
-      dd.textContent = item.value;
-      wrap.append(dt, dd);
-      boardPinExtra.appendChild(wrap);
+    if (boardPinExtra) {
+      boardPinExtra.textContent = "";
+      boardPinExtra.hidden = true;
     }
   }
 
@@ -2964,7 +3531,7 @@
     }
     style.textContent =
       "footer{display:none!important;}" +
-      "html,body{overflow:hidden!important;margin-bottom:0!important;padding-bottom:0!important;}";
+      "html,body{overflow:auto!important;-webkit-overflow-scrolling:touch;margin-bottom:0!important;padding-bottom:0!important;}";
   }
 
   function pinCdmUsefulHeight(doc) {
@@ -3006,21 +3573,16 @@
     const doc = pinCdmDoc();
     if (!doc) return;
     placeBoardPinOverlay();
-    const beforeHide = pinCdmUsefulHeight(doc);
     hidePinCdmFooter(doc);
-    const useful = Math.max(beforeHide, pinCdmUsefulHeight(doc));
-    if (useful < 80) return;
     const head = boardPinOverlay && boardPinOverlay.querySelector(".board-pin-head");
     const headH = head ? head.offsetHeight : 0;
-    const extrasH = boardPinExtra ? boardPinExtra.offsetHeight : 0;
     const noteH =
       boardPinCdmNote && !boardPinCdmNote.hidden ? boardPinCdmNote.offsetHeight : 0;
-    const chrome = headH + extrasH + noteH + 40;
+    const chrome = headH + noteH + 28;
     const room = boardPinOverlay ? boardPinOverlay.clientHeight : window.innerHeight;
-    const max = Math.max(160, room - chrome);
-    const target = Math.round(Math.min(useful + 6, max));
-    boardPinCdm.style.height = target + "px";
-    boardPinCdm.style.overflow = useful + 6 > max ? "auto" : "hidden";
+    const max = Math.max(200, room - chrome);
+    boardPinCdm.style.height = Math.round(max) + "px";
+    boardPinCdm.style.overflow = "auto";
   }
 
   function scheduleFitPinCdm() {
@@ -3388,18 +3950,111 @@
     pinBoardFlight(boardDir, row);
   }
 
+  async function onBoardShowMore() {
+    if (pinOverlayIsOpen() || boardMoreBusy) return;
+    const api = boardApi();
+    const filtered = api
+      ? api.filterBoardFlights(boardFlights, boardViewOpts())
+      : Array.isArray(boardFlights)
+        ? boardFlights
+        : [];
+    if (filtered.length > boardListLimit) {
+      boardListLimit += 60;
+      const held = boardHoldForView(boardDir);
+      paintBoard(
+        held && held.data
+          ? held.data
+          : { flights: boardFlights, aheadHours: boardDataAhead }
+      );
+      return;
+    }
+    if (desiredAheadHours() >= 24 || boardDataAhead >= 24) {
+      syncBoardMoreBtn(boardFlights);
+      return;
+    }
+    const nextAhead = boardAheadHours <= 9 ? 18 : 24;
+    const already = filtered.length;
+    boardMoreBusy = true;
+    syncBoardMoreBtn(boardFlights);
+    const token = ++boardToken;
+    try {
+      const data = await fetchBoardDir(boardDir, { ahead: nextAhead });
+      if (token !== boardToken || currentTab !== "board") return;
+      boardAheadHours = nextAhead;
+      boardListLimit = already + 60;
+      commitBoard(boardDir, data);
+    } catch (err) {
+      if (token !== boardToken || currentTab !== "board") return;
+      recoverBoardFetch(err, { quiet: true, keepList: true });
+    } finally {
+      if (token === boardToken) {
+        boardMoreBusy = false;
+        syncBoardMoreBtn(boardFlights);
+        if (boardRefresh) boardRefresh.disabled = false;
+      }
+    }
+  }
+
   async function fetchBoardDir(dir, opts) {
-    const ahead = opts && Number(opts.ahead) === 24 ? 24 : 9;
+    const aheadRaw = Number(opts && opts.ahead);
+    const ahead = aheadRaw === 18 || aheadRaw === 24 ? aheadRaw : 9;
     const route = String((opts && opts.route) || "")
       .replace(/[^A-Za-z]/g, "")
       .toUpperCase();
     let path = `/api/board?dir=${dir}`;
-    if (ahead === 24) path += "&ahead=24";
+    if (ahead !== 9) path += "&ahead=" + ahead;
     if (/^[A-Z]{3}$/.test(route)) path += "&route=" + encodeURIComponent(route);
     const res = await fetch(path, { cache: "no-store" });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data || !Array.isArray(data.flights)) return null;
+    if (res.status === 429) {
+      const err = new Error((data && data.error) || BOARD_RATE_MSG);
+      err.status = 429;
+      throw err;
+    }
+    if (!res.ok || !data || !Array.isArray(data.flights)) {
+      const err = new Error(
+        (data && data.error) || "Could not load Schiphol board."
+      );
+      err.status = res.status || 502;
+      throw err;
+    }
     return data;
+  }
+
+  function boardHoldFor(dir) {
+    const held = lastBoardHold[dir];
+    if (held && held.data && Array.isArray(held.data.flights)) return held;
+    return null;
+  }
+
+  function recoverBoardFetch(err, opts) {
+    const quiet = !!(opts && opts.quiet);
+    const keepList = !!(opts && opts.keepList);
+    const held = boardHoldForView(boardDir);
+    const showing =
+      boardPaintedDir === boardDir &&
+      Array.isArray(boardFlights) &&
+      boardFlights.length;
+    if (held) {
+      if (!showing) paintBoard(held.data);
+      scheduleBoardRetry();
+      return true;
+    }
+    if (keepList && showing) {
+      scheduleBoardRetry();
+      return true;
+    }
+    const limited = err && err.status === 429;
+    if (boardRetryN < 4) {
+      if (!quiet) paintBoard(null, limited ? BOARD_RATE_MSG : "Loading…");
+      scheduleBoardRetry();
+      return true;
+    }
+    paintBoard(
+      null,
+      limited ? BOARD_RATE_MSG : "Could not load Schiphol board."
+    );
+    return false;
   }
 
   async function postCdmBody(body) {
@@ -3452,166 +4107,224 @@
   async function submitBoardFocus(raw, opts) {
     const api = boardApi();
     const kind = api ? api.classifyQuery(raw) : { kind: "", q: "" };
-    if (!kind.q || (kind.kind === "flight" && kind.q.length < 2)) {
-      setBoardFocusErr("Type a flight number or a 3-letter airport.");
+    if (!kind.q || kind.q.length < 2) {
+      closeBoardFocusDialog();
+      applyFocusTickFilters();
       return;
     }
     const token = ++boardFocusToken;
     setBoardFocusErr("Looking…");
-    if (kind.kind === "route") {
-      await submitBoardRouteFocus(kind.q, token, opts);
-      return;
-    }
-    await submitBoardFlightFocus(kind.q, token);
+    await submitBoardWildcardFocus(kind.q, token, opts);
   }
 
-  async function submitBoardRouteFocus(code, token, opts) {
+  async function submitBoardWildcardFocus(q, token, opts) {
     const api = boardApi();
     const stay = !!(opts && opts.stay);
+    const keepDialog = !!(opts && opts.keepDialog);
     let dir = boardDir;
 
-    async function loadRoute(nextDir) {
-      let payload = await fetchBoardDir(nextDir, { ahead: 24, route: code });
+    async function loadMatch(nextDir) {
+      let payload = null;
+      let failed = null;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          payload = await fetchBoardDir(nextDir, { ahead: 24 });
+          failed = null;
+          break;
+        } catch (err) {
+          failed = err;
+          if (attempt >= 2) break;
+          await new Promise((resolve) =>
+            setTimeout(resolve, err && err.status === 429 ? 4000 : 1200)
+          );
+          if (token !== boardFocusToken) return null;
+        }
+      }
       if (token !== boardFocusToken) return null;
-      if (!payload) {
-        payload = await fetchBoardDir(nextDir, { ahead: 24 });
-        if (token !== boardFocusToken) return null;
-      }
       let rows =
-        payload && api ? api.visibleFlights(payload.flights, code) : [];
+        payload && api
+          ? api.visibleFlights(payload.flights, q, boardViewOpts())
+          : [];
       if (!rows.length) {
-        const held =
-          lastBoardHold[nextDir] && lastBoardHold[nextDir].data;
-        rows = held && api ? api.visibleFlights(held.flights, code) : [];
-        if (rows.length) payload = { ...(held || {}), flights: rows };
+        const held = lastBoardHold[nextDir] && lastBoardHold[nextDir].data;
+        rows =
+          held && api
+            ? api.visibleFlights(held.flights, q, boardViewOpts())
+            : [];
+        if (rows.length) payload = { ...(held || {}), flights: held.flights };
       }
-      return { dir: nextDir, data: payload, rows };
+      if (payload) {
+        lastBoardHold[nextDir] = {
+          at: Date.now(),
+          data: payload,
+          aheadHours: 24,
+          cargo: boardCargoOnly,
+        };
+      }
+      return { dir: nextDir, data: payload, rows, failed };
     }
 
-    let found = await loadRoute(dir);
+    let found = await loadMatch(dir);
     if (token !== boardFocusToken) return;
     if ((!found || !found.rows.length) && !stay) {
-      found = await loadRoute(boardDir === "A" ? "D" : "A");
+      found = await loadMatch(boardDir === "A" ? "D" : "A");
       if (token !== boardFocusToken) return;
     }
     const rows = found && found.rows;
     const data = found && found.data;
     if (!rows || !rows.length) {
+      if (found && found.failed) {
+        if (stay) {
+          recoverBoardFetch(found.failed, { quiet: true, keepList: true });
+          return;
+        }
+        setBoardFocusErr(
+          found.failed.status === 429
+            ? BOARD_RATE_MSG
+            : "Could not load Schiphol board."
+        );
+        return;
+      }
       if (stay) {
-        boardFocusQuery = code;
+        boardFocusQuery = q;
         boardFocusSlot = null;
-        closeBoardFocusDialog();
+        saveFocusLast(q);
+        boardFocusLastOn = true;
+        if (!keepDialog) closeBoardFocusDialog();
+        else syncFocusTicks();
         paintBoard(data || { flights: [] });
         return;
       }
-      setBoardFocusErr(`No flights to or from ${code} in 24 hours.`);
+      setBoardFocusErr(`No flights matching ${q} in 24 hours.`);
       return;
     }
-    boardFocusQuery = code;
+    boardFocusQuery = q;
     boardFocusSlot = null;
-    closeBoardFocusDialog();
+    saveFocusLast(q);
+    boardFocusLastOn = true;
+    if (!keepDialog) closeBoardFocusDialog();
+    else syncFocusTicks();
     if (found.dir !== boardDir) {
       boardToken += 1;
       setBoardDir(found.dir);
     }
     paintBoard(data, null, { scroll: true });
+    if (found.dir === "D" && rows.length === 1) {
+      fillBoardFocusSlot(rows[0].flight || q, token);
+    }
   }
 
-  async function submitBoardFlightFocus(q, token) {
-    const api = boardApi();
-    let dir = boardDir;
-    let data = { flights: boardFlights };
-    let found = api ? api.findFlight(boardFlights, q) : null;
-    if (!found) {
-      data = await fetchBoardDir(dir, { ahead: 24 });
-      if (token !== boardFocusToken) return;
-      found = data && api ? api.findFlight(data.flights, q) : null;
+  function refreshBoardAfterFilter() {
+    if (currentTab !== "board") return;
+    const held = boardHoldForView(boardDir);
+    if (held) paintBoard(held.data);
+    else if (boardFlights.length) {
+      paintBoard({ flights: boardFlights, aheadHours: boardDataAhead });
     }
-    if (!found) {
-      dir = boardDir === "A" ? "D" : "A";
-      data = await fetchBoardDir(dir);
-      if (token !== boardFocusToken) return;
-      found = data && api ? api.findFlight(data.flights, q) : null;
-    }
-    if (!found) {
-      data = await fetchBoardDir(dir, { ahead: 24 });
-      if (token !== boardFocusToken) return;
-      found = data && api ? api.findFlight(data.flights, q) : null;
-    }
-    if (!found) {
-      setBoardFocusErr("Not on this board.");
+    if (focusTicksOn()) {
+      ensureCargoPreload(boardDir);
       return;
     }
-    boardFocusQuery = q;
-    boardFocusSlot = null;
-    closeBoardFocusDialog();
-    if (dir !== boardDir) {
-      boardToken += 1;
-      setBoardDir(dir);
-    }
-    paintBoard(data, null, { scroll: true });
-    if (dir === "D") fillBoardFocusSlot(found.flight || q, token);
+    if (boardFocusQuery) return;
+    if (boardHoldFor(boardDir)) return;
+    loadBoard({ force: true, quiet: true });
   }
 
   async function loadBoard(opts) {
+    const quiet = !!(opts && opts.quiet);
     const force = !!(opts && opts.force);
-    cancelQuietAcars();
-    hideStaleBanner();
-    hideViews();
-    setTab("board");
-    if (boardView) boardView.hidden = false;
-    currentIcao = "EHAM";
-    saveLastIcao("EHAM");
-    if (boardIdent) boardIdent.textContent = "AMS";
     const dir = boardDir;
+    const held = boardHoldForView(dir);
+    const onBoard = currentTab === "board" && boardView && !boardView.hidden;
+    const sameList =
+      onBoard &&
+      boardPaintedDir === dir &&
+      Array.isArray(boardFlights) &&
+      boardFlights.length;
+    if (!onBoard) {
+      cancelQuietAcars();
+      hideStaleBanner();
+      hideViews();
+      setTab("board");
+      if (boardView) boardView.hidden = false;
+      currentIcao = "EHAM";
+      saveLastIcao("EHAM");
+      if (boardIdent) boardIdent.textContent = "AMS";
+    } else {
+      setTab("board");
+    }
+    if (!sameList) {
+      if (held) paintBoard(held.data);
+      else if (!quiet) paintBoard(null, "Loading…");
+    }
     const api = boardApi();
+    const ahead = desiredAheadHours();
     const focusKind = api ? api.classifyQuery(boardFocusQuery) : { kind: "" };
-    if (focusKind.kind === "route") {
-      if (boardRefresh) boardRefresh.disabled = true;
-      const token = ++boardFocusToken;
+    if (focusKind.q) {
+      if (boardRefresh) {
+        if (force) startBtnSweep(boardRefresh);
+        boardRefresh.disabled = true;
+      }
       try {
-        await submitBoardRouteFocus(focusKind.q, token, { stay: true });
+        await submitBoardFocus(focusKind.q, { stay: true });
       } finally {
-        if (boardRefresh) boardRefresh.disabled = false;
+        if (boardRefresh) {
+          boardRefresh.disabled = false;
+          if (force) endBtnSweep(boardRefresh);
+        }
       }
       return;
     }
-    const held = lastBoardHold[dir];
-    if (
-      !force &&
-      held &&
-      held.data &&
-      Date.now() - held.at < BOARD_HOLD_MS
-    ) {
-      if (boardRefresh) boardRefresh.disabled = false;
-      paintBoard(held.data);
-      return;
+
+    if (boardRefresh) {
+      if (force) startBtnSweep(boardRefresh);
+      boardRefresh.disabled = true;
     }
-    if (boardRefresh) boardRefresh.disabled = true;
-    paintBoard(null, "Loading…");
     const token = ++boardToken;
     try {
-      const res = await fetch(`/api/board?dir=${dir}`, {
-        cache: force ? "no-store" : "default",
+      const data =
+        focusTicksOn()
+          ? await ensureCargoPreload(dir, { force })
+          : await fetchBoardDir(dir, { ahead });
+      if (token !== boardToken || currentTab !== "board") return;
+      if (!data || !Array.isArray(data.flights)) {
+        recoverBoardFetch(new Error("Could not load Schiphol board."), {
+          quiet: quiet || sameList || onBoard,
+          keepList: true,
+        });
+        return;
+      }
+      commitBoard(dir, data);
+    } catch (err) {
+      if (token !== boardToken || currentTab !== "board") return;
+      recoverBoardFetch(err, {
+        quiet: quiet || sameList || onBoard,
+        keepList: true,
       });
-      const data = await res.json().catch(() => ({}));
-      if (token !== boardToken || currentTab !== "board") return;
-      if (res.status === 503) {
-        paintBoard(null, "Board needs Schiphol API keys.");
-        return;
-      }
-      if (!res.ok) {
-        paintBoard(null, data.error || "Could not load Schiphol board.");
-        return;
-      }
-      lastBoardHold[dir] = { at: Date.now(), data };
-      paintBoard(data);
-    } catch {
-      if (token !== boardToken || currentTab !== "board") return;
-      paintBoard(null, "Could not load Schiphol board.");
     } finally {
-      if (token === boardToken && boardRefresh) boardRefresh.disabled = false;
+      if (token === boardToken && boardRefresh) {
+        boardRefresh.disabled = false;
+        if (force) endBtnSweep(boardRefresh);
+      }
     }
+  }
+
+  function resetBoardRetry() {
+    clearTimeout(boardRetryTimer);
+    boardRetryN = 0;
+  }
+
+  function scheduleBoardRetry() {
+    if (boardRetryN >= 12) {
+      boardRetryN = 0;
+      return;
+    }
+    clearTimeout(boardRetryTimer);
+    boardRetryTimer = setTimeout(() => {
+      if (currentTab !== "board") return;
+      boardRetryN += 1;
+      loadBoard({ quiet: true });
+    }, 1500);
   }
 
   function openBoard() {
@@ -3881,7 +4594,26 @@
 
   async function loadAtis(icao, { force = false } = {}) {
     const changed = currentIcao && currentIcao !== icao;
+    const cached = cache[icao];
+    const held =
+      !force &&
+      !changed &&
+      cached &&
+      atisFetchedAt[icao] &&
+      Date.now() - atisFetchedAt[icao] < ATIS_HOLD_MS;
+
+    if (held) {
+      showDetail();
+      updatePinButton();
+      if (needsMetar(icao, cached)) maybeLoadMetar(icao);
+      else hideMetar();
+      renderResult(cached);
+      scheduleBriefPreload(icao);
+      return;
+    }
+
     cancelQuietAcars();
+    cancelBriefPreload();
     resetAtisSide();
     if (changed) hideStaleBanner();
     currentIcao = icao;
@@ -3889,42 +4621,58 @@
     showDetail();
     updatePinButton();
 
-    if (changed) hideMetar();
-    if (needsMetar(icao, cache[icao])) maybeLoadMetar(icao);
+    if (changed) {
+      hideMetar();
+      hideAtisDelay({ cancel: true });
+    }
+    const wantMetar = needsMetar(icao, cached);
+    if (wantMetar) maybeLoadMetar(icao);
     else hideMetar();
 
-    const cached = cache[icao];
-    if (cached && !force) {
+    if (cached) {
       renderResult(cached);
     } else {
       renderResult({ icao, text: "" }, { loading: true });
     }
-    const fetchedAt = atisFetchedAt[icao] || 0;
-    if (!force && cached && Date.now() - fetchedAt < ATIS_HOLD_MS) {
-      if (cached.acarsPending) scheduleQuietAcars(icao, cached);
-      return;
+
+    if (!force && atisInFlight[icao]) return;
+
+    if (force) {
+      startBtnSweep(refreshBtn);
+      refreshBtn.disabled = true;
     }
 
-    try {
-      const data = await fetchAtis(icao);
-      if (currentIcao !== icao) return;
-      atisFetchedAt[icao] = Date.now();
-      renderResult(data);
-      renderPins();
-      scheduleQuietAcars(icao, data);
-      if (needsMetar(icao, data)) maybeLoadMetar(icao);
-      else hideMetar();
-    } catch (err) {
-      if (currentIcao !== icao) return;
-      const fallback = cached || {
-        icao,
-        kind: "error",
-        source: "atis.guru",
-        error: err.message || "Could not load ATIS.",
-      };
-      renderResult(fallback);
-      if (needsMetar(icao, fallback)) maybeLoadMetar(icao);
-    }
+    atisInFlight[icao] = (async () => {
+      try {
+        const data = await fetchAtis(icao);
+        if (currentIcao !== icao) return;
+        atisFetchedAt[icao] = Date.now();
+        renderResult(data);
+        renderPins();
+        scheduleQuietAcars(icao, data);
+        if (needsMetar(icao, data)) {
+          if (!wantMetar) await maybeLoadMetar(icao);
+        } else hideMetar();
+      } catch (err) {
+        if (currentIcao !== icao) return;
+        const fallback = cached || {
+          icao,
+          kind: "error",
+          overheard: true,
+          error: err.message || "Could not load ATIS.",
+        };
+        renderResult(fallback);
+        if (needsMetar(icao, fallback) && !wantMetar) await maybeLoadMetar(icao);
+      } finally {
+        delete atisInFlight[icao];
+        if (force) {
+          refreshBtn.disabled = false;
+          endBtnSweep(refreshBtn);
+        }
+        if (currentIcao === icao) scheduleBriefPreload(icao);
+      }
+    })();
+    await atisInFlight[icao];
   }
 
   function openAtis(icao, opts) {
@@ -4028,11 +4776,24 @@
       if (event.target === worstwindDialog) closeWorstwindDialog();
     });
   }
+  if (inferPreviewClose) {
+    inferPreviewClose.addEventListener("click", closeInferPreview);
+  }
+  if (inferPreviewDialog) {
+    inferPreviewDialog.addEventListener("click", (event) => {
+      if (event.target === inferPreviewDialog) closeInferPreview();
+    });
+  }
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
     if (boardFocusDialog && !boardFocusDialog.hidden) {
       event.preventDefault();
       closeBoardFocusDialog();
+      return;
+    }
+    if (inferPreviewDialog && !inferPreviewDialog.hidden) {
+      event.preventDefault();
+      closeInferPreview();
       return;
     }
     if (worstwindDialog && !worstwindDialog.hidden) {
@@ -4044,17 +4805,6 @@
       event.preventDefault();
       closeStaleDialog();
     }
-  });
-
-  staleListen.addEventListener("click", () => {
-    toggleAtisAudio();
-  });
-  atisAudio.addEventListener("playing", listenStreamStarted);
-  atisAudio.addEventListener("error", () => {
-    if (!listening && !atisAudio.getAttribute("src")) return;
-    const feed = liveFeed;
-    stopAtisAudio();
-    if (feed) applyListenFeed(feed);
   });
 
   backBtn.addEventListener("click", () => {
@@ -4110,12 +4860,74 @@
     });
   }
   if (boardFocusCancel) {
-    boardFocusCancel.addEventListener("click", () => closeBoardFocusDialog());
+    boardFocusCancel.addEventListener("click", () =>
+      clearBoardFocus({ ticks: true })
+    );
   }
   if (boardFocusDialog) {
     boardFocusDialog.addEventListener("click", (event) => {
       if (event.target === boardFocusDialog) closeBoardFocusDialog();
     });
+  }
+  function applyLastFocus() {
+    if (!boardFocusLast) {
+      if (focusTickLast) focusTickLast.checked = false;
+      return;
+    }
+    boardFocusLastOn = true;
+    if (focusTickLast) focusTickLast.checked = true;
+    closeBoardFocusDialog();
+    setBoardFocusErr("");
+    submitBoardFocus(boardFocusLast, { stay: true });
+  }
+
+  function onFocusTickChange(which) {
+    if (which === "heavy") boardFocusHeavy = !!(focusTickHeavy && focusTickHeavy.checked);
+    if (which === "eu") {
+      boardFocusEu = !!(focusTickEu && focusTickEu.checked);
+      if (boardFocusEu) {
+        boardFocusNoneu = false;
+        if (focusTickNoneu) focusTickNoneu.checked = false;
+      }
+    }
+    if (which === "noneu") {
+      boardFocusNoneu = !!(focusTickNoneu && focusTickNoneu.checked);
+      if (boardFocusNoneu) {
+        boardFocusEu = false;
+        if (focusTickEu) focusTickEu.checked = false;
+      }
+    }
+    if (which === "next2h") {
+      boardFocusNext2h = !!(focusTickNext2h && focusTickNext2h.checked);
+    }
+    if (which === "status") {
+      const on = !!(focusTickStatus && focusTickStatus.checked);
+      if (boardDir === "A") boardFocusDelayed = on;
+      else boardFocusCancelled = on;
+    }
+    applyFocusTickFilters();
+  }
+  if (focusTickLast) {
+    const lastTick = focusTickLast.closest(".board-focus-tick") || focusTickLast;
+    lastTick.addEventListener("click", (event) => {
+      event.preventDefault();
+      applyLastFocus();
+    });
+  }
+  if (focusTickHeavy) {
+    focusTickHeavy.addEventListener("change", () => onFocusTickChange("heavy"));
+  }
+  if (focusTickEu) {
+    focusTickEu.addEventListener("change", () => onFocusTickChange("eu"));
+  }
+  if (focusTickNoneu) {
+    focusTickNoneu.addEventListener("change", () => onFocusTickChange("noneu"));
+  }
+  if (focusTickNext2h) {
+    focusTickNext2h.addEventListener("change", () => onFocusTickChange("next2h"));
+  }
+  if (focusTickStatus) {
+    focusTickStatus.addEventListener("change", () => onFocusTickChange("status"));
   }
   if (boardPinClose) {
     boardPinClose.addEventListener("click", () => unpinBoardFlight());
@@ -4141,16 +4953,52 @@
     if (api && api.bindRowLongPress) api.bindRowLongPress(boardList, onBoardRowHold);
   }
   boardPin = loadStoredBoardPin();
+  boardFocusLast = loadStoredFocusLast();
+  syncGoneLabel();
+  syncBoardFilterBtns();
+  syncFocusTicks();
+  if (boardShowGoneBtn) {
+    boardShowGoneBtn.addEventListener("click", () => {
+      if (pinOverlayIsOpen()) return;
+      boardShowGone = !boardShowGone;
+      syncBoardFilterBtns();
+      const held = boardHoldForView(boardDir);
+      paintBoard(
+        held && held.data
+          ? held.data
+          : { flights: boardFlights, aheadHours: boardDataAhead }
+      );
+      refreshBoardAfterFilter();
+    });
+  }
+  if (boardFilterCargoBtn) {
+    boardFilterCargoBtn.addEventListener("click", () => {
+      if (pinOverlayIsOpen()) return;
+      boardCargoOnly = !boardCargoOnly;
+      boardListLimit = 60;
+      syncBoardFilterBtns();
+      const held = boardHoldFor(boardDir);
+      paintBoard(
+        held && held.data
+          ? held.data
+          : { flights: boardFlights, aheadHours: boardDataAhead }
+      );
+    });
+  }
+  if (boardShowMoreBtn) {
+    boardShowMoreBtn.addEventListener("click", () => onBoardShowMore());
+  }
   for (const btn of boardDirBtns) {
     btn.addEventListener("click", () => {
       if (pinOverlayIsOpen()) return;
       const next = btn.dataset.dir === "A" ? "A" : "D";
       if (next === boardDir && currentTab === "board") return;
       setBoardDir(next);
+      resetBoardPaging();
       if (currentTab !== "board") return;
       const api = boardApi();
       const kind = api ? api.classifyQuery(boardFocusQuery) : { kind: "" };
-      if (kind.kind === "route") {
+      if (kind.q) {
         submitBoardFocus(kind.q, { stay: true });
         return;
       }
@@ -4178,41 +5026,156 @@
     });
   }
 
+  let pullStartX = 0;
   let pullStartY = 0;
+  const PULL_REFRESH_PX = 90;
 
-  function atisScrolledToTop() {
-    return detail.scrollTop <= 1;
+  function pullOverlayOpen() {
+    return (
+      (staleDialog && !staleDialog.hidden) ||
+      (inferPreviewDialog && !inferPreviewDialog.hidden) ||
+      (worstwindDialog && !worstwindDialog.hidden) ||
+      (boardFocusDialog && !boardFocusDialog.hidden) ||
+      (boardPinOverlay && !boardPinOverlay.hidden)
+    );
   }
 
-  detail.addEventListener(
+  function pullRefreshView() {
+    if (currentTab === "atis" && detail && !detail.hidden && home.hidden) {
+      return detail;
+    }
+    if (currentTab === "taf" && briefView && !briefView.hidden) return briefView;
+    if (currentTab === "board" && boardView && !boardView.hidden) return boardView;
+    return null;
+  }
+
+  function pullViewAtTop() {
+    const el = pullRefreshView();
+    return !!(el && el.scrollTop <= 1);
+  }
+
+  function pullRefreshAllowed() {
+    if (pullOverlayOpen()) return false;
+    if (document.documentElement.classList.contains("pin-scroll-lock")) {
+      return false;
+    }
+    if (currentTab === "atis") return !!(currentIcao && pullRefreshView());
+    if (currentTab === "taf" || currentTab === "board") return !!pullRefreshView();
+    return false;
+  }
+
+  function pullRefreshBusy() {
+    const btn =
+      currentTab === "atis"
+        ? refreshBtn
+        : currentTab === "taf"
+          ? briefRefresh
+          : currentTab === "board"
+            ? boardRefresh
+            : null;
+    return !!(btn && (btn.disabled || btn.classList.contains("sweeping")));
+  }
+
+  function runPullRefresh() {
+    if (pullRefreshBusy()) return;
+    if (currentTab === "atis" && currentIcao) {
+      openAtis(currentIcao, { force: true });
+      return;
+    }
+    if (currentTab === "taf") {
+      const icao = briefIcaoFromHash() || currentIcao || loadLastIcao();
+      if (icao) loadBrief(icao, { force: true });
+      return;
+    }
+    if (currentTab === "board") loadBoard({ force: true });
+  }
+
+  document.addEventListener(
     "touchstart",
     (event) => {
-      pullStartY =
-        currentIcao && currentTab === "atis" && atisScrolledToTop()
-          ? event.touches[0].clientY
-          : 0;
+      pullStartX = 0;
+      pullStartY = 0;
+      const t = event.touches[0];
+      if (!t) return;
+      if (!pullRefreshAllowed() || !pullViewAtTop() || pullRefreshBusy()) return;
+      pullStartX = t.clientX;
+      pullStartY = t.clientY;
     },
     { passive: true }
   );
-  detail.addEventListener(
+  document.addEventListener(
     "touchmove",
     (event) => {
       if (!pullStartY) return;
-      if (!atisScrolledToTop()) pullStartY = 0;
+      const t = event.touches[0];
+      if (!t) return;
+      if (!pullViewAtTop()) {
+        pullStartY = 0;
+        return;
+      }
+      const dy = t.clientY - pullStartY;
+      const dx = t.clientX - pullStartX;
+      if (dy > 8 && dy > Math.abs(dx)) event.preventDefault();
     },
-    { passive: true }
+    { passive: false }
   );
-  detail.addEventListener(
+  document.addEventListener(
     "touchend",
     (event) => {
-      if (!pullStartY || !currentIcao) return;
-      const dy = event.changedTouches[0].clientY - pullStartY;
+      if (!pullStartY) return;
+      const t = event.changedTouches[0];
+      const dy = t ? t.clientY - pullStartY : 0;
+      const dx = t ? t.clientX - pullStartX : 0;
       pullStartY = 0;
-      if (dy > 120 && atisScrolledToTop()) {
-        openAtis(currentIcao, { force: true });
+      if (
+        dy > PULL_REFRESH_PX &&
+        dy > Math.abs(dx) &&
+        pullViewAtTop() &&
+        pullRefreshAllowed()
+      ) {
+        runPullRefresh();
       }
     },
     { passive: true }
+  );
+
+  function wheelDeltaY(event) {
+    if (event.deltaMode === 1) return event.deltaY * 16;
+    if (event.deltaMode === 2) return event.deltaY * window.innerHeight;
+    return event.deltaY;
+  }
+
+  function nearestYScroller(start) {
+    let el = start;
+    if (el && el.nodeType !== 1) el = el.parentElement;
+    while (el && el !== document.documentElement) {
+      const style = window.getComputedStyle(el);
+      const oy = style.overflowY;
+      if (
+        (oy === "auto" || oy === "scroll") &&
+        el.scrollHeight > el.clientHeight + 1
+      ) {
+        return el;
+      }
+      el = el.parentElement;
+    }
+    return document.querySelector("#app > .view:not([hidden])");
+  }
+
+  document.addEventListener(
+    "wheel",
+    (event) => {
+      if (event.ctrlKey || event.metaKey || event.defaultPrevented) return;
+      const scroller = nearestYScroller(event.target);
+      if (!scroller) return;
+      const max = scroller.scrollHeight - scroller.clientHeight;
+      if (max <= 0) return;
+      const next = Math.max(0, Math.min(max, scroller.scrollTop + wheelDeltaY(event)));
+      if (next === scroller.scrollTop) return;
+      scroller.scrollTop = next;
+      event.preventDefault();
+    },
+    { passive: false, capture: true }
   );
 
   window.addEventListener("hashchange", route);
