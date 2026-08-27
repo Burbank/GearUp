@@ -176,4 +176,17 @@ assert.deepStrictEqual(
   ["WORST 25L DEPARTURE WIND 070/05 T5 X0"]
 );
 
+function windHit(text, runways) {
+  const i = text.search(/\bWIND\b/);
+  return Hl.ranges(text, { runways }).some(
+    (r) => r.cls === "hl-ops" && r.start <= i && r.end > i
+  );
+}
+
+const rwy06 = [rwy("06")];
+assert.strictEqual(windHit("LANDING RWY 06\nWIND 240 DEG, 8 KT", rwy06), false);
+assert.strictEqual(windHit("LANDING RWY 06\nWIND 240 DEG, 9 KT", rwy06), true);
+assert.strictEqual(windHit("LANDING RWY 06\nWIND 150 DEG, 20 KT", rwy06), false);
+assert.strictEqual(windHit("LANDING RWY 06\nWIND 150 DEG, 21 KT", rwy06), true);
+
 console.log("worstwind ok");

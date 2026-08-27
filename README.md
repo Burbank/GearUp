@@ -1,6 +1,6 @@
 # GearUp
 
-Departure D-ATIS, TAF, and briefing for a phone home screen. **Not for operational use.** Version **1.2**.
+Departure D-ATIS, TAF, and briefing for a phone home screen. **Not for operational use.** Version **1.3**.
 
 Live: https://gearup4u.netlify.app  
 If this tree is lost, rebuild from `docs/REBUILD.md`, `docs/CALCULATIONS.md`, and `docs/SAFETY.md`.

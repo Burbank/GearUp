@@ -210,7 +210,12 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       try {
-        const data = await getBoard(url.searchParams.get("dir"));
+        const ahead = url.searchParams.get("ahead");
+        const route = url.searchParams.get("route");
+        const data = await getBoard(url.searchParams.get("dir"), Date.now(), {
+          aheadHours: ahead,
+          route,
+        });
         sendJson(res, 200, data, BOARD_CACHE);
       } catch (err) {
         sendJson(res, err.statusCode || 502, {
@@ -256,6 +261,7 @@ const server = http.createServer(async (req, res) => {
       try {
                     const data = await fn(icao, {
                       quiet: url.searchParams.get("quiet") === "1",
+                      kind: url.searchParams.get("kind"),
                     });
         const cache = prefix === "/api/airport/" ? "public, max-age=86400" : "no-store";
         sendJson(res, 200, data, cache);

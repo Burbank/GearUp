@@ -17,7 +17,10 @@ exports.handler = async (event) => {
     return { statusCode: 405, headers, body: JSON.stringify({ error: "Method not allowed" }) };
   }
   try {
-    const data = await getBoard(q.dir);
+    const data = await getBoard(q.dir, Date.now(), {
+      aheadHours: q.ahead,
+      route: q.route,
+    });
     return { statusCode: 200, headers, body: JSON.stringify(data) };
   } catch (err) {
     return {

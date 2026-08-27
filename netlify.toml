@@ -62,6 +62,12 @@
 
 [[redirects]]
   from = "/api/atis-audio/:icao"
+  query = {kind = ":kind"}
+  to = "/.netlify/functions/atis-audio?icao=:icao&kind=:kind"
+  status = 200
+
+[[redirects]]
+  from = "/api/atis-audio/:icao"
   to = "/.netlify/functions/atis-audio?icao=:icao"
   status = 200
 

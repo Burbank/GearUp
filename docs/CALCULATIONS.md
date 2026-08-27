@@ -6,14 +6,16 @@ Times in the UI are UTC unless a local clock is shown next to them.
 
 ---
 
-## 1. Runway heading (no magnetic variation)
+## 1. Runway heading
 
 `js/hl.js` `parseRwy`
 
 - Token `(\d{1,2})([LCR])?` with 1–36.
 - Ident is zero-padded: `6` → `06`, `25L` stays `25L`.
-- **Heading = n × 10**, except **36 → 360**.
-- There is **no mag-var lookup**. Worst-wind and ops highlights use this magnetic-looking number as if it were the runway QFU. That is why the strip is labeled UNOFFICIAL ESTIMATE.
+- **Heading = n × 10**, except **36 → 360**. That is the magnetic QFU (runway numbers are magnetic).
+- Spoken ATIS wind is also **magnetic** (ICAO Annex 11 §4.3.7). Same frame as the ident, so **no mag-var conversion**. METAR/SPECI winds are **true** (ICAO Annex 3); `pickWinds` prefers spoken ATIS when both exist, so T/H/X stay magnetic vs magnetic.
+
+The strip is still labeled UNOFFICIAL ESTIMATE because it is a worst-heading / gust pick, not the official ATIS figure.
 
 `DEPARTURES` / `ARRIVALS` (plural) plus a comma then `RWY 25L` must match. Old `DEPARTURE\b` missed Hong Kong CAD. Same for `EXP ILS APCH, RWY 25C`.
 
@@ -97,13 +99,13 @@ Headwind is negative tail. Rounding for the strip:
 - if `along > 0` → `T{along}` else `H{|along|}`
 - `X{round(|cross|)}`
 
-Tailwind styling (larger speed + T/H/X): `tail > 0.05` (`isTailwind`). Headwind lines stay the smaller type.
+Tailwind styling: `T ≥ 9` or `X > 20` uses the same bold `.hl-ops` as the ATIS body (speed group plus that T/X token). Smaller tails stay the smaller type.
 
 ---
 
 ## 5. Worst heading inside a VRB sector (the 070-not-060 rule)
 
-`candidateDirs(wind, hdg)` then pick the candidate with **maximum tail**.
+`candidateDirs(wind, hdg)` then pick the candidate with **maximum tail** (most tailwind, or if every candidate is a headwind, the **least** headwind). That is still the pessimistic along-runway case.
 
 Candidates:
 
@@ -145,10 +147,13 @@ Primary + secondary runways → two lines; secondary wind pairs to secondary run
 
 `js/hl.js` uses the **same** runway list and pairing.
 
-- Tailwind highlight: circular difference `> 90°` from dep/arr heading.
-- Crosswind highlight: `|spd × sin(θ)| > 15` using max(mean, gust).
+- Tailwind highlight: along-runway tail **≥ 9 kt** (rounded), using max(mean, gust). Fully variable (no mean dir) uses speed as a pure tail.
+- Crosswind highlight: `|spd × sin(θ)|` rounded **> 20 kt**, same speed.
 - VRB extremes: if a sector bound is >90° from the paired runway, highlight.
 - Other ops: ident letter, CLOSED/CLSD/INOP/OTS, T≤10°C, fog dewpoint, vis/RVR minima, TS/CB/WS, birds, etc.
+- Present-weather groups (METAR/TAF): highlight the **whole token** if it is heavy (`+`), contains **TS**, or contains hail **GR** / small hail **GS**. `+TSRAGR` is one group. Plain `RA` is not highlighted.
+- Ceiling: **BKN/OVC/VV below 400 ft** (`BKN003` yes, `BKN004` no). `VV///` counts. Spoken `CEILING 300 FT` too. SCT/FEW are not ceiling.
+- Visibility / RVR: ICAO/EASA low-visibility operations are **RVR < 550 m** (CAT I floor). Highlight prevailing vis and RVR **below 550 m**. `M0550` (less than 550) counts; `0550` / `R27/0550` do not.
 
 METAR pretty-print only (not ATIS body): `252025Z` → `25 20:25Z`, `08006KT` → `080/06KT`.
 
@@ -257,7 +262,10 @@ Airport local and board local are **minute** displays. Only the ATIS UTC clock s
 
 - Cache **60s** per direction (D/A) in the Node process; CDN `s-maxage=60`.
 - Passenger service types J/C/G/Q/O/R; cargo F/H/A/K/L; private D/N if present.
-- Upcoming: cancelled still listed if scheduled within last 20 minutes; departed/landed stay **20 minutes** after actual.
+- Window: **now − 20 minutes** (departed/landed/cancelled) through **now + 9 hours** Amsterdam time. Fetch `scheduleDate` for today and, when that window crosses local midnight, tomorrow. `fromDateTime` lookback on the API is **3 hours**.
+- List paint: first **60** flights in that window. Flight-number Focus searches the 9-hour list first, then the other direction, then a **24-hour** fetch if still missing; if the hit is past 60, that row is appended.
+- **Route Focus** (exactly three letters, e.g. `BCN`): always a rolling **24-hour** window on the current tab (departures = to, arrivals = from). Never the 9-hour list. `/api/board?ahead=24&route=BCN`.
+- Next-day marker: `dayKey` / `dayLabel` (e.g. `27 AUG`) when Amsterdam local date changes in the list.
 - Registration pretty-print: `PHYHA` → `PH-YHA`; single-letter prefixes B/D/F/G/I/N.
 - Airline name from `prefixIATA` + `lib/airlines.json` (Schiphol does not send publicName on the flight).
 
@@ -279,7 +287,7 @@ These are **not** weather physics. They stop tab-switching from hammering proxie
 | TAF + briefwx | 90s per ICAO | TAF Refresh |
 | Board | 60s per D/A | Board Refresh |
 | atis.guru (server) | 3 min | n/a |
-| LiveATC probe | 10 min positive / 45s negative | n/a |
+| LiveATC probe | 10 min positive / 45s negative | n/a; ARR probes `_atis_arr` then `_arr_atis` then `_atis` |
 | Quiet ACARS | one 5s shot | cancelled on navigation |
 
 UTC interval is **stopped** while the tab is hidden. Seconds DOM writes only when the ATIS view is visible. Ages, sun, zulu colors, TAF remain, local HH:MM tick **once per UTC minute**.

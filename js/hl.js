@@ -87,23 +87,33 @@
     return found;
   }
 
-  function circDiff(a, b) {
-    let d = Math.abs(Number(a) - Number(b)) % 360;
-    if (d > 180) d = 360 - d;
-    return d;
-  }
+  const TAIL_HL_KT = 9;
+  const CROSS_HL_KT = 20;
 
-  function isTailwind(dir, runways) {
-    if (!Number.isFinite(dir) || !runways || !runways.length) return false;
-    return runways.some((r) => circDiff(dir, r.hdg) > 90);
+  function tailwindKt(dir, spd, rwyHdg) {
+    if (!Number.isFinite(spd) || !Number.isFinite(rwyHdg)) return 0;
+    if (!Number.isFinite(dir)) return Math.max(0, Number(spd) || 0);
+    const rad = ((dir - rwyHdg) * Math.PI) / 180;
+    return Math.max(0, -Number(spd) * Math.cos(rad));
   }
 
   function crosswindKt(dir, spd, rwyHdg) {
-    if (!Number.isFinite(dir) || !Number.isFinite(spd) || !Number.isFinite(rwyHdg)) {
+    if (!Number.isFinite(spd) || !Number.isFinite(rwyHdg)) {
       return 0;
     }
+    if (!Number.isFinite(dir)) return Math.max(0, Number(spd) || 0);
     const rad = ((dir - rwyHdg) * Math.PI) / 180;
-    return Math.abs(spd * Math.sin(rad));
+    return Math.abs(Number(spd) * Math.sin(rad));
+  }
+
+  function windThreat(dir, spd, runways) {
+    let tail = false;
+    let cross = false;
+    for (const r of runways || []) {
+      if (Math.round(tailwindKt(dir, spd, r.hdg)) >= TAIL_HL_KT) tail = true;
+      if (Math.round(crosswindKt(dir, spd, r.hdg)) > CROSS_HL_KT) cross = true;
+    }
+    return { tail, cross };
   }
 
   function runwaysForWind(wind, runways, spokenCount) {
@@ -127,9 +137,7 @@
       Number.isFinite(w.spd) ? w.spd : 0,
       Number.isFinite(w.gust) ? w.gust : 0
     );
-    const tail = isTailwind(w.dir, rwys);
-    const cross = rwys.some((r) => crosswindKt(w.dir, spd, r.hdg) > 15);
-    return { tail, cross };
+    return windThreat(w.dir, spd, rwys);
   }
 
   function ktFrom(spd, unit) {
@@ -324,9 +332,8 @@
         Number.isFinite(owner.spd) ? owner.spd : 0,
         Number.isFinite(owner.gust) ? owner.gust : 0
       );
-      const tail = isTailwind(n, rwys);
-      const cross = rwys.some((r) => crosswindKt(n, spd, r.hdg) > 15);
-      if (!tail && !cross) return;
+      const threat = windThreat(n, spd, rwys);
+      if (!threat.tail && !threat.cross) return;
       seen.add(key);
       out.push({ start, end, cls: "hl-ops" });
     }
@@ -369,12 +376,20 @@
     return out;
   }
 
+  const LVO_VIS_M = 550;
+  const CEILING_HL_FT = 400;
+
   function rvrToM(flag, digits, inFt) {
     const n = Number(digits);
     if (!Number.isFinite(n)) return Infinity;
     const meters = inFt ? n * 0.3048 : n;
     if (flag === "P") return Infinity;
+    if (flag === "M") return Math.max(0, meters - 1);
     return meters;
+  }
+
+  function visIsLvo(meters) {
+    return Number.isFinite(meters) && meters < LVO_VIS_M;
   }
 
   function smToM(tok) {
@@ -414,19 +429,19 @@
       const ft = !!m[5];
       const a = rvrToM(m[1], m[2], ft);
       const b = m[4] != null ? rvrToM(m[3], m[4], ft) : Infinity;
-      if (a <= 600 || b <= 600) add(m.index, m.index + m[0].length);
+      if (a < LVO_VIS_M || b < LVO_VIS_M) add(m.index, m.index + m[0].length);
     }
 
     const sm = /\b(M?(?:\d{1,2}\s+)?\d\/\d|M?\d{1,2})SM\b/gi;
     while ((m = sm.exec(raw))) {
       const meters = smToM(m[1]);
-      if (meters != null && meters <= 550) add(m.index, m.index + m[0].length);
+      if (visIsLvo(meters)) add(m.index, m.index + m[0].length);
     }
 
     const vis4 = /\b(0[0-5]\d{2})\b/g;
     while ((m = vis4.exec(raw))) {
       const n = Number(m[1]);
-      if (n > 550 || taken(m.index)) continue;
+      if (n >= LVO_VIS_M || taken(m.index)) continue;
       const before = raw.slice(Math.max(0, m.index - 8), m.index).toUpperCase();
       const after = raw.slice(m.index + m[1].length, m.index + m[1].length + 6);
       if (/\/\d{4}/.test(after)) continue;
@@ -443,8 +458,8 @@
       let meters;
       if (/\//.test(tok)) meters = smToM(tok);
       else meters = Number(tok);
-      const cap = /^RVR/i.test(m[0]) ? 600 : 550;
-      if (Number.isFinite(meters) && meters <= cap) {
+      const cap = LVO_VIS_M;
+      if (visIsLvo(meters)) {
         add(m.index, m.index + m[0].length);
       }
     }
@@ -454,10 +469,28 @@
   function ceilingRanges(text) {
     const raw = String(text || "");
     const out = [];
-    const re = /\bVV\/\/\/|\bVV0{0,2}[0-2](?!\d)|\b(?:OVC|BKN)0{0,2}[0-2](?!\d)/gi;
+    function add(start, end) {
+      if (start < end) out.push({ start, end, cls: "hl-ops" });
+    }
+    const coded = /\bVV\/\/\/|\b(?:VV|OVC|BKN)(\d{3})(?:CB|TCU)?\b/gi;
     let m;
-    while ((m = re.exec(raw))) {
-      out.push({ start: m.index, end: m.index + m[0].length, cls: "hl-ops" });
+    while ((m = coded.exec(raw))) {
+      if (!m[1]) {
+        add(m.index, m.index + m[0].length);
+        continue;
+      }
+      const ft = Number(m[1]) * 100;
+      if (Number.isFinite(ft) && ft < CEILING_HL_FT) {
+        add(m.index, m.index + m[0].length);
+      }
+    }
+    const spoken =
+      /\b(?:CEILING|CIG|CLOUD\s+BASES?)\s+(\d{2,4})\s*(?:FT|FEET)?\b/gi;
+    while ((m = spoken.exec(raw))) {
+      const ft = Number(m[1]);
+      if (Number.isFinite(ft) && ft < CEILING_HL_FT) {
+        add(m.index, m.index + m[0].length);
+      }
     }
     return out;
   }
@@ -513,7 +546,6 @@
       String.raw`WATERSPOUTS?`,
       String.raw`RDOACT(?:IVE)?(?:\s+CLD(?:S)?)?`,
       String.raw`\bWS\d{3}\/\d{5}(?:KT)?\b`,
-      String.raw`(?<![A-Z0-9])[-+]?(?:VCTS|RETS|TS)(?:RA|GR|GS|SN|PL|SH)?\b`,
       String.raw`(?<![A-Z0-9])[-+]?SHRA\b`,
       String.raw`(?<![A-Z0-9])[-+]?FC\b`,
       String.raw`\bTSTM\b`,
@@ -558,6 +590,30 @@
   const OPS_WORD_RE =
     /\b(?:OUT\s+OF\s+SERVICE|CLOSED|CLSD|INOPERATIVE|INOP|HAZARDOUS|HAZARD|HAZD|BIRDS?|OTS)\b/gi;
 
+  const PRESENT_WX_RE =
+    /(?<![A-Z0-9])[-+]?(?:VC|RE)?(?:MI|PR|BC|DR|BL|SH|TS|FZ)*(?:DZ|RA|SN|SG|IC|PL|GR|GS|UP|BR|FG|FU|VA|DU|SA|HZ|PY|PO|SQ|FC|SS|DS)+\b/gi;
+
+  function presentWxIsOps(tok) {
+    const u = String(tok || "").toUpperCase();
+    if (!u) return false;
+    if (u.charAt(0) === "+") return true;
+    if (u.includes("TS")) return true;
+    if (u.includes("GR") || u.includes("GS")) return true;
+    return false;
+  }
+
+  function presentWxOpsRanges(text) {
+    const raw = String(text || "");
+    const out = [];
+    PRESENT_WX_RE.lastIndex = 0;
+    let m;
+    while ((m = PRESENT_WX_RE.exec(raw))) {
+      if (!m[0] || !presentWxIsOps(m[0])) continue;
+      out.push({ start: m.index, end: m.index + m[0].length, cls: "hl-ops" });
+    }
+    return out;
+  }
+
   function collectRe(text, re) {
     const raw = String(text || "");
     const out = [];
@@ -570,7 +626,7 @@
   }
 
   function hazardRanges(text) {
-    return collectRe(text, HAZARD_RE);
+    return collectRe(text, HAZARD_RE).concat(presentWxOpsRanges(text));
   }
 
   function wxRanges(text, opts) {
@@ -969,15 +1025,10 @@
     ranges,
     paint,
     parseRwy,
-    windGroups,
-    tempDew,
     formatMetar,
     formatAtis,
     isTafForecastTempTime,
     stripAdviseInfo,
-    tailDirRanges,
-    hazardRanges,
     wxRanges,
-    rwyccRanges,
   };
 });

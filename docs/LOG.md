@@ -2,6 +2,18 @@
 
 Session history for rebuild. Older narrative also lives in `CURSOR_general_logs/ATIS_PWA/LOG.md`.
 
+## 2026-08-27 — version 1.3
+
+Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`. SW `gearup-v158`.
+
+- EHAM board: pin overlay sits under ATIS/TAF/FLIGHT BOARD/AMS CDM; FOCUS/DEPARTURES/ARRIVALS/ADS-B stay covered while pinned.
+- Wind card: tap WORST for the heading/gust explainer. T ≥ 9 kt and X > 20 kt bold on the strip and in ATIS.
+- Home pins: long-press reorder / swipe-delete lock page scroll; a normal flick still scrolls.
+- Ops highlights: whole present-weather groups (`+TSRAGR`) when `+`, TS, or GR/GS; ceiling &lt; 400 ft; vis/RVR &lt; 550 m. Plain RA stays unmarked.
+- Listen: ARR uses LiveATC `_atis_arr` (EHAM `eham_atis_arr`). Button **LISTEN ARR**. Connecting spinner is a white ring + sweep.
+- DEPT selected with no recent departure copy: show arrival and **SHOWN DUE NO RECENT DEPT ATIS AVAIL.**
+- Cleanup: dead helpers/exports, one `pickAutoSide` per paint, no duplicate hold-path METAR.
+
 ## 2026-08-26 — version 1.2
 
 Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`. SW `gearup-v125`.

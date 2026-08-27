@@ -101,7 +101,7 @@ No inline scripts. Theme is a file. Do not add `unsafe-inline`.
 - Speed uses gust/MAX, not a shy mean.
 - VRB uses the **worst heading in the sector** (reciprocal if inside). Documented in `CALCULATIONS.md`. Do not silently switch to mean-only.
 - Taxiway decoder requires contamination words and rejects VACATE / NOT AVAILABLE / UNLESS / PRIOR TO / WIP (RKSI Echo).
-- Strip always says UNOFFICIAL ESTIMATE. Tailwind lines only enlarge speed and T/H/X, not the legal words.
+- Strip always says UNOFFICIAL ESTIMATE. Bold T/X (and the ddd/ss) only when T ≥ 9 kt or X > 20 kt, same as ATIS ops highlight. Do not enlarge the legal words.
 
 ---
 

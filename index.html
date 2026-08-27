@@ -53,7 +53,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon.png?v=16" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png?v=16" />
     <script src="/js/theme.js"></script>
-    <link rel="stylesheet" href="/css/app.css?v=125" />
+    <link rel="stylesheet" href="/css/app.css?v=158" />
   </head>
   <body>
     <div id="app">
@@ -75,11 +75,10 @@
 
       <section id="home" class="view view-home" hidden>
         <header class="home-header">
-          <h1>GearUp</h1>
-          <p class="home-kicker" aria-label="FastTrack your flight information">
+          <div class="home-brand" aria-label="GearUp Right Away">
             <span class="home-script" aria-hidden="true"></span>
-            <span class="home-sub">FLIGHT INFORMATION</span>
-          </p>
+            <h1>GearUp</h1>
+          </div>
           <div
             id="theme-toggle"
             class="theme-toggle"
@@ -136,6 +135,9 @@
         <div id="pins" class="pins"></div>
         <div class="disclaimer">
           <p>
+            Drag a card to rearrange. Swipe or drag left to delete.
+          </p>
+          <p>
             To save as a web app on iPhone, open this page in Safari, tap Share,
             then Add to Home Screen.
           </p>
@@ -157,7 +159,7 @@
             The author assumes no liability. EDUCATIONAL USE ONLY
           </p>
         </div>
-        <p class="home-version" aria-label="Version 1.2">1.2</p>
+        <p class="home-version" aria-label="Version 1.3">1.3</p>
       </section>
 
       <section id="detail" class="view view-detail" hidden>
@@ -254,7 +256,16 @@
           >
         </p>
         <div id="atis-body" class="atis-body"></div>
-        <div id="atis-worstwind" class="atis-panel worstwind" hidden>
+        <div
+          id="atis-worstwind"
+          class="atis-panel worstwind"
+          hidden
+          role="button"
+          tabindex="0"
+          aria-haspopup="dialog"
+          aria-controls="worstwind-dialog"
+          aria-label="Worst wind. Opens a short explanation."
+        >
           <div id="atis-worstwind-body" class="wx-body"></div>
         </div>
         <div id="atis-rwycond" class="atis-panel rwycond" hidden>
@@ -358,9 +369,10 @@
             class="board-focus-btn"
             aria-haspopup="dialog"
             aria-controls="board-focus-dialog"
+            aria-label="Focus flight or route"
           >
             <span>FOCUS</span>
-            <span>FLIGHT</span>
+            <span>FLT/RTE</span>
           </button>
           <div class="board-chrome-end">
             <div class="brief-clockwrap">
@@ -370,8 +382,24 @@
               </time>
               <p class="board-utc-note">ALL TIMES IN UTC</p>
             </div>
-            <button type="button" id="board-refresh" class="icon-btn">
-              Refresh
+            <button
+              type="button"
+              id="board-refresh"
+              class="icon-btn board-refresh"
+              aria-label="Refresh"
+            >
+              <span class="board-refresh-label">Refresh</span>
+              <svg
+                class="board-refresh-icon"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path
+                  fill="currentColor"
+                  d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 8 8h-2a6 6 0 1 1-6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4z"
+                />
+              </svg>
             </button>
           </div>
         </header>
@@ -403,6 +431,9 @@
             ADS-B
           </button>
         </div>
+        <p class="board-pin-hint">
+          Pin flight by clicking or long pressing its row.
+        </p>
         <p id="board-empty" class="brief-empty" hidden></p>
         <ul id="board-list" class="board-list" hidden></ul>
       </section>
@@ -427,6 +458,38 @@
         </div>
       </section>
     </div>
+    <div id="board-pin-overlay" class="board-pin-overlay" hidden>
+      <div
+        class="board-pin-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="board-pin-title"
+      >
+        <header class="board-pin-head">
+          <div class="board-pin-head-text">
+            <h2 id="board-pin-title"></h2>
+            <p id="board-pin-sub"></p>
+          </div>
+          <button
+            type="button"
+            id="board-pin-close"
+            class="board-pin-close"
+            aria-label="Unpin flight"
+          >
+            ×
+          </button>
+        </header>
+        <iframe
+          id="board-pin-cdm"
+          class="board-pin-cdm"
+          title="Schiphol CDM"
+          src="about:blank"
+          hidden
+        ></iframe>
+        <p id="board-pin-cdm-note" class="board-pin-note" hidden></p>
+        <dl id="board-pin-extra" class="board-pin-extra"></dl>
+      </div>
+    </div>
     <div id="board-focus-dialog" class="board-focus-dialog" hidden>
       <div
         class="board-focus-card"
@@ -434,9 +497,11 @@
         aria-modal="true"
         aria-labelledby="board-focus-title"
       >
-        <h2 id="board-focus-title">Focus flight</h2>
+        <h2 id="board-focus-title">Focus</h2>
         <form id="board-focus-form" class="board-focus-form" autocomplete="off">
-          <label class="sr-only" for="board-focus-input">Flight number</label>
+          <label class="sr-only" for="board-focus-input"
+            >Flight number or airport</label
+          >
           <input
             id="board-focus-input"
             name="flight"
@@ -445,7 +510,7 @@
             autocapitalize="characters"
             autocomplete="off"
             spellcheck="false"
-            placeholder="KL871 or 871"
+            placeholder="KL871, 871, or BCN"
           />
           <button type="submit" class="icon-btn">Go</button>
         </form>
@@ -465,6 +530,31 @@
         <h2 id="stale-dialog-title">Stale ATIS</h2>
         <div id="stale-dialog-body" class="stale-dialog-body"></div>
         <button type="button" id="stale-dialog-close" class="icon-btn">
+          Close
+        </button>
+      </div>
+    </div>
+    <div id="worstwind-dialog" class="worstwind-dialog" hidden>
+      <div
+        class="worstwind-dialog-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="worstwind-dialog-title"
+      >
+        <h2 id="worstwind-dialog-title">Worst wind</h2>
+        <div class="worstwind-dialog-body">
+          <p>
+            If the wind is variable, this uses the least helpful heading in
+            that range: the most tailwind, or the smallest headwind if it never
+            becomes a tailwind (if a range of wind directions is given).
+          </p>
+          <p>Gust or MAX is used when it is stronger than the mean.</p>
+          <p>
+            T = tailwind, H = headwind, X = crosswind, in knots. The direction
+            shown is that WORST heading, not necessarily the mean on the ATIS.
+          </p>
+        </div>
+        <button type="button" id="worstwind-dialog-close" class="icon-btn">
           Close
         </button>
       </div>

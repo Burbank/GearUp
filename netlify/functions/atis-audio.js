@@ -14,7 +14,7 @@ exports.handler = async (event) => {
     "Cache-Control": "no-store",
   };
   try {
-    const data = await findLiveAtis(icao);
+    const data = await findLiveAtis(icao, { kind: q.kind });
     return { statusCode: 200, headers, body: JSON.stringify(data) };
   } catch (err) {
     return {

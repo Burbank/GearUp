@@ -46,6 +46,42 @@
     return { airline: "", num: "" };
   }
 
+  function classifyQuery(value) {
+    const q = compactFlight(value);
+    if (/^[A-Z]{3}$/.test(q)) return { kind: "route", q };
+    if (q) return { kind: "flight", q };
+    return { kind: "", q: "" };
+  }
+
+  function destsOf(row) {
+    const fromField = row && row.dests;
+    if (Array.isArray(fromField)) {
+      return fromField.map(compactFlight).filter(Boolean);
+    }
+    if (fromField) {
+      return String(fromField)
+        .split(/[, ]+/)
+        .map(compactFlight)
+        .filter(Boolean);
+    }
+    const fromDom = row && row.dataset && row.dataset.dests;
+    if (fromDom) {
+      return String(fromDom)
+        .split(/[, ]+/)
+        .map(compactFlight)
+        .filter(Boolean);
+    }
+    return String((row && row.route) || "")
+      .toUpperCase()
+      .match(/\b[A-Z]{3}\b/g) || [];
+  }
+
+  function matchRoute(row, query) {
+    const code = compactFlight(query);
+    if (!/^[A-Z]{3}$/.test(code)) return false;
+    return destsOf(row).includes(code);
+  }
+
   function matchFlight(boardFlight, query) {
     const a = compactFlight(boardFlight);
     const b = compactFlight(query);
@@ -60,6 +96,144 @@
   function findFlight(flights, query) {
     const list = Array.isArray(flights) ? flights : [];
     return list.find((row) => matchFlight(row && row.flight, query)) || null;
+  }
+
+  function findBoardRow(flights, query, timeZ) {
+    const list = Array.isArray(flights) ? flights : [];
+    const matches = list.filter((row) => matchFlight(row && row.flight, query));
+    if (!matches.length) return null;
+    const clock = String(timeZ || "").trim();
+    if (clock) {
+      const timed = matches.find((row) => String(row.timeZ || "") === clock);
+      if (timed) return timed;
+    }
+    return matches[0];
+  }
+
+  function pierIsNew(row) {
+    const pier = String((row && row.pier) || "").toUpperCase();
+    const gate = String((row && row.gate) || "").toUpperCase();
+    if (!pier) return false;
+    return !gate.startsWith(pier);
+  }
+
+  function displayExtra(value) {
+    if (value == null || value === "") return "";
+    if (typeof value === "object") return "unknown";
+    const text = String(value).trim();
+    if (!text) return "";
+    const compact = text.replace(/\s+/g, "").toUpperCase();
+    if (
+      compact === "[OBJECTOBJECT]" ||
+      compact === "OBJECTOBJECT" ||
+      /\[OBJECT\s*OBJECT\]/i.test(text)
+    ) {
+      return "unknown";
+    }
+    return text;
+  }
+
+  function pinExtras(row, dir) {
+    const isArr = String(dir || "").toUpperCase() === "A";
+    const items = [];
+    function add(label, value) {
+      const v = displayExtra(value);
+      if (!v) return;
+      items.push({ label, value: v });
+    }
+    add("Airline", row && row.airline);
+    add(isArr ? "Origin" : "Destination", row && row.route);
+    add("Status", row && row.statusLabel);
+    if (isArr) {
+      add("Aircraft", row && row.aircraft);
+      add("Registration", row && row.reg);
+      add("Scheduled", row && row.schedZ);
+      add("Estimated landing", row && row.estZ);
+      add("Actual landing", row && row.actZ);
+      add("Gate", row && row.gate);
+      add("Terminal", row && row.terminal);
+      if (pierIsNew(row)) add("Pier", row && row.pier);
+      add("Belt", row && row.belt);
+      add("On belt", row && row.onBeltZ);
+    } else {
+      add("Terminal", row && row.terminal);
+      if (pierIsNew(row)) add("Pier", row && row.pier);
+      add("Check-in", row && row.checkin);
+      add("Gate open", row && row.gateOpenZ);
+      add("Boarding", row && row.boardingZ);
+      add("Gate closing", row && row.gateCloseZ);
+      add("Codeshares", row && row.codeshares);
+    }
+    if (row && row.cargo) add("Service", "CARGO");
+    return items;
+  }
+
+  function bindRowLongPress(listEl, onHold) {
+    if (!listEl || typeof onHold !== "function") return;
+    const HOLD_MS = 420;
+    const SLOP = 12;
+    let press = null;
+
+    function clearPress() {
+      if (press && press.timer) clearTimeout(press.timer);
+      press = null;
+    }
+
+    listEl.addEventListener("contextmenu", (event) => {
+      if (event.target.closest(".board-row")) event.preventDefault();
+    });
+
+    listEl.addEventListener("pointerdown", (event) => {
+      if (event.button != null && event.button !== 0) return;
+      const li = event.target.closest(".board-row");
+      if (!li || !listEl.contains(li)) return;
+      clearPress();
+      press = {
+        li,
+        x: event.clientX,
+        y: event.clientY,
+        timer: setTimeout(() => {
+          const held = press && press.li;
+          press = null;
+          if (!held) return;
+          if (navigator.vibrate) navigator.vibrate(12);
+          onHold(held);
+        }, HOLD_MS),
+      };
+    });
+
+    function onMove(event) {
+      if (!press) return;
+      const dx = event.clientX - press.x;
+      const dy = event.clientY - press.y;
+      if (dx * dx + dy * dy > SLOP * SLOP) clearPress();
+    }
+
+    function onUp() {
+      if (!press) return;
+      const li = press.li;
+      clearPress();
+      if (li) onHold(li);
+    }
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", clearPress);
+  }
+
+  const LIST_MAX = 60;
+
+  function visibleFlights(flights, focusQuery) {
+    const list = Array.isArray(flights) ? flights : [];
+    const kind = classifyQuery(focusQuery);
+    if (kind.kind === "route") {
+      return list.filter((row) => matchRoute(row, kind.q));
+    }
+    const head = list.slice(0, LIST_MAX);
+    if (kind.kind !== "flight") return head;
+    const found = findFlight(list, kind.q);
+    if (!found || findFlight(head, kind.q)) return head;
+    return head.concat([found]);
   }
 
   function paintZulu(label, className) {
@@ -93,10 +267,21 @@
   function paintRows(listEl, flights) {
     if (!listEl) return;
     listEl.replaceChildren();
+    let lastDay = "";
     for (const row of Array.isArray(flights) ? flights : []) {
+      const dayKey = String((row && row.dayKey) || "");
+      const dayLabel = String((row && row.dayLabel) || "");
+      if (dayKey && lastDay && dayKey !== lastDay) {
+        const day = el("li", "board-day", dayLabel || dayKey);
+        day.setAttribute("aria-label", dayLabel || dayKey);
+        listEl.appendChild(day);
+      }
+      if (dayKey) lastDay = dayKey;
       const li = el("li", "board-row");
       if (row.statusKind) li.classList.add("board-row-" + row.statusKind);
       li.dataset.flight = row.flight || "";
+      li.dataset.time = row.timeZ || "";
+      li.dataset.dests = Array.isArray(row.dests) ? row.dests.join(",") : "";
       li.dataset.meta = row.meta || "";
       const time = el("span", "board-time");
       if (row.timeNewZ) {
@@ -130,5 +315,19 @@
     }
   }
 
-  return { compactFlight, fillMeta, findFlight, matchFlight, paintRows };
+  return {
+    LIST_MAX,
+    bindRowLongPress,
+    classifyQuery,
+    compactFlight,
+    destsOf,
+    fillMeta,
+    findBoardRow,
+    findFlight,
+    matchFlight,
+    matchRoute,
+    paintRows,
+    pinExtras,
+    visibleFlights,
+  };
 });

@@ -28,13 +28,13 @@ Bundle is a static PWA. Weather and Schiphol traffic go through the same-origin 
 4. `node server.js` — listens on all interfaces, port 8787.
 5. Phone on same Wi-Fi: `http://<Mac-LAN-IP>:8787/`.
 6. Production: Netlify site `gearup4u`, publish `.`, functions `netlify/functions`. `netlify.toml` maps `/api/*`.
-7. After JS/CSS/HTML change: bump `sw.js` cache name **and** `index.html` `app.css?v=` **and** the FastTrack mask `?v=` if the PNG changed. Old service-worker cache-first icons otherwise stick.
+7. After JS/CSS/HTML change: bump `sw.js` cache name **and** `index.html` `app.css?v=` **and** the Right Away mask `?v=` if the PNG changed. Old service-worker cache-first icons otherwise stick.
 
 ## Version
 
-Footer and `aria-label` on home: **1.2** (`index.html` `.home-version`).  
-User-Agent: `GearUp/1.2` in `lib/http.js`.  
-Service worker cache at 1.2 ship: `gearup-v125`.
+Footer and `aria-label` on home: **1.3** (`index.html` `.home-version`).  
+User-Agent: `GearUp/1.3` in `lib/http.js`.  
+Service worker cache at 1.3 ship: `gearup-v158`.
 
 When bumping later: change the footer, UA, SW cache string, CSS query, and mask query together.
 
@@ -43,7 +43,7 @@ When bumping later: change the footer, UA, SW cache string, CSS query, and mask 
 | Path | Role |
 |------|------|
 | `index.html` | Shell, views (home / ATIS / TAF / board / slots), CSP, version |
-| `css/app.css` | Themes, pins, worst-wind layout, FastTrack mask |
+| `css/app.css` | Themes, pins, worst-wind layout, Right Away mask |
 | `js/app.js` | Routing, pins, clocks, ATIS/TAF/board paint, holds, timers |
 | `js/hl.js` | Runway extract, ATIS format, ops highlights |
 | `js/worstwind.js` | Wind parse, worst heading, T/H/X |
@@ -59,8 +59,8 @@ When bumping later: change the footer, UA, SW cache string, CSS query, and mask 
 | `lib/*` | Node fetchers: ATIS, TAF, METAR, airport, board, CDM, density, limit |
 | `netlify/functions/*` | Thin wrappers around `lib/` |
 | `data/airports.json` | OurAirports index (ICAO, IATA, name, city, lat/lon, elev, tz) |
-| `icons/fasttrack-flat.png` | Home overlay mask (transparent ink on transparent) |
-| `docs/branding/fasttrack-source.png` | Approved handwritten scan |
+| `icons/rightaway-flat.png` | Home overlay mask (transparent ink on transparent) |
+| `docs/branding/rightaway-source.png` | Approved handwritten scan |
 | `docs/CALCULATIONS.md` | Every formula |
 | `docs/SAFETY.md` | Rate limits, CSP, unofficial nets |
 
@@ -82,14 +82,15 @@ Age and **stale** use the **publication Zulu inside the text** (or issued stamp)
 
 `EDFH` and `HECA` start as **no D-ATIS** (tiny muted label, not strikethrough). Existing `atis.pins` in localStorage is left alone.
 
-## Home FastTrack overlay
+## Home Right Away overlay
 
-Do not re-host a webfont. The script is a **CSS mask**:
+Do not re-host a webfont. The script is a **CSS mask** behind **GearUp**:
 
-- File: `icons/fasttrack-flat.png` (deskewed, white keyed out).
-- Geometry: `.home-script` `aspect-ratio: 1163 / 384`, full width of **FLIGHT INFORMATION**, `bottom: 0.36rem`.
+- File: `icons/rightaway-flat.png` (white keyed out).
+- Geometry: `.home-script` `aspect-ratio: 965 / 1280`, absolutely positioned behind `h1` in `.home-brand`.
 - Color: `background-color: var(--fg)` so Bright is black ink and Dim is white.
-- Source scan: `docs/branding/fasttrack-source.png` (the 2026-08-26 note with a connected Fast **t** bar). Flatten and key white → transparent if you recrop.
+- Source scan: `docs/branding/rightaway-source.png` / `Gear_Up_Right_Away.png`. Flatten and key white → transparent if you recrop.
+- Do not use FastTrack / FLIGHT INFORMATION copy.
 
 ## Tabs
 
@@ -101,6 +102,8 @@ Do not re-host a webfont. The script is a **CSS mask**:
 ## Tests (no browser)
 
 ```
+node scripts/test-hl.js
+node scripts/test-liveatc.js
 node scripts/test-worstwind.js
 node scripts/test-rwycond.js
 node scripts/test-board.js
@@ -108,6 +111,8 @@ node scripts/test-cdm.js
 node scripts/test-limit.js
 node scripts/test-tz.js
 node scripts/test-zulu.js
+node scripts/test-acknowledge.js
+node scripts/test-taf-temp-zulu.js
 ```
 
 Airport rebuild (large download): `node scripts/build-airports.js` → `data/airports.json`.

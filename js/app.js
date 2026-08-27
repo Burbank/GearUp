@@ -34,10 +34,14 @@
     "Nov",
     "Dec",
   ];
+  const PIN_LONG_MS = 420;
+  const PIN_SLOP_PX = 12;
+  const PIN_SWIPE_PX = 80;
   const LS_PINS = "atis.pins";
   const LS_NODATIS = "atis.nodatis";
   const LS_CACHE = "atis.cache";
   const LS_LAST = "atis.lastIcao";
+  const SS_BOARD_PIN = "atis.boardPin";
   const SLOTS_URL = "/api/cdm";
 
   const home = document.getElementById("home");
@@ -112,6 +116,8 @@
   const wxPirepBody = document.getElementById("wx-pirep-body");
   const atisWorstwind = document.getElementById("atis-worstwind");
   const atisWorstwindBody = document.getElementById("atis-worstwind-body");
+  const worstwindDialog = document.getElementById("worstwind-dialog");
+  const worstwindDialogClose = document.getElementById("worstwind-dialog-close");
   const atisRwycond = document.getElementById("atis-rwycond");
   const atisRwycondBody = document.getElementById("atis-rwycond-body");
   const wxSnowtam = document.getElementById("wx-snowtam");
@@ -141,6 +147,13 @@
   const boardFocusInput = document.getElementById("board-focus-input");
   const boardFocusErr = document.getElementById("board-focus-err");
   const boardFocusCancel = document.getElementById("board-focus-cancel");
+  const boardPinOverlay = document.getElementById("board-pin-overlay");
+  const boardPinTitle = document.getElementById("board-pin-title");
+  const boardPinSub = document.getElementById("board-pin-sub");
+  const boardPinClose = document.getElementById("board-pin-close");
+  const boardPinCdm = document.getElementById("board-pin-cdm");
+  const boardPinCdmNote = document.getElementById("board-pin-cdm-note");
+  const boardPinExtra = document.getElementById("board-pin-extra");
 
   let currentIcao = "";
   let pendingOpts = null;
@@ -155,6 +168,14 @@
   let boardFocusQuery = "";
   let boardFocusSlot = null;
   let boardFocusToken = 0;
+  let boardPin = null;
+  let pinCdmToken = 0;
+  let pinCdmLoadedFor = "";
+  let pinCdmBareReloads = 0;
+  let pinCdmObserver = null;
+  let pinCdmObsDebounce = 0;
+  let pinCdmPollTimer = 0;
+  let pinCdmSearchAt = 0;
   let slotsLoaded = false;
   let thirdMode = "";
   let cdmFlight = null;
@@ -182,6 +203,27 @@
     staleListen.setAttribute("aria-busy", on ? "true" : "false");
   }
 
+  function listenSide() {
+    return atisSide === "arrival" ? "arrival" : "departure";
+  }
+
+  function listenIdleLabel(side) {
+    return (side || listenSide()) === "arrival" ? "LISTEN ARR" : "LISTEN DEPT";
+  }
+
+  function listenKindPhrase(feed, side) {
+    const k = (feed && feed.kind) || side || listenSide();
+    if (k === "arrival") return "arrival ATIS";
+    if (k === "departure") return "departure ATIS";
+    return "ATIS";
+  }
+
+  function feedFitsSide(feed, side) {
+    if (!feed || !feed.url) return false;
+    if (!feed.kind || feed.kind === "combined") return true;
+    return feed.kind === side;
+  }
+
   function loadJson(key, fallback) {
     try {
       const raw = localStorage.getItem(key);
@@ -197,8 +239,14 @@
   }
 
   function loadPins() {
-    const pins = loadJson(LS_PINS, null);
-    return Array.isArray(pins) && pins.length ? pins : [...DEFAULT_PINS];
+    try {
+      const raw = localStorage.getItem(LS_PINS);
+      if (raw == null) return [...DEFAULT_PINS];
+      const list = JSON.parse(raw);
+      return Array.isArray(list) ? list : [...DEFAULT_PINS];
+    } catch {
+      return [...DEFAULT_PINS];
+    }
   }
 
   function loadNoDatis() {
@@ -462,6 +510,14 @@
     updatePinButton();
   }
 
+  function removePin(icao) {
+    if (!isPinned(icao)) return;
+    pins = pins.filter((x) => x !== icao);
+    persistPins();
+    renderPins();
+    updatePinButton();
+  }
+
   function foldPlace(value) {
     if (window.GearUpAirports && window.GearUpAirports.fold) {
       return window.GearUpAirports.fold(value);
@@ -509,6 +565,7 @@
       const missing = noDatis.has(icao);
       const btn = document.createElement("button");
       btn.type = "button";
+      btn.dataset.icao = icao;
       btn.className = "pin" + (missing ? " no-datis" : "");
       btn.setAttribute(
         "aria-label",
@@ -555,15 +612,278 @@
         btn.appendChild(place);
       }
 
-      btn.addEventListener("click", () => openAtis(icao));
+      bindPinGestures(btn, icao);
       pinsEl.appendChild(btn);
     }
+  }
+
+  let pinDrag = null;
+
+  function pinDragClearTimer() {
+    if (pinDrag && pinDrag.timer) {
+      clearTimeout(pinDrag.timer);
+      pinDrag.timer = 0;
+    }
+  }
+
+  function pinDragUnbind() {
+    window.removeEventListener("pointermove", onPinPointerMove);
+    window.removeEventListener("pointerup", onPinPointerUp);
+    window.removeEventListener("pointercancel", onPinPointerUp);
+  }
+
+  function preventPinPageScroll(event) {
+    event.preventDefault();
+  }
+
+  function lockPinPageScroll() {
+    if (document.documentElement.classList.contains("pin-scroll-lock")) return;
+    document.documentElement.classList.add("pin-scroll-lock");
+    if (home) {
+      home.dataset.pinScroll = String(home.scrollTop || 0);
+      home.classList.add("pin-scroll-lock");
+    }
+    window.addEventListener("touchmove", preventPinPageScroll, {
+      passive: false,
+      capture: true,
+    });
+  }
+
+  function unlockPinPageScroll() {
+    window.removeEventListener("touchmove", preventPinPageScroll, {
+      capture: true,
+    });
+    document.documentElement.classList.remove("pin-scroll-lock");
+    if (home) {
+      const y = Number(home.dataset.pinScroll || 0);
+      home.classList.remove("pin-scroll-lock");
+      home.scrollTop = y;
+      delete home.dataset.pinScroll;
+    }
+  }
+
+  function pinDragEnd() {
+    pinDragClearTimer();
+    pinDragUnbind();
+    unlockPinPageScroll();
+    if (pinsEl) pinsEl.classList.remove("pin-busy");
+    pinDrag = null;
+  }
+
+  function bindPinGestures(btn, icao) {
+    btn.addEventListener("contextmenu", (event) => event.preventDefault());
+    btn.addEventListener("pointerdown", (event) => onPinPointerDown(event, btn, icao));
+    btn.addEventListener("click", (event) => {
+      if (btn.dataset.suppressClick === "1") {
+        event.preventDefault();
+        event.stopPropagation();
+        btn.dataset.suppressClick = "";
+        return;
+      }
+      openAtis(icao);
+    });
+  }
+
+  function onPinPointerDown(event, btn, icao) {
+    if (event.button != null && event.button !== 0) return;
+    if (pinDrag) pinDragEnd();
+    pinDrag = {
+      btn,
+      icao,
+      id: event.pointerId,
+      type: event.pointerType || "",
+      x0: event.clientX,
+      y0: event.clientY,
+      x: event.clientX,
+      y: event.clientY,
+      mode: "",
+      timer: 0,
+      placeholder: null,
+      offX: 0,
+      offY: 0,
+    };
+    pinDrag.timer = setTimeout(() => {
+      if (!pinDrag || pinDrag.btn !== btn) return;
+      beginPinReorder(event.pointerId);
+    }, PIN_LONG_MS);
+    window.addEventListener("pointermove", onPinPointerMove);
+    window.addEventListener("pointerup", onPinPointerUp);
+    window.addEventListener("pointercancel", onPinPointerUp);
+  }
+
+  function beginPinReorder(pointerId) {
+    const g = pinDrag;
+    if (!g || g.mode) return;
+    pinDragClearTimer();
+    g.mode = "drag";
+    g.btn.dataset.suppressClick = "1";
+    try {
+      g.btn.setPointerCapture(pointerId);
+    } catch {
+      /* already captured or unsupported */
+    }
+    if (navigator.vibrate) navigator.vibrate(12);
+    lockPinPageScroll();
+    pinsEl.classList.add("pin-busy");
+    const r = g.btn.getBoundingClientRect();
+    g.offX = g.x0 - r.left;
+    g.offY = g.y0 - r.top;
+    g.placeholder = document.createElement("div");
+    g.placeholder.className = "pin-placeholder";
+    g.placeholder.style.minHeight = r.height + "px";
+    g.btn.after(g.placeholder);
+    g.btn.classList.add("dragging");
+    g.btn.style.width = r.width + "px";
+    g.btn.style.height = r.height + "px";
+    pinsEl.appendChild(g.btn);
+    movePinFollow(g.x, g.y);
+  }
+
+  function beginPinSwipe() {
+    const g = pinDrag;
+    if (!g || g.mode) return;
+    pinDragClearTimer();
+    g.mode = "swipe";
+    g.btn.dataset.suppressClick = "1";
+    try {
+      g.btn.setPointerCapture(g.id);
+    } catch {
+      /* ignore */
+    }
+    pinsEl.classList.add("pin-busy");
+    lockPinPageScroll();
+    g.btn.classList.add("swiping");
+  }
+
+  function pinSlotIndex(x, y, skip) {
+    const cards = [...pinsEl.querySelectorAll(".pin")].filter((el) => el !== skip);
+    let insert = cards.length;
+    for (let i = 0; i < cards.length; i++) {
+      const r = cards[i].getBoundingClientRect();
+      const cx = r.left + r.width / 2;
+      const cy = r.top + r.height / 2;
+      if (y < cy || (Math.abs(y - cy) <= r.height / 2 && x < cx)) {
+        insert = i;
+        break;
+      }
+    }
+    return insert;
+  }
+
+  function movePinFollow(x, y) {
+    const g = pinDrag;
+    if (!g || g.mode !== "drag") return;
+    g.btn.style.left = x - g.offX + "px";
+    g.btn.style.top = y - g.offY + "px";
+    const insert = pinSlotIndex(x, y, g.btn);
+    const cards = [...pinsEl.querySelectorAll(".pin")].filter((el) => el !== g.btn);
+    const before = cards[insert];
+    if (before) pinsEl.insertBefore(g.placeholder, before);
+    else pinsEl.appendChild(g.placeholder);
+  }
+
+  function commitPinOrder() {
+    const g = pinDrag;
+    if (!g) return;
+    const next = [];
+    for (const el of pinsEl.children) {
+      if (el === g.placeholder) next.push(g.icao);
+      else if (el.classList.contains("pin") && el !== g.btn) {
+        const code = el.dataset.icao;
+        if (code) next.push(code);
+      }
+    }
+    if (!next.includes(g.icao)) next.push(g.icao);
+    if (next.length) pins = next;
+    persistPins();
+    renderPins();
+  }
+
+  function onPinPointerMove(event) {
+    const g = pinDrag;
+    if (!g || event.pointerId !== g.id) return;
+    g.x = event.clientX;
+    g.y = event.clientY;
+    const dx = g.x - g.x0;
+    const dy = g.y - g.y0;
+    if (!g.mode) {
+      if (Math.abs(dx) < PIN_SLOP_PX && Math.abs(dy) < PIN_SLOP_PX) return;
+      const leftSwipe =
+        dx < -PIN_SLOP_PX && Math.abs(dx) > Math.abs(dy) * 1.15;
+      const mouse = g.type === "mouse";
+      if (leftSwipe) {
+        beginPinSwipe();
+      } else if (!mouse && Math.abs(dy) > Math.abs(dx)) {
+        pinDragEnd();
+        return;
+      } else if (mouse) {
+        beginPinReorder(g.id);
+      }
+    }
+    if (g.mode === "swipe") {
+      event.preventDefault();
+      const x = Math.min(0, dx);
+      g.btn.style.transform = "translateX(" + x + "px)";
+      g.btn.style.opacity = String(Math.max(0.35, 1 + x / 180));
+      return;
+    }
+    if (g.mode === "drag") {
+      event.preventDefault();
+      movePinFollow(g.x, g.y);
+    }
+  }
+
+  function finishPinSwipe(dx) {
+    const g = pinDrag;
+    if (!g) return;
+    const btn = g.btn;
+    const icao = g.icao;
+    if (dx <= -PIN_SWIPE_PX) {
+      btn.style.transition = "transform 0.18s ease, opacity 0.18s ease";
+      btn.style.transform = "translateX(-120%)";
+      btn.style.opacity = "0";
+      pinDragEnd();
+      setTimeout(() => removePin(icao), 160);
+      return;
+    }
+    btn.style.transition = "transform 0.16s ease, opacity 0.16s ease";
+    btn.style.transform = "";
+    btn.style.opacity = "";
+    pinDragEnd();
+    setTimeout(() => {
+      btn.classList.remove("swiping");
+      btn.style.transition = "";
+    }, 180);
+  }
+
+  function onPinPointerUp(event) {
+    const g = pinDrag;
+    if (!g || event.pointerId !== g.id) return;
+    const dx = (event.clientX || g.x) - g.x0;
+    if (g.mode === "drag") {
+      if (dx <= -PIN_SWIPE_PX * 1.35 && Math.abs(dx) > Math.abs((event.clientY || g.y) - g.y0)) {
+        const icao = g.icao;
+        pinDragEnd();
+        renderPins();
+        removePin(icao);
+        return;
+      }
+      commitPinOrder();
+      pinDragEnd();
+      return;
+    }
+    if (g.mode === "swipe") {
+      finishPinSwipe(dx);
+      return;
+    }
+    pinDragEnd();
   }
 
   function setTab(name) {
     if (currentTab === "board" && name !== "board") clearBoardFocus();
     currentTab = name;
     if (name === "board") tickBoardLocal();
+    syncBoardPinOverlay();
     for (const btn of tabButtons) {
       const on = btn.dataset.tab === name;
       btn.classList.toggle("active", on);
@@ -590,7 +910,7 @@
       /* ignore */
     }
     staleListen.setAttribute("aria-pressed", "false");
-    staleListen.textContent = "LISTEN DEPT";
+    staleListen.textContent = listenIdleLabel();
   }
 
   function layoutStaleRow() {
@@ -619,21 +939,22 @@
   }
 
   function applyListenFeed(feed) {
-    if (feed && feed.url) {
+    const side = listenSide();
+    if (feed && feed.url && feedFitsSide(feed, side)) {
       liveFeed = feed;
       staleListen.hidden = false;
       staleListen.disabled = false;
       staleListen.classList.toggle("loading", audioConnecting);
       staleListen.setAttribute("aria-pressed", listening && !audioConnecting ? "true" : "false");
-      staleListen.textContent = listening ? "Stop" : "LISTEN DEPT";
-      const kind = feed.kind === "departure" ? "departure ATIS" : "ATIS";
+      staleListen.textContent = listening ? "Stop" : listenIdleLabel(side);
+      const kind = listenKindPhrase(feed, side);
       staleListen.setAttribute(
         "aria-label",
         audioConnecting
           ? `Connecting to live ${kind}`
           : listening
             ? `Stop live ${kind}`
-            : `Listen to live departure ATIS`
+            : `Listen to live ${kind}`
       );
     } else if (!listening && !audioConnecting) {
       liveFeed = null;
@@ -666,7 +987,7 @@
       ],
       [
         "p",
-        "If this airport has a live departure audio feed, a LISTEN DEPT button appears so you can hear the spoken ATIS instead.",
+        "If this airport has a live audio feed, LISTEN DEPT or LISTEN ARR appears so you can hear the spoken ATIS for that side.",
       ],
       [
         "p",
@@ -722,34 +1043,59 @@
 
   async function maybeOfferListen(icao) {
     const token = ++liveToken;
+    const side = listenSide();
     try {
-      const res = await fetch(`/api/atis-audio/${icao}`, { cache: "no-store" });
+      const res = await fetch(
+        `/api/atis-audio/${icao}?kind=${encodeURIComponent(side)}`,
+        { cache: "no-store" }
+      );
       const data = res.ok ? await res.json() : null;
       if (token !== liveToken || currentIcao !== icao || currentTab !== "atis") return;
+      if (listenSide() !== side) return;
       applyListenFeed(data && data.url ? data : null);
     } catch {
       if (token !== liveToken || currentIcao !== icao) return;
+      if (listenSide() !== side) return;
       applyListenFeed(null);
     }
+  }
+
+  function offerListen(icao) {
+    const side = listenSide();
+    const same =
+      liveFeed && liveFeed.icao === icao && feedFitsSide(liveFeed, side);
+    if (listening && liveFeed && !same) stopAtisAudio();
+    if (same) {
+      applyListenFeed(liveFeed);
+      return;
+    }
+    liveFeed = null;
+    if (!audioConnecting) {
+      staleListen.hidden = true;
+      layoutStaleRow();
+    }
+    maybeOfferListen(icao);
   }
 
   async function toggleAtisAudio() {
     if (!liveFeed || !liveFeed.url) return;
     if (listening || audioConnecting) {
       stopAtisAudio();
+      applyListenFeed(liveFeed);
       return;
     }
     listening = true;
     setListenConnecting(true);
     staleListen.textContent = "Stop";
     staleListen.setAttribute("aria-pressed", "false");
-    const kind = liveFeed.kind === "departure" ? "departure ATIS" : "ATIS";
+    const kind = listenKindPhrase(liveFeed);
     staleListen.setAttribute("aria-label", `Connecting to live ${kind}`);
     atisAudio.src = liveFeed.url;
     try {
       await atisAudio.play();
     } catch {
       stopAtisAudio();
+      applyListenFeed(liveFeed);
     }
   }
 
@@ -758,7 +1104,7 @@
     setListenConnecting(false);
     staleListen.textContent = "Stop";
     staleListen.setAttribute("aria-pressed", "true");
-    const kind = liveFeed && liveFeed.kind === "departure" ? "departure ATIS" : "ATIS";
+    const kind = listenKindPhrase(liveFeed);
     staleListen.setAttribute("aria-label", `Stop live ${kind}`);
   }
 
@@ -1062,8 +1408,14 @@
     return age;
   }
 
-  function setDeptNote(on) {
+  function setDeptNote(on, mode) {
     if (!atisDeptNote) return;
+    if (on) {
+      atisDeptNote.textContent =
+        mode === "shown"
+          ? "SHOWN DUE NO RECENT DEPT ATIS AVAIL."
+          : "ALSO NO RECENT DEPT ATIS AVAIL";
+    }
     atisDeptNote.hidden = !on;
   }
 
@@ -1538,9 +1890,13 @@
     if (atisSideManual || !bundle || bundle.kind === "error") return;
     const dep = sideFromBundle(bundle, "departure");
     const arr = sideFromBundle(bundle, "arrival");
-    const depMs = usableShown(dep) ? atisMs(dep) : 0;
-    const arrMs = usableShown(arr) ? atisMs(arr) : 0;
-    atisSide = arrMs > depMs ? "arrival" : "departure";
+    const depRecent = usableShown(dep) && !isStaleAtis(dep);
+    const arrOk = usableShown(arr);
+    if (depRecent && arrOk && atisMs(arr) > atisMs(dep)) {
+      atisSide = "arrival";
+      return;
+    }
+    atisSide = "departure";
   }
 
   function updateSideToggle() {
@@ -1564,10 +1920,7 @@
     if (atisSide === "departure") {
       const dep = side;
       const arr = sideFromBundle(bundle, "arrival");
-      if (
-        usableShown(arr) &&
-        (!usableShown(dep) || atisMs(arr) >= atisMs(dep))
-      ) {
+      if (usableShown(arr) && (!usableShown(dep) || isStaleAtis(dep))) {
         side = arr;
       }
     }
@@ -1596,7 +1949,6 @@
 
   function renderResult(data, { loading = false } = {}) {
     if (data && !loading && data.kind !== "error") lastAtisBundle = data;
-    if (!loading && data && data.kind !== "error") pickAutoSide(data);
     const view = loading ? data : displayedFromBundle(data) || data;
     const icao = (view && view.icao) || currentIcao;
     const cachedIata = airportCache[icao] && airportCache[icao].iata;
@@ -1626,8 +1978,12 @@
       kindLabel.textContent = wantArr ? "No arrival ATIS" : "No D-ATIS";
       setAgeEl(atisAgeEl, "");
       setDayNote(false);
-      setDeptNote(!wantArr && usableShown(sideFromBundle(data, "arrival")));
-      hideStaleBanner();
+      setDeptNote(
+        !wantArr && usableShown(sideFromBundle(data, "arrival")),
+        "shown"
+      );
+      setStaleFlag(false);
+      offerListen(icao);
       hideAtisRwycond();
       hideWorstWind();
       bodyEl.className = "atis-body empty";
@@ -1644,7 +2000,8 @@
       setAgeEl(atisAgeEl, "");
       setDayNote(false);
       setDeptNote(false);
-      hideStaleBanner();
+      setStaleFlag(false);
+      offerListen(icao);
       hideAtisRwycond();
       hideWorstWind();
       bodyEl.className = "atis-body error";
@@ -1664,16 +2021,16 @@
     setAgeEl(atisAgeEl, lastAtisIssued, formatAtisAge);
     setDayNote(issueDayUncertain(view));
     const dep = sideFromBundle(data, "departure");
-    setDeptNote(
-      view.kind === "arrival" && (!usableShown(dep) || isStaleAtis(dep))
-    );
+    const noRecentDep = !usableShown(dep) || isStaleAtis(dep);
+    if (view.kind === "arrival" && noRecentDep) {
+      setDeptNote(true, atisSide === "departure" ? "shown" : "also");
+    } else {
+      setDeptNote(false);
+    }
 
     const stale = isStaleAtis(view);
     setStaleFlag(stale);
-    const same = liveFeed && liveFeed.icao === icao && liveFeed.url ? liveFeed : null;
-    if (same) applyListenFeed(same);
-    else maybeOfferListen(icao);
-    if (!stale && listening && liveFeed && liveFeed.icao !== icao) stopAtisAudio();
+    offerListen(icao);
 
     bodyEl.className = "atis-body";
     const Hl = typeof GearUpHl !== "undefined" ? GearUpHl : null;
@@ -1681,9 +2038,10 @@
       Hl && Hl.formatAtis ? Hl.formatAtis(view.text || "") : view.text || "";
     let rwys = [];
     if (Hl) {
-      if (view.kind === "arrival" && Hl.arrRunways) rwys = Hl.arrRunways(atisText);
-      if (!rwys.length && Hl.depRunways) rwys = Hl.depRunways(atisText);
-      if (!rwys.length && Hl.arrRunways) rwys = Hl.arrRunways(atisText);
+      const primary = view.kind === "arrival" ? Hl.arrRunways : Hl.depRunways;
+      const fallback = view.kind === "arrival" ? Hl.depRunways : Hl.arrRunways;
+      if (primary) rwys = primary(atisText);
+      if (!rwys.length && fallback) rwys = fallback(atisText);
     }
     lastDepRunways = rwys;
     paintOpsInto(bodyEl, atisText, {
@@ -1888,8 +2246,8 @@
   function paintWxInto(el, text) {
     const raw = String(text || "");
     const Hl = typeof GearUpHl !== "undefined" ? GearUpHl : null;
-    if (Hl && (Hl.wxRanges || Hl.hazardRanges)) {
-      Hl.paint(el, raw, (Hl.wxRanges || Hl.hazardRanges)(raw));
+    if (Hl && Hl.paint && Hl.wxRanges) {
+      Hl.paint(el, raw, Hl.wxRanges(raw));
       return;
     }
     el.textContent = raw;
@@ -1931,6 +2289,19 @@
     if (!atisWorstwind) return;
     atisWorstwind.hidden = true;
     if (atisWorstwindBody) clearNode(atisWorstwindBody);
+    closeWorstwindDialog();
+  }
+
+  function openWorstwindDialog() {
+    if (!worstwindDialog || !atisWorstwind || atisWorstwind.hidden) return;
+    worstwindDialog.hidden = false;
+    if (worstwindDialogClose) worstwindDialogClose.focus();
+  }
+
+  function closeWorstwindDialog() {
+    if (!worstwindDialog || worstwindDialog.hidden) return;
+    worstwindDialog.hidden = true;
+    if (atisWorstwind && !atisWorstwind.hidden) atisWorstwind.focus();
   }
 
   function fillWorstWind(text, kind, runways, stale) {
@@ -1946,6 +2317,7 @@
         : [];
     if (!rows.length) {
       atisWorstwind.hidden = true;
+      closeWorstwindDialog();
       return;
     }
     for (const line of rows) {
@@ -1959,8 +2331,17 @@
             .split(/\s+/)
             .filter(Boolean)
         : [];
-      const tail = comps.some((tok) => /^T\d+$/i.test(tok));
-      p.className = "worstwind-line" + (tail ? " worstwind-tail" : "");
+      const tailN = comps.reduce((n, tok) => {
+        const m = String(tok).match(/^T(\d+)$/i);
+        return m ? Number(m[1]) : n;
+      }, 0);
+      const crossN = comps.reduce((n, tok) => {
+        const m = String(tok).match(/^X(\d+)$/i);
+        return m ? Number(m[1]) : n;
+      }, 0);
+      const hiTail = tailN >= 9;
+      const hiCross = crossN > 20;
+      p.className = "worstwind-line";
       const main = document.createElement("span");
       main.className = "worstwind-main";
       if (parts) {
@@ -1970,15 +2351,21 @@
         main.appendChild(label);
         main.appendChild(document.createTextNode(" "));
         const speed = document.createElement("span");
-        speed.className = "worstwind-speed";
+        speed.className = "worstwind-speed" + (hiTail || hiCross ? " hl-ops" : "");
         speed.textContent = parts[2];
         main.appendChild(speed);
         for (const tok of comps) {
           main.appendChild(document.createTextNode(" "));
           const el = document.createElement("span");
-          el.className = /^T\d+$/i.test(tok)
-            ? "worstwind-t"
-            : "worstwind-comp";
+          const isT = /^T\d+$/i.test(tok);
+          const isX = /^X\d+$/i.test(tok);
+          const n = Number(String(tok).replace(/\D/g, ""));
+          el.className =
+            (isT && n >= 9) || (isX && n > 20)
+              ? "hl-ops"
+              : isT
+                ? "worstwind-t"
+                : "worstwind-comp";
           el.textContent = tok;
           main.appendChild(el);
         }
@@ -2072,12 +2459,7 @@
       if (sfc) {
         const s = document.createElement("p");
         s.className = "rwycond-sfc";
-        const Hl = typeof GearUpHl !== "undefined" ? GearUpHl : null;
-        if (Hl && Hl.paint) {
-          Hl.paint(s, sfc, (Hl.wxRanges || Hl.hazardRanges)(sfc));
-        } else {
-          s.textContent = sfc;
-        }
+        paintWxInto(s, sfc);
         body.appendChild(s);
       }
     }
@@ -2085,12 +2467,7 @@
       const twy = document.createElement("p");
       twy.className = "rwycond-twy";
       const label = /^TWY/i.test(note) ? note : `TWY ${note}`;
-      const Hl = typeof GearUpHl !== "undefined" ? GearUpHl : null;
-      if (Hl && Hl.paint) {
-        Hl.paint(twy, label, (Hl.wxRanges || Hl.hazardRanges)(label));
-      } else {
-        twy.textContent = label;
-      }
+      paintWxInto(twy, label);
       body.appendChild(twy);
     }
     block.hidden = false;
@@ -2362,21 +2739,33 @@
       boardEmpty.textContent = errorText;
       if (api) api.paintRows(boardList, []);
       applyBoardFocus();
+      refreshBoardPinExtras();
       return;
     }
-    if (!flights.length) {
+    const shown = api ? api.visibleFlights(flights, boardFocusQuery) : flights;
+    if (!shown.length) {
       boardList.hidden = true;
       boardEmpty.hidden = false;
-      boardEmpty.textContent =
-        boardDir === "A" ? "No upcoming arrivals." : "No upcoming departures.";
+      const kind = api ? api.classifyQuery(boardFocusQuery) : { kind: "" };
+      if (kind.kind === "route") {
+        boardEmpty.textContent =
+          boardDir === "A"
+            ? `No arrivals from ${kind.q}.`
+            : `No departures to ${kind.q}.`;
+      } else {
+        boardEmpty.textContent =
+          boardDir === "A" ? "No upcoming arrivals." : "No upcoming departures.";
+      }
       if (api) api.paintRows(boardList, []);
       applyBoardFocus();
+      refreshBoardPinExtras();
       return;
     }
     boardEmpty.hidden = true;
     boardList.hidden = false;
-    if (api) api.paintRows(boardList, flights);
+    if (api) api.paintRows(boardList, shown);
     applyBoardFocus({ scroll: !!(opts && opts.scroll) });
+    refreshBoardPinExtras();
   }
 
   function boardApi() {
@@ -2395,8 +2784,25 @@
     setBoardFocusErr("");
   }
 
+  function pinOverlayIsOpen() {
+    return !!(
+      boardPin &&
+      currentTab === "board" &&
+      boardPinOverlay &&
+      !boardPinOverlay.hidden
+    );
+  }
+
+  function syncBoardFocusBtnLock() {
+    const lock = pinOverlayIsOpen();
+    if (boardFocusBtn) boardFocusBtn.disabled = lock;
+    for (const btn of boardDirBtns) btn.disabled = lock;
+    if (boardAdsbBtn) boardAdsbBtn.disabled = lock;
+    if (lock) closeBoardFocusDialog();
+  }
+
   function openBoardFocusDialog() {
-    if (!boardFocusDialog) return;
+    if (!boardFocusDialog || pinOverlayIsOpen()) return;
     boardFocusDialog.hidden = false;
     setBoardFocusErr("");
     if (boardFocusInput) {
@@ -2411,6 +2817,15 @@
     boardFocusQuery = "";
     boardFocusSlot = null;
     closeBoardFocusDialog();
+    if (currentTab === "board") {
+      const held = lastBoardHold[boardDir];
+      if (held && held.data) {
+        paintBoard(held.data);
+        return;
+      }
+      loadBoard();
+      return;
+    }
     applyBoardFocus();
   }
 
@@ -2424,10 +2839,12 @@
         ? cdm.formatCdmSlot(boardFocusSlot)
         : "";
     let hit = null;
+    const kind = api ? api.classifyQuery(boardFocusQuery) : { kind: "" };
     for (const li of boardList.querySelectorAll(".board-row")) {
       const on = !!(
         boardFocusQuery &&
         api &&
+        kind.kind === "flight" &&
         api.matchFlight(li.dataset.flight, boardFocusQuery)
       );
       li.classList.toggle("board-row-focus", on);
@@ -2442,8 +2859,544 @@
     }
   }
 
-  async function fetchBoardDir(dir) {
-    const res = await fetch(`/api/board?dir=${dir}`, { cache: "no-store" });
+  function loadStoredBoardPin() {
+    try {
+      const raw = sessionStorage.getItem(SS_BOARD_PIN);
+      if (!raw) return null;
+      const data = JSON.parse(raw);
+      if (!data || !data.flight) return null;
+      return {
+        dir: data.dir === "A" ? "A" : "D",
+        flight: String(data.flight || "")
+          .replace(/\s+/g, "")
+          .toUpperCase(),
+        timeZ: String(data.timeZ || ""),
+        row: data.row && typeof data.row === "object" ? data.row : null,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  function saveBoardPin() {
+    try {
+      if (!boardPin || !boardPin.flight) sessionStorage.removeItem(SS_BOARD_PIN);
+      else sessionStorage.setItem(SS_BOARD_PIN, JSON.stringify(boardPin));
+    } catch {
+      /* private mode */
+    }
+  }
+
+  function setPinCdmNote(text) {
+    if (!boardPinCdmNote) return;
+    const msg = String(text || "");
+    boardPinCdmNote.textContent = msg;
+    boardPinCdmNote.hidden = !msg;
+  }
+
+  function resolvePinRow() {
+    if (!boardPin) return null;
+    const api = boardApi();
+    const found =
+      api && api.findBoardRow
+        ? api.findBoardRow(boardFlights, boardPin.flight, boardPin.timeZ)
+        : null;
+    if (found) {
+      boardPin.row = found;
+      boardPin.timeZ = found.timeZ || boardPin.timeZ;
+      saveBoardPin();
+      return found;
+    }
+    return boardPin.row || null;
+  }
+
+  function paintBoardPinChrome(row) {
+    if (boardPinTitle) {
+      boardPinTitle.textContent =
+        (row && row.flight) || (boardPin && boardPin.flight) || "";
+    }
+    if (boardPinSub) {
+      const bits = [
+        row && row.route,
+        row && row.statusLabel,
+        row && row.airline,
+      ].filter(Boolean);
+      boardPinSub.textContent = bits.join(" · ");
+      boardPinSub.hidden = !bits.length;
+    }
+    if (!boardPinExtra) return;
+    boardPinExtra.replaceChildren();
+    const api = boardApi();
+    const dir = boardPin ? boardPin.dir : "D";
+    const items =
+      api && api.pinExtras ? api.pinExtras(row || {}, dir) : [];
+    for (const item of items) {
+      const wrap = document.createElement("div");
+      const dt = document.createElement("dt");
+      dt.textContent = item.label;
+      const dd = document.createElement("dd");
+      dd.textContent = item.value;
+      wrap.append(dt, dd);
+      boardPinExtra.appendChild(wrap);
+    }
+  }
+
+  function refreshBoardPinExtras() {
+    if (!boardPin) return;
+    paintBoardPinChrome(resolvePinRow());
+  }
+
+  function pinCdmDoc() {
+    try {
+      return boardPinCdm && boardPinCdm.contentDocument;
+    } catch {
+      return null;
+    }
+  }
+
+  function hidePinCdmFooter(doc) {
+    if (!doc) return;
+    let style = doc.getElementById("gearup-pin-fit");
+    if (!style) {
+      style = doc.createElement("style");
+      style.id = "gearup-pin-fit";
+      (doc.head || doc.documentElement).appendChild(style);
+    }
+    style.textContent =
+      "footer{display:none!important;}" +
+      "html,body{overflow:hidden!important;margin-bottom:0!important;padding-bottom:0!important;}";
+  }
+
+  function pinCdmUsefulHeight(doc) {
+    if (!doc || !doc.body) return 0;
+    const footer = doc.querySelector("footer");
+    let bottom = 0;
+    if (footer && footer.offsetHeight) bottom = footer.offsetTop || 0;
+    for (const node of doc.body.children) {
+      if (node === footer) continue;
+      if (node.tagName === "SCRIPT" || node.tagName === "STYLE") continue;
+      const h = node.offsetHeight;
+      if (!h) continue;
+      bottom = Math.max(bottom, (node.offsetTop || 0) + h);
+    }
+    const details = doc.querySelector(".flight-details");
+    const timeline = doc.querySelector(".flight-timeline");
+    for (const el of [details, timeline]) {
+      if (!el) continue;
+      bottom = Math.max(bottom, (el.offsetTop || 0) + (el.offsetHeight || 0));
+    }
+    return bottom;
+  }
+
+  function placeBoardPinOverlay() {
+    if (!boardPinOverlay) return;
+    if (boardPinOverlay.hidden || !boardPin) {
+      boardPinOverlay.style.top = "";
+      return;
+    }
+    const tabs = document.querySelector(".tabs");
+    const top = tabs ? tabs.getBoundingClientRect().bottom : 0;
+    boardPinOverlay.style.top = Math.round(top + 4) + "px";
+  }
+
+  function fitPinCdmFrame() {
+    if (!boardPinCdm || boardPinCdm.hidden || !boardPin || boardPin.dir !== "D") {
+      return;
+    }
+    const doc = pinCdmDoc();
+    if (!doc) return;
+    placeBoardPinOverlay();
+    const beforeHide = pinCdmUsefulHeight(doc);
+    hidePinCdmFooter(doc);
+    const useful = Math.max(beforeHide, pinCdmUsefulHeight(doc));
+    if (useful < 80) return;
+    const head = boardPinOverlay && boardPinOverlay.querySelector(".board-pin-head");
+    const headH = head ? head.offsetHeight : 0;
+    const extrasH = boardPinExtra ? boardPinExtra.offsetHeight : 0;
+    const noteH =
+      boardPinCdmNote && !boardPinCdmNote.hidden ? boardPinCdmNote.offsetHeight : 0;
+    const chrome = headH + extrasH + noteH + 40;
+    const room = boardPinOverlay ? boardPinOverlay.clientHeight : window.innerHeight;
+    const max = Math.max(160, room - chrome);
+    const target = Math.round(Math.min(useful + 6, max));
+    boardPinCdm.style.height = target + "px";
+    boardPinCdm.style.overflow = useful + 6 > max ? "auto" : "hidden";
+  }
+
+  function scheduleFitPinCdm() {
+    requestAnimationFrame(() => {
+      fitPinCdmFrame();
+      setTimeout(fitPinCdmFrame, 80);
+      setTimeout(fitPinCdmFrame, 400);
+    });
+  }
+
+  function stopPinCdmWatch() {
+    if (pinCdmObserver) {
+      pinCdmObserver.disconnect();
+      pinCdmObserver = null;
+    }
+    if (pinCdmObsDebounce) {
+      clearTimeout(pinCdmObsDebounce);
+      pinCdmObsDebounce = 0;
+    }
+    if (pinCdmPollTimer) {
+      clearInterval(pinCdmPollTimer);
+      pinCdmPollTimer = 0;
+    }
+  }
+
+  function stopPinCdm() {
+    stopPinCdmWatch();
+    pinCdmToken += 1;
+    pinCdmLoadedFor = "";
+    pinCdmBareReloads = 0;
+    pinCdmSearchAt = 0;
+    setPinCdmNote("");
+    if (boardPinCdm) {
+      boardPinCdm.hidden = true;
+      boardPinCdm.removeAttribute("srcdoc");
+      boardPinCdm.removeAttribute("style");
+      boardPinCdm.src = "about:blank";
+    }
+  }
+
+  async function fetchCdmFlightHtml(query) {
+    const api = cdmApi();
+    const board = boardApi();
+    const first = await postCdmBody(
+      "search=" + encodeURIComponent(query) + "&js=true"
+    );
+    if (/\bflight-details\b/i.test(first) && first.trim().charAt(0) !== "{") {
+      return first;
+    }
+    const parsed = api && api.parseCdmPost ? api.parseCdmPost(first) : null;
+    if (parsed && parsed.error) {
+      const err = new Error(String(parsed.error));
+      throw err;
+    }
+    const choices = parsed && Array.isArray(parsed.multiple) ? parsed.multiple : [];
+    if (!choices.length) return first;
+    const pick =
+      (board &&
+        choices.find((row) => board.matchFlight(row && row.name, query))) ||
+      choices[0];
+    if (!pick || !pick.id) return first;
+    return postCdmBody("id=" + encodeURIComponent(pick.id) + "&js=true");
+  }
+
+  function injectPinCdmFragment(html) {
+    const doc = pinCdmDoc();
+    const cdm = cdmApi();
+    if (!doc || !doc.body || (cdm && cdm.isBareFlightHtml && cdm.isBareFlightHtml(doc))) {
+      return false;
+    }
+    if (!/\bflight-details\b/i.test(html)) return false;
+    const host =
+      doc.querySelector("#content, .content, main, .page") || doc.body;
+    const wrap = doc.createElement("div");
+    wrap.innerHTML = html;
+    const details = wrap.querySelector(".flight-details");
+    if (!details) return false;
+    host.querySelectorAll(".flight-details, .flight-timeline, .choices").forEach((node) => {
+      node.remove();
+    });
+    while (wrap.firstChild) host.appendChild(wrap.firstChild);
+    return true;
+  }
+
+  async function fillPinCdmAjax(flight) {
+    const token = pinCdmToken;
+    try {
+      const html = await fetchCdmFlightHtml(flight);
+      if (token !== pinCdmToken || !boardPin || boardPin.dir !== "D") return;
+      if (injectPinCdmFragment(html)) {
+        pinCdmLoadedFor = flight;
+        watchPinCdmFrame();
+        scheduleFitPinCdm();
+        setPinCdmNote("");
+        return;
+      }
+      setPinCdmNote("CDM has no details for this flight.");
+    } catch {
+      if (token !== pinCdmToken) return;
+      setPinCdmNote("Could not load CDM for this flight.");
+    }
+  }
+
+  function pinCdmShowsFlight(flight) {
+    const cdm = cdmApi();
+    const api = boardApi();
+    const name = cdm && cdm.detailsCallsign ? cdm.detailsCallsign(pinCdmDoc()) : "";
+    if (!name || !api || !api.matchFlight) return false;
+    return api.matchFlight(name, flight);
+  }
+
+  function ensurePinCdmFlight() {
+    if (!boardPin || boardPin.dir !== "D") return;
+    const flight = boardPin.flight;
+    const cdm = cdmApi();
+    const doc = pinCdmDoc();
+    if (cdm && cdm.isBareFlightHtml && cdm.isBareFlightHtml(doc)) {
+      if (pinCdmBareReloads < 2) {
+        pinCdmBareReloads += 1;
+        reloadPinCdmFrame(flight);
+      }
+      return;
+    }
+    if (pinCdmShowsFlight(flight)) {
+      pinCdmLoadedFor = flight;
+      pinCdmBareReloads = 0;
+      scheduleFitPinCdm();
+      return;
+    }
+    if (!cdm || (cdm.shellReady && !cdm.shellReady(doc))) return;
+    if (cdm.clickMatchingChoice) {
+      const api = boardApi();
+      if (cdm.clickMatchingChoice(doc, flight, api && api.matchFlight)) {
+        pinCdmSearchAt = Date.now();
+        return;
+      }
+    }
+    if (Date.now() - pinCdmSearchAt < 2500) return;
+    pinCdmSearchAt = Date.now();
+    if (cdm.submitSearch && cdm.submitSearch(doc, flight)) return;
+    fillPinCdmAjax(flight);
+  }
+
+  function watchPinCdmFrame() {
+    const doc = pinCdmDoc();
+    if (!doc || !boardPin || boardPin.dir !== "D") return;
+    if (pinCdmObserver) pinCdmObserver.disconnect();
+    pinCdmObserver = new MutationObserver(() => {
+      if (pinCdmObsDebounce) return;
+      pinCdmObsDebounce = setTimeout(() => {
+        pinCdmObsDebounce = 0;
+        ensurePinCdmFlight();
+        scheduleFitPinCdm();
+      }, 400);
+    });
+    pinCdmObserver.observe(doc.documentElement || doc.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+    ensurePinCdmFlight();
+    scheduleFitPinCdm();
+    if (!pinCdmPollTimer) {
+      pinCdmPollTimer = setInterval(() => {
+        if (document.hidden) return;
+        if (!boardPin || boardPin.dir !== "D") return;
+        ensurePinCdmFlight();
+      }, 30000);
+    }
+  }
+
+  function reloadPinCdmFrame(flight) {
+    if (!boardPinCdm) {
+      setPinCdmNote("Could not load CDM for this flight.");
+      return;
+    }
+    stopPinCdmWatch();
+    pinCdmToken += 1;
+    const token = pinCdmToken;
+    pinCdmLoadedFor = "";
+    pinCdmBareReloads = 0;
+    pinCdmSearchAt = 0;
+    boardPinCdm.hidden = false;
+    boardPinCdm.removeAttribute("srcdoc");
+    boardPinCdm.src = "about:blank";
+    setTimeout(() => {
+      if (token !== pinCdmToken) return;
+      boardPinCdm.src = SLOTS_URL;
+    }, 0);
+  }
+
+  function showPinCdm(flight) {
+    if (!boardPinCdm) {
+      setPinCdmNote("Could not load CDM for this flight.");
+      return;
+    }
+    boardPinCdm.hidden = false;
+    if (pinCdmShowsFlight(flight)) {
+      pinCdmLoadedFor = flight;
+      watchPinCdmFrame();
+      setPinCdmNote("");
+      try {
+        if (boardPinCdm.contentWindow) boardPinCdm.contentWindow.focus();
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+    const api = boardApi();
+    const cdm = cdmApi();
+    const current =
+      cdm && cdm.detailsCallsign ? cdm.detailsCallsign(pinCdmDoc()) : "";
+    if (current && (!api || !api.matchFlight(current, flight))) {
+      reloadPinCdmFrame(flight);
+      return;
+    }
+    const doc = pinCdmDoc();
+    if (doc && cdm && cdm.submitSearch && cdm.submitSearch(doc, flight)) {
+      pinCdmLoadedFor = flight;
+      pinCdmSearchAt = Date.now();
+      watchPinCdmFrame();
+      setPinCdmNote("");
+      return;
+    }
+    reloadPinCdmFrame(flight);
+  }
+
+  function onPinCdmLoad() {
+    if (!boardPin || boardPin.dir !== "D") return;
+    if (!boardPinCdm) return;
+    const src = boardPinCdm.getAttribute("src") || "";
+    if (src === "about:blank") return;
+    const flight = boardPin.flight;
+    const token = pinCdmToken;
+    const cdm = cdmApi();
+    const doc = pinCdmDoc();
+    if (cdm && cdm.isBareFlightHtml && cdm.isBareFlightHtml(doc)) {
+      if (pinCdmBareReloads < 2) {
+        pinCdmBareReloads += 1;
+        reloadPinCdmFrame(flight);
+      }
+      return;
+    }
+    if (pinCdmShowsFlight(flight)) {
+      pinCdmLoadedFor = flight;
+      pinCdmBareReloads = 0;
+      watchPinCdmFrame();
+      setPinCdmNote("");
+      return;
+    }
+    if (cdm && cdm.shellReady && !cdm.shellReady(doc)) {
+      setTimeout(() => {
+        if (token !== pinCdmToken || !boardPin || boardPin.dir !== "D") return;
+        onPinCdmLoad();
+      }, 250);
+      return;
+    }
+    if (cdm && cdm.submitSearch && cdm.submitSearch(doc, flight)) {
+      pinCdmLoadedFor = flight;
+      pinCdmSearchAt = Date.now();
+      watchPinCdmFrame();
+      setPinCdmNote("");
+      setTimeout(() => {
+        if (token !== pinCdmToken || !boardPin || boardPin.dir !== "D") return;
+        if (pinCdmShowsFlight(flight)) return;
+        if (cdm.clickMatchingChoice) {
+          const api = boardApi();
+          cdm.clickMatchingChoice(pinCdmDoc(), flight, api && api.matchFlight);
+        }
+        setTimeout(() => {
+          if (token !== pinCdmToken || !boardPin || boardPin.dir !== "D") return;
+          if (pinCdmShowsFlight(flight)) return;
+          fillPinCdmAjax(flight);
+        }, 1600);
+      }, 900);
+      return;
+    }
+    fillPinCdmAjax(flight);
+  }
+
+  function unpinBoardFlight() {
+    boardPin = null;
+    saveBoardPin();
+    stopPinCdm();
+    if (boardPinOverlay) boardPinOverlay.hidden = true;
+    placeBoardPinOverlay();
+    syncBoardFocusBtnLock();
+  }
+
+  function pinBoardFlight(dir, row) {
+    const flight = String((row && row.flight) || "")
+      .replace(/\s+/g, "")
+      .toUpperCase();
+    if (!flight) return;
+    const nextDir = dir === "A" ? "A" : "D";
+    const prev = boardPin;
+    boardPin = {
+      dir: nextDir,
+      flight,
+      timeZ: String((row && row.timeZ) || ""),
+      row: row || null,
+    };
+    saveBoardPin();
+    paintBoardPinChrome(row);
+    if (boardPinOverlay && currentTab === "board") {
+      boardPinOverlay.hidden = false;
+      boardPinOverlay.classList.toggle("is-departure", nextDir === "D");
+      boardPinOverlay.classList.toggle("is-arrival", nextDir === "A");
+      placeBoardPinOverlay();
+      syncBoardFocusBtnLock();
+    }
+    if (boardPinClose && currentTab === "board") boardPinClose.focus();
+    if (nextDir !== "D") {
+      stopPinCdm();
+      return;
+    }
+    if (
+      prev &&
+      prev.dir === "D" &&
+      boardApi() &&
+      boardApi().matchFlight(prev.flight, flight) &&
+      pinCdmShowsFlight(flight)
+    ) {
+      watchPinCdmFrame();
+      return;
+    }
+    showPinCdm(flight);
+  }
+
+  function syncBoardPinOverlay() {
+    if (!boardPinOverlay) return;
+    const show = currentTab === "board" && !!boardPin;
+    boardPinOverlay.hidden = !show;
+    boardPinOverlay.classList.toggle("is-departure", !!(boardPin && boardPin.dir === "D"));
+    boardPinOverlay.classList.toggle("is-arrival", !!(boardPin && boardPin.dir === "A"));
+    if (!show) {
+      placeBoardPinOverlay();
+      syncBoardFocusBtnLock();
+      return;
+    }
+    placeBoardPinOverlay();
+    syncBoardFocusBtnLock();
+    refreshBoardPinExtras();
+    if (boardPin.dir === "D") {
+      showPinCdm(boardPin.flight);
+      scheduleFitPinCdm();
+    } else stopPinCdm();
+  }
+
+  function onBoardRowHold(li) {
+    const api = boardApi();
+    const flight = (li && li.dataset && li.dataset.flight) || "";
+    const timeZ = (li && li.dataset && li.dataset.time) || "";
+    const row =
+      (api && api.findBoardRow
+        ? api.findBoardRow(boardFlights, flight, timeZ)
+        : null) || {
+        flight,
+        timeZ,
+        dests: String((li && li.dataset && li.dataset.dests) || "")
+          .split(",")
+          .filter(Boolean),
+        meta: (li && li.dataset && li.dataset.meta) || "",
+      };
+    pinBoardFlight(boardDir, row);
+  }
+
+  async function fetchBoardDir(dir, opts) {
+    const ahead = opts && Number(opts.ahead) === 24 ? 24 : 9;
+    const route = String((opts && opts.route) || "")
+      .replace(/[^A-Za-z]/g, "")
+      .toUpperCase();
+    let path = `/api/board?dir=${dir}`;
+    if (ahead === 24) path += "&ahead=24";
+    if (/^[A-Z]{3}$/.test(route)) path += "&route=" + encodeURIComponent(route);
+    const res = await fetch(path, { cache: "no-store" });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data || !Array.isArray(data.flights)) return null;
     return data;
@@ -2496,20 +3449,92 @@
     }
   }
 
-  async function submitBoardFocus(raw) {
+  async function submitBoardFocus(raw, opts) {
     const api = boardApi();
-    const q = api ? api.compactFlight(raw) : "";
-    if (!q || q.length < 2) {
-      setBoardFocusErr("Type a flight number.");
+    const kind = api ? api.classifyQuery(raw) : { kind: "", q: "" };
+    if (!kind.q || (kind.kind === "flight" && kind.q.length < 2)) {
+      setBoardFocusErr("Type a flight number or a 3-letter airport.");
       return;
     }
     const token = ++boardFocusToken;
+    setBoardFocusErr("Looking…");
+    if (kind.kind === "route") {
+      await submitBoardRouteFocus(kind.q, token, opts);
+      return;
+    }
+    await submitBoardFlightFocus(kind.q, token);
+  }
+
+  async function submitBoardRouteFocus(code, token, opts) {
+    const api = boardApi();
+    const stay = !!(opts && opts.stay);
+    let dir = boardDir;
+
+    async function loadRoute(nextDir) {
+      let payload = await fetchBoardDir(nextDir, { ahead: 24, route: code });
+      if (token !== boardFocusToken) return null;
+      if (!payload) {
+        payload = await fetchBoardDir(nextDir, { ahead: 24 });
+        if (token !== boardFocusToken) return null;
+      }
+      let rows =
+        payload && api ? api.visibleFlights(payload.flights, code) : [];
+      if (!rows.length) {
+        const held =
+          lastBoardHold[nextDir] && lastBoardHold[nextDir].data;
+        rows = held && api ? api.visibleFlights(held.flights, code) : [];
+        if (rows.length) payload = { ...(held || {}), flights: rows };
+      }
+      return { dir: nextDir, data: payload, rows };
+    }
+
+    let found = await loadRoute(dir);
+    if (token !== boardFocusToken) return;
+    if ((!found || !found.rows.length) && !stay) {
+      found = await loadRoute(boardDir === "A" ? "D" : "A");
+      if (token !== boardFocusToken) return;
+    }
+    const rows = found && found.rows;
+    const data = found && found.data;
+    if (!rows || !rows.length) {
+      if (stay) {
+        boardFocusQuery = code;
+        boardFocusSlot = null;
+        closeBoardFocusDialog();
+        paintBoard(data || { flights: [] });
+        return;
+      }
+      setBoardFocusErr(`No flights to or from ${code} in 24 hours.`);
+      return;
+    }
+    boardFocusQuery = code;
+    boardFocusSlot = null;
+    closeBoardFocusDialog();
+    if (found.dir !== boardDir) {
+      boardToken += 1;
+      setBoardDir(found.dir);
+    }
+    paintBoard(data, null, { scroll: true });
+  }
+
+  async function submitBoardFlightFocus(q, token) {
+    const api = boardApi();
     let dir = boardDir;
     let data = { flights: boardFlights };
     let found = api ? api.findFlight(boardFlights, q) : null;
     if (!found) {
+      data = await fetchBoardDir(dir, { ahead: 24 });
+      if (token !== boardFocusToken) return;
+      found = data && api ? api.findFlight(data.flights, q) : null;
+    }
+    if (!found) {
       dir = boardDir === "A" ? "D" : "A";
       data = await fetchBoardDir(dir);
+      if (token !== boardFocusToken) return;
+      found = data && api ? api.findFlight(data.flights, q) : null;
+    }
+    if (!found) {
+      data = await fetchBoardDir(dir, { ahead: 24 });
       if (token !== boardFocusToken) return;
       found = data && api ? api.findFlight(data.flights, q) : null;
     }
@@ -2539,6 +3564,18 @@
     saveLastIcao("EHAM");
     if (boardIdent) boardIdent.textContent = "AMS";
     const dir = boardDir;
+    const api = boardApi();
+    const focusKind = api ? api.classifyQuery(boardFocusQuery) : { kind: "" };
+    if (focusKind.kind === "route") {
+      if (boardRefresh) boardRefresh.disabled = true;
+      const token = ++boardFocusToken;
+      try {
+        await submitBoardRouteFocus(focusKind.q, token, { stay: true });
+      } finally {
+        if (boardRefresh) boardRefresh.disabled = false;
+      }
+      return;
+    }
     const held = lastBoardHold[dir];
     if (
       !force &&
@@ -2835,6 +3872,7 @@
   }
 
   function openAdsbFromBoard() {
+    if (pinOverlayIsOpen()) return;
     currentIcao = "EHAM";
     saveLastIcao("EHAM");
     if (hashKey() !== "adsb/eham") location.hash = "adsb/EHAM";
@@ -2863,7 +3901,6 @@
     }
     const fetchedAt = atisFetchedAt[icao] || 0;
     if (!force && cached && Date.now() - fetchedAt < ATIS_HOLD_MS) {
-      if (needsMetar(icao, cached)) maybeLoadMetar(icao);
       if (cached.acarsPending) scheduleQuietAcars(icao, cached);
       return;
     }
@@ -2975,11 +4012,32 @@
   staleDialog.addEventListener("click", (event) => {
     if (event.target === staleDialog) closeStaleDialog();
   });
+  if (atisWorstwind) {
+    atisWorstwind.addEventListener("click", openWorstwindDialog);
+    atisWorstwind.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      event.preventDefault();
+      openWorstwindDialog();
+    });
+  }
+  if (worstwindDialogClose) {
+    worstwindDialogClose.addEventListener("click", closeWorstwindDialog);
+  }
+  if (worstwindDialog) {
+    worstwindDialog.addEventListener("click", (event) => {
+      if (event.target === worstwindDialog) closeWorstwindDialog();
+    });
+  }
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
     if (boardFocusDialog && !boardFocusDialog.hidden) {
       event.preventDefault();
       closeBoardFocusDialog();
+      return;
+    }
+    if (worstwindDialog && !worstwindDialog.hidden) {
+      event.preventDefault();
+      closeWorstwindDialog();
       return;
     }
     if (!staleDialog.hidden) {
@@ -2994,7 +4052,9 @@
   atisAudio.addEventListener("playing", listenStreamStarted);
   atisAudio.addEventListener("error", () => {
     if (!listening && !atisAudio.getAttribute("src")) return;
+    const feed = liveFeed;
     stopAtisAudio();
+    if (feed) applyListenFeed(feed);
   });
 
   backBtn.addEventListener("click", () => {
@@ -3057,12 +4117,44 @@
       if (event.target === boardFocusDialog) closeBoardFocusDialog();
     });
   }
+  if (boardPinClose) {
+    boardPinClose.addEventListener("click", () => unpinBoardFlight());
+  }
+  if (boardPinCdm) {
+    boardPinCdm.addEventListener("load", () => {
+      onPinCdmLoad();
+      scheduleFitPinCdm();
+    });
+  }
+  const placePinOnViewport = () => {
+    if (boardPin && currentTab === "board") {
+      placeBoardPinOverlay();
+      if (boardPin.dir === "D") scheduleFitPinCdm();
+    }
+  };
+  window.addEventListener("resize", placePinOnViewport);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", placePinOnViewport);
+  }
+  if (boardList) {
+    const api = boardApi();
+    if (api && api.bindRowLongPress) api.bindRowLongPress(boardList, onBoardRowHold);
+  }
+  boardPin = loadStoredBoardPin();
   for (const btn of boardDirBtns) {
     btn.addEventListener("click", () => {
+      if (pinOverlayIsOpen()) return;
       const next = btn.dataset.dir === "A" ? "A" : "D";
       if (next === boardDir && currentTab === "board") return;
       setBoardDir(next);
-      if (currentTab === "board") loadBoard();
+      if (currentTab !== "board") return;
+      const api = boardApi();
+      const kind = api ? api.classifyQuery(boardFocusQuery) : { kind: "" };
+      if (kind.kind === "route") {
+        submitBoardFocus(kind.q, { stay: true });
+        return;
+      }
+      loadBoard();
     });
   }
   if (boardAdsbBtn) {
@@ -3149,5 +4241,6 @@
     lastClockMin = "";
     startUtcClock();
     if (thirdMode === "cdm") syncCdmFromFrame();
+    if (boardPin && boardPin.dir === "D") ensurePinCdmFlight();
   });
 })();

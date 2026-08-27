@@ -8,6 +8,9 @@ const {
   tobtRemainMs,
   formatTobtRemain,
   rewriteCdmHtml,
+  detailsCallsign,
+  isBareFlightHtml,
+  shellReady,
 } = require("../lib/cdm");
 
 const html = `<div class="flight-details"><h3 data-id="1" data-name="KL1361">KL1361</h3></div><div class="flight-timeline"><ul><li class="unset"><span>tobt</span><span>19:10</span></li></ul></div>`;
@@ -42,5 +45,47 @@ const rewritten = rewriteCdmHtml(
 );
 assert.ok(rewritten.includes("https://mobile.ehamcdm.nl/css/ehamcdm.css"));
 assert.ok(rewritten.includes("https://mobile.ehamcdm.nl/js/ehamcdm.js"));
+
+const fakeDoc = {
+  querySelector(sel) {
+    if (sel !== ".flight-details") return null;
+    return {
+      querySelector() {
+        return { getAttribute: () => "OR1233", textContent: "OR1233" };
+      },
+    };
+  },
+};
+assert.strictEqual(detailsCallsign(fakeDoc), "OR1233");
+assert.strictEqual(
+  isBareFlightHtml({
+    querySelector(sel) {
+      if (sel === ".flight-details") return {};
+      return null;
+    },
+  }),
+  true
+);
+assert.strictEqual(
+  isBareFlightHtml({
+    querySelector(sel) {
+      if (sel === ".flight-details") return {};
+      if (sel === 'link[rel="stylesheet"]') return {};
+      return null;
+    },
+  }),
+  false
+);
+assert.strictEqual(
+  shellReady({
+    getElementById: () => ({ name: "search" }),
+    querySelector(sel) {
+      if (sel === 'link[rel="stylesheet"]') return {};
+      if (sel === 'input[name="search"]') return { name: "search" };
+      return null;
+    },
+  }),
+  true
+);
 
 console.log("cdm ok");

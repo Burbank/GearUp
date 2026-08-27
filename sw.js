@@ -1,4 +1,4 @@
-const CACHE = "gearup-v125";
+const CACHE = "gearup-v158";
 const PRECACHE = [
   "/",
   "/index.html",
@@ -15,7 +15,7 @@ const PRECACHE = [
   "/js/airports.js",
   "/fonts/AtkinsonHyperlegible-Regular.woff2",
   "/fonts/AtkinsonHyperlegible-Bold.woff2",
-  "/icons/fasttrack-flat.png",
+  "/icons/rightaway-flat.png",
   "/manifest.webmanifest",
   "/icons/icon-192.png",
   "/icons/apple-touch-icon.png",

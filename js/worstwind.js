@@ -301,12 +301,6 @@
 
   return {
     parseWinds,
-    worstForRunway,
-    tailKt,
-    crossKt,
-    inArc,
-    isTailwind,
     lines,
-    formatLine,
   };
 });
