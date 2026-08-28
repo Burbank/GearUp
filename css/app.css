@@ -39,6 +39,8 @@
   --radius: 10px;
   --touch: 48px;
   --tab-line: #000000;
+  --cdm-amber: #d97706;
+  --cdm-logo-red: #e40000;
   --sans: "Atkinson Hyperlegible", -apple-system, BlinkMacSystemFont, "Segoe UI",
     system-ui, sans-serif;
   --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
@@ -67,6 +69,8 @@
     --board-stripe: rgba(255, 255, 255, 0.07);
     --border-w: 1px;
     --tab-line: #8aa0b8;
+    --cdm-amber: #ffbf40;
+    --cdm-logo-red: #ff3843;
   }
 }
 
@@ -93,6 +97,8 @@ html.theme-bright {
   --board-stripe: rgba(0, 61, 122, 0.07);
   --border-w: 2px;
   --tab-line: #000000;
+  --cdm-amber: #d97706;
+  --cdm-logo-red: #e40000;
 }
 
 html.theme-dim {
@@ -118,6 +124,8 @@ html.theme-dim {
   --board-stripe: rgba(255, 255, 255, 0.07);
   --border-w: 1px;
   --tab-line: #8aa0b8;
+  --cdm-amber: #ffbf40;
+  --cdm-logo-red: #ff3843;
 }
 
 * {
@@ -240,6 +248,30 @@ body {
   text-align: center;
 }
 
+.tab.tab-cdm-flight {
+  display: inline-flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: auto;
+  min-width: 0;
+  gap: 0.02rem;
+  padding: 0.12rem 0.2rem;
+  white-space: normal;
+  line-height: 1.1;
+}
+
+.tab.tab-cdm-flight[hidden] {
+  display: none !important;
+}
+
+.tab.tab-cdm-flight span {
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+
 .tab .tobt-remain {
   font-size: calc(1em + 3pt);
   font-variant-numeric: tabular-nums;
@@ -303,8 +335,8 @@ html.pin-scroll-lock body {
 .home-header {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 0.35rem 0.55rem;
+  flex-wrap: nowrap;
+  gap: 0.35rem 0.45rem;
   margin-bottom: 0.85rem;
 }
 
@@ -313,8 +345,10 @@ html.pin-scroll-lock body {
   display: inline-flex;
   align-items: center;
   isolation: isolate;
-  min-height: 6.8rem;
-  padding: 1.2rem 6.2rem 1.35rem 0.1rem;
+  flex: 0 0 auto;
+  gap: 4px;
+  min-height: 0;
+  padding: 0;
 }
 
 .home-header h1 {
@@ -328,12 +362,9 @@ html.pin-scroll-lock body {
 }
 
 .home-script {
-  position: absolute;
+  position: static;
   z-index: 0;
-  left: 7.35rem;
-  top: 50%;
-  transform: translateY(-48%);
-  height: 6.8rem;
+  height: 5.75rem;
   width: auto;
   aspect-ratio: 965 / 1280;
   pointer-events: none;
@@ -352,7 +383,8 @@ html.pin-scroll-lock body {
 
 .theme-toggle {
   display: inline-flex;
-  flex: 0 0 auto;
+  flex: 0 1 auto;
+  min-width: 0;
   margin-left: auto;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -361,17 +393,17 @@ html.pin-scroll-lock body {
 }
 
 .theme-toggle button {
-  flex: 1 0 0;
+  flex: 1 1 0;
   box-sizing: border-box;
-  min-width: 7.4em;
-  min-height: 32px;
-  padding: 5px 12px;
+  min-width: 0;
+  min-height: 28px;
+  padding: 4px 5px;
   border: 0;
   border-radius: 0;
   background: transparent;
   color: var(--muted);
   font-family: var(--sans);
-  font-size: 0.78rem;
+  font-size: 0.62rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   line-height: 1.15;
@@ -407,7 +439,7 @@ html.pin-scroll-lock body {
   border-radius: var(--radius);
   padding: 0 0.85rem;
   font-size: 1.25rem;
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: 0.16em;
   text-transform: uppercase;
   font-family: var(--sans);
@@ -498,6 +530,14 @@ html.pin-scroll-lock body {
   font-family: var(--sans);
   padding: 0 0.9rem;
   text-decoration: none;
+}
+
+.icon-btn {
+  text-transform: uppercase;
+}
+
+.lookup > button {
+  text-transform: uppercase;
 }
 
 .icon-btn[hidden] {
@@ -633,7 +673,7 @@ html.pin-scroll-lock body {
 
 .pin-icao {
   font-size: 1.55rem;
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: 0.08em;
   line-height: 1.05;
 }
@@ -776,7 +816,7 @@ html.pin-scroll-lock body {
   margin: 0;
   font-family: var(--sans);
   font-size: calc(1.22rem - 3pt);
-  font-weight: 700;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
   color: var(--muted);
@@ -802,7 +842,7 @@ html.pin-scroll-lock body {
 #ident {
   margin: 0;
   font-size: 2rem;
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: 0.08em;
   line-height: 1.05;
   font-family: var(--sans);
@@ -810,7 +850,7 @@ html.pin-scroll-lock body {
 
 .iata {
   font-size: 1.22rem;
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: 0.1em;
   font-family: var(--sans);
   color: var(--fg);
@@ -826,7 +866,7 @@ html.pin-scroll-lock body {
   align-items: baseline;
   font-family: var(--sans);
   font-size: 1.22rem;
-  font-weight: 700;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.1em;
   white-space: nowrap;
@@ -854,7 +894,7 @@ html.pin-scroll-lock body {
   gap: 0.22rem;
   font-family: var(--sans);
   font-size: 1.02rem;
-  font-weight: 700;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.1em;
   color: var(--muted);
@@ -868,7 +908,7 @@ html.pin-scroll-lock body {
 .utc-suffix {
   margin-left: 0.28rem;
   font-size: 0.68rem;
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: 0.06em;
   color: var(--muted);
 }
@@ -892,7 +932,7 @@ html.pin-scroll-lock body {
 
 .kind-row .atis-age {
   font-size: 0.92rem;
-  font-weight: 700;
+  font-weight: 400;
   color: var(--kind);
   white-space: normal;
 }
@@ -904,7 +944,7 @@ html.pin-scroll-lock body {
 .atis-dept-note {
   font-family: var(--sans);
   font-size: 0.82rem;
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: 0.03em;
   color: var(--stale);
   text-transform: uppercase;
@@ -943,7 +983,7 @@ html.pin-scroll-lock body {
   padding: 0.2rem 0.45rem;
   font-family: var(--sans);
   font-size: 0.98rem;
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: 0.02em;
   line-height: 1.15;
   text-align: center;
@@ -985,7 +1025,7 @@ html.pin-scroll-lock body {
 
 .stale-dialog-card h2 {
   font-size: 1.5rem;
-  font-weight: 700;
+  font-weight: 400;
   margin-bottom: 0.65rem;
   flex-shrink: 0;
 }
@@ -1093,7 +1133,7 @@ html.pin-scroll-lock body {
   gap: 0.12rem;
   font-family: var(--sans);
   font-size: 1.02rem;
-  font-weight: 700;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.1em;
   color: var(--muted);
@@ -1107,7 +1147,7 @@ html.pin-scroll-lock body {
 #brief-ident {
   margin: 0;
   font-size: 1.55rem;
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: 0.06em;
   line-height: 1.05;
   font-family: var(--sans);
@@ -1124,7 +1164,7 @@ html.pin-scroll-lock body {
 .taf-remain {
   font-family: var(--sans);
   font-size: 0.92rem;
-  font-weight: 700;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
   color: var(--fg);
@@ -1210,7 +1250,7 @@ html.pin-scroll-lock body {
 .wx-title {
   margin: 0 0 0.4rem;
   font-size: 0.72rem;
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--kind);
@@ -1253,7 +1293,7 @@ html.pin-scroll-lock body {
 .wx-pair-line {
   margin: 0;
   font-size: 1.02rem;
-  font-weight: 700;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
   line-height: 1.25;
   letter-spacing: 0.01em;
@@ -1268,7 +1308,7 @@ html.pin-scroll-lock body {
   font-family: var(--sans);
   font-size: 1.12rem;
   line-height: 1.4;
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: 0.01em;
 }
 
@@ -1349,7 +1389,7 @@ html.pin-scroll-lock body {
 
 .worstwind-dialog-card h2 {
   font-size: 1.22rem;
-  font-weight: 700;
+  font-weight: 400;
   margin-bottom: 0.55rem;
 }
 
@@ -1480,33 +1520,302 @@ html.pin-scroll-lock body {
   display: none !important;
 }
 
-.cdm-reset {
+.cdm-chrome {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0;
+  height: auto;
+  min-height: 64px;
+  padding: 12px 12px 0;
+  pointer-events: none;
+}
+
+.cdm-chrome-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  min-height: 40px;
+  padding-left: var(--cdm-logo-end, 218px);
+}
+
+.cdm-chrome[hidden] {
+  display: none !important;
+}
+
+.cdm-chrome button {
+  pointer-events: auto;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.cdm-chrome button[hidden],
+.cdm-reset[hidden],
+.cdm-notify[hidden] {
+  display: none !important;
+}
+
+.cdm-chrome-end {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+  pointer-events: auto;
+}
+
+.cdm-chrome-tight {
+  align-items: stretch;
+}
+
+.cdm-chrome-tight .cdm-chrome-bar {
+  align-items: flex-start;
+}
+
+.cdm-chrome-tight .cdm-chrome-end {
+  flex-direction: column-reverse;
+  align-items: flex-end;
+}
+
+.cdm-help {
+  width: 40px;
+  min-width: 40px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1;
+}
+
+#board-focus-help-dialog {
+  z-index: 45;
+}
+
+.cdm-help-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 8vh 4vw;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.cdm-help-dialog:not([hidden]) {
+  display: flex;
+}
+
+.cdm-help-card {
+  width: min(32rem, 94vw);
+  max-height: 80dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 1.15rem 1.15rem 1.05rem;
+  background: var(--panel);
+  color: var(--fg);
+  border: var(--border-w) solid var(--line);
+  border-radius: var(--radius);
+  font-family: var(--sans);
+}
+
+.cdm-help-card h2 {
+  font-size: 1.28rem;
+  font-weight: 400;
+  margin-bottom: 0.65rem;
+  flex-shrink: 0;
+}
+
+.cdm-help-body {
+  flex: 1;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.cdm-help-body p {
+  margin: 0 0 0.75rem;
+  font-size: 0.98rem;
+  font-weight: 400;
+  line-height: 1.45;
+}
+
+.cdm-help-body a {
+  color: var(--accent);
+  font-weight: 400;
+  text-decoration: underline;
+}
+
+.adsb-help {
   position: absolute;
   top: 10px;
-  right: 10px;
-  z-index: 2;
+  left: 10px;
+  z-index: 3;
+  pointer-events: auto;
+}
+
+.adsb-help[hidden] {
+  display: none !important;
+}
+
+.cdm-help-terms {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.cdm-help-term {
+  display: block;
+  margin-bottom: 0.12rem;
+  color: var(--fg);
+  font-weight: 400;
+}
+
+.cdm-help-terms li {
+  color: var(--muted);
+  font-size: 0.98rem;
+  font-weight: 400;
+  line-height: 1.42;
+}
+
+.cdm-help-card .icon-btn {
+  width: 100%;
+  margin-top: 0.85rem;
+  flex-shrink: 0;
+}
+
+.cdm-reset {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 44px;
-  min-width: 4.6rem;
-  padding: 0.2rem 0.7rem;
+  height: 40px;
+  min-height: 40px;
+  min-width: max-content;
+  padding: 0 0.62rem;
   border: 2px solid var(--accent);
   border-radius: var(--radius);
   background: var(--accent);
   color: var(--btn-text);
-  font-size: 0.82rem;
+  font-size: 0.72rem;
   font-weight: 700;
   font-family: var(--sans);
-  letter-spacing: 0.01em;
-  line-height: 1.15;
+  letter-spacing: 0.02em;
+  line-height: 1;
   white-space: nowrap;
   text-align: center;
   -webkit-tap-highlight-color: transparent;
 }
 
-.cdm-reset[hidden] {
+.cdm-notify {
+  background: var(--field);
+  color: var(--fg);
+  border-color: var(--line);
+}
+
+.cdm-notify.active {
+  background: var(--btn);
+  color: var(--btn-text);
+  border-color: var(--accent);
+}
+
+.cdm-tobt-go {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  align-content: center;
+  column-gap: 0.35em;
+  row-gap: 0;
+  margin: 10px 0 0 20px;
+  min-width: 0;
+  flex: none;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  color: var(--fg);
+  font-size: 1.05rem;
+  font-weight: 400;
+  font-family: var(--sans);
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+  white-space: nowrap;
+  text-shadow: 0 0 4px var(--field), 0 0 8px var(--field);
+}
+
+@media (max-width: 700px) {
+  .cdm-tobt-go {
+    position: absolute;
+    top: 54px;
+    left: 24px;
+    margin: 0;
+    flex-wrap: nowrap;
+    white-space: nowrap;
+  }
+}
+
+.cdm-tobt-clock,
+.cdm-tobt-words {
+  white-space: nowrap;
+}
+
+.cdm-tobt-go.soon {
+  color: var(--cdm-amber);
+}
+
+.cdm-tobt-go.passed {
+  color: var(--cdm-logo-red);
+}
+
+.cdm-tobt-go[hidden] {
   display: none !important;
+}
+
+.cdm-toast {
+  position: fixed;
+  top: max(0.7rem, env(safe-area-inset-top, 0px));
+  left: 50%;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 11rem;
+  max-width: min(22rem, 88vw);
+  padding: 0.55rem 0.85rem;
+  border: 2px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--panel);
+  color: var(--fg);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  font-family: var(--sans);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.cdm-toast[hidden] {
+  display: none !important;
+}
+
+.cdm-toast strong {
+  font-size: 0.95rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+
+.cdm-toast span {
+  font-size: 0.82rem;
+  font-weight: 400;
 }
 
 .cdm-reset:active {
@@ -1550,7 +1859,7 @@ html.pin-scroll-lock body {
   color: var(--muted);
   font-family: var(--sans);
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 400;
   line-height: 1.25;
   text-align: center;
   overflow-wrap: anywhere;
@@ -1595,7 +1904,7 @@ html.pin-scroll-lock body {
 #board-ident {
   margin: 0;
   font-size: 1.55rem;
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: 0.06em;
   line-height: 1.05;
   font-family: var(--sans);
@@ -1605,7 +1914,7 @@ html.pin-scroll-lock body {
   margin: 0.08rem 0 0;
   font-family: var(--sans);
   font-size: 1.05rem;
-  font-weight: 700;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.06em;
   color: var(--muted);
@@ -1620,7 +1929,7 @@ html.pin-scroll-lock body {
   margin: 0.12rem 0 0;
   font-family: var(--sans);
   font-size: 0.68rem;
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: 0.05em;
   color: var(--muted);
   white-space: nowrap;
@@ -1632,6 +1941,31 @@ html.pin-scroll-lock body {
   width: 1.4rem;
   height: 1.4rem;
   flex-shrink: 0;
+}
+
+.board-update-spin {
+  width: 22px;
+  height: 22px;
+  margin: 0.75rem auto;
+  border: 2.5px solid color-mix(in srgb, var(--muted) 28%, transparent);
+  border-top-color: var(--muted);
+  border-radius: 50%;
+  animation: board-update-spin 0.7s linear infinite;
+}
+
+#board-refresh.is-updating .board-refresh-label {
+  display: none;
+}
+
+#board-refresh.is-updating .board-refresh-icon {
+  display: block;
+  animation: board-update-spin 0.7s linear infinite;
+}
+
+@keyframes board-update-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 #board-utc.utc-clock {
@@ -1705,21 +2039,9 @@ html.pin-scroll-lock body {
   white-space: nowrap;
 }
 
-.board-focus-btn.active {
-  border-color: var(--accent);
-  background: var(--bg);
-  color: var(--accent);
-}
-
 .board-focus-btn:disabled {
   opacity: 0.4;
   pointer-events: none;
-}
-
-.board-dirs {
-  display: flex;
-  gap: 0.4rem;
-  margin: 0 0 0.7rem;
 }
 
 .board-dir {
@@ -1727,6 +2049,8 @@ html.pin-scroll-lock body {
   min-width: 0;
   width: 100%;
   min-height: 40px;
+  position: relative;
+  overflow: hidden;
   border: 2px solid var(--tab-line);
   border-radius: var(--radius);
   background: var(--bg);
@@ -1742,6 +2066,34 @@ html.pin-scroll-lock body {
   border-color: var(--accent);
   background: var(--accent);
   color: var(--btn-text);
+}
+
+.board-dir.sweeping,
+.board-dir.sweeping.active,
+.board-dir.sweeping:disabled {
+  background-color: var(--btn-light);
+  background-image: linear-gradient(
+    to right,
+    var(--accent) 50%,
+    var(--btn-light) 50%
+  );
+  background-size: 200% 100%;
+  background-position: 100% 0;
+  background-repeat: no-repeat;
+  border-color: var(--accent);
+  color: var(--btn-text);
+  opacity: 1;
+  animation: btn-sweep-wipe 1.65s cubic-bezier(0.4, 0, 0.15, 1) infinite;
+}
+
+.board-dir.sweep-done,
+.board-dir.sweep-done.active {
+  background: var(--accent);
+  background-image: none;
+  background-position: 0 0;
+  border-color: var(--accent);
+  color: var(--btn-text);
+  animation: none;
 }
 
 .board-dir:disabled,
@@ -1762,9 +2114,9 @@ html.pin-scroll-lock body {
 
 .board-row {
   display: grid;
-  grid-template-columns: 5.1rem minmax(0, 0.85fr) minmax(0, 1.2fr) auto auto;
+  grid-template-columns: 5.1rem minmax(0, 1.15fr) minmax(0, 1fr) auto auto;
   grid-template-areas:
-    "time flight route route route"
+    "time ident route route route"
     "time meta meta gate status";
   column-gap: 0.45rem;
   row-gap: 0.08rem;
@@ -1778,12 +2130,6 @@ html.pin-scroll-lock body {
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
-}
-
-.board-row:has(.board-airline:not([hidden])) {
-  grid-template-areas:
-    "time flight route route route"
-    "time airline meta gate status";
 }
 
 .board-row:nth-child(even of .board-row) {
@@ -1803,7 +2149,7 @@ html.pin-scroll-lock body {
   color: var(--muted);
   font-family: var(--sans);
   font-size: 0.68rem;
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: 0.08em;
 }
 
@@ -1817,7 +2163,7 @@ html.pin-scroll-lock body {
   flex-direction: column;
   align-items: flex-start;
   font-family: var(--sans);
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: 0.04em;
   line-height: 1.12;
 }
@@ -1831,13 +2177,13 @@ html.pin-scroll-lock body {
 
 .board-time-orig {
   color: var(--muted);
-  font-weight: 700;
+  font-weight: 400;
   text-decoration: line-through;
   text-decoration-thickness: 0.09em;
 }
 
 .board-time-new {
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .board-time-z {
@@ -1847,18 +2193,26 @@ html.pin-scroll-lock body {
   letter-spacing: 0.02em;
 }
 
+.board-ident {
+  grid-area: ident;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.4rem;
+  row-gap: 0.02rem;
+  min-width: 0;
+}
+
 .board-flight {
-  grid-area: flight;
   font-weight: 700;
   letter-spacing: 0.04em;
   white-space: nowrap;
 }
 
 .board-airline {
-  grid-area: airline;
   color: var(--muted);
-  font-size: 0.82rem;
-  font-weight: 700;
+  font-size: 0.92rem;
+  font-weight: 400;
   letter-spacing: 0.02em;
   min-width: 0;
   max-width: none;
@@ -1870,7 +2224,7 @@ html.pin-scroll-lock body {
 .board-route {
   grid-area: route;
   color: var(--muted);
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: 0.02em;
   min-width: 0;
   overflow-wrap: break-word;
@@ -1882,17 +2236,17 @@ html.pin-scroll-lock body {
 .board-meta {
   grid-area: meta;
   color: var(--muted);
-  font-size: 0.82rem;
-  font-weight: 700;
+  font-size: 0.92rem;
+  font-weight: 400;
   letter-spacing: 0.03em;
   min-width: 0;
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
   align-items: baseline;
   column-gap: 0;
   row-gap: 0.04rem;
-  text-align: right;
+  text-align: left;
 }
 
 .board-meta-item,
@@ -1910,7 +2264,7 @@ html.pin-scroll-lock body {
 .board-cargo {
   color: var(--fg);
   font-size: 1.22em;
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: 0.04em;
 }
 
@@ -1932,8 +2286,8 @@ html.pin-scroll-lock body {
 .board-status {
   grid-area: status;
   justify-self: end;
-  font-size: 0.78rem;
-  font-weight: 700;
+  font-size: 0.92rem;
+  font-weight: 400;
   letter-spacing: 0.05em;
   white-space: nowrap;
 }
@@ -1950,6 +2304,7 @@ html.pin-scroll-lock body {
 }
 
 .board-row-cnx .board-flight,
+.board-row-cnx .board-ident,
 .board-row-cnx .board-time {
   color: var(--muted);
 }
@@ -2006,7 +2361,7 @@ html.pin-scroll-lock body {
 
 .board-focus-card h2 {
   font-size: 1.22rem;
-  font-weight: 700;
+  font-weight: 400;
   margin-bottom: 0.7rem;
 }
 
@@ -2026,7 +2381,7 @@ html.pin-scroll-lock body {
   border-radius: var(--radius);
   padding: 0 0.85rem;
   font-size: 1.25rem;
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   font-family: var(--sans);
@@ -2042,7 +2397,7 @@ html.pin-scroll-lock body {
 .board-focus-err {
   margin: 0.55rem 0 0;
   color: var(--stale);
-  font-weight: 700;
+  font-weight: 400;
   font-size: 0.92rem;
 }
 
@@ -2101,9 +2456,24 @@ html.pin-scroll-lock body {
   text-align: center;
 }
 
-.board-focus-form .icon-btn {
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+.board-focus-form .cdm-help {
+  pointer-events: auto;
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.board-focus-rule {
+  border: 0;
+  border-top: 1px solid var(--tab-line);
+  margin: 0.7rem 0 0.65rem;
+}
+
+.board-focus-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.4rem;
+  justify-content: start;
+  margin-top: 0;
 }
 
 .board-focus-cancel {
@@ -2111,7 +2481,6 @@ html.pin-scroll-lock body {
   align-items: center;
   justify-content: center;
   width: 100%;
-  margin-top: 0.75rem;
   min-height: 40px;
   padding: 0 0.4rem;
   border: 2px solid var(--tab-line);
@@ -2124,6 +2493,13 @@ html.pin-scroll-lock body {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   white-space: nowrap;
+}
+
+.board-focus-apply {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  min-width: 0;
+  width: 100%;
 }
 
 .board-pin-overlay {
@@ -2186,7 +2562,7 @@ html.pin-scroll-lock body {
 
 .board-pin-card h2 {
   font-size: 1.45rem;
-  font-weight: 700;
+  font-weight: 400;
   letter-spacing: 0.04em;
   line-height: 1.1;
 }
@@ -2195,7 +2571,7 @@ html.pin-scroll-lock body {
   margin: 0.22rem 0 0;
   color: var(--fg);
   font-size: 1.02rem;
-  font-weight: 700;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
   line-height: 1.35;
   letter-spacing: 0.01em;
@@ -2221,12 +2597,23 @@ html.pin-scroll-lock body {
   color: var(--btn-text);
 }
 
-.board-pin-cdm {
+.board-pin-cdm-wrap {
+  position: relative;
   display: block;
   width: 100%;
   flex: 1 1 auto;
   min-height: 0;
-  height: auto;
+}
+
+.board-pin-cdm-wrap[hidden] {
+  display: none !important;
+}
+
+.board-pin-cdm {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   border: var(--border-w) solid var(--line);
   border-radius: var(--radius);
   background: var(--field);
@@ -2234,18 +2621,10 @@ html.pin-scroll-lock body {
   -webkit-overflow-scrolling: touch;
 }
 
-.board-pin-cdm[hidden] {
-  display: none;
-}
-
 .board-pin-note {
   flex: none;
   margin: 0.55rem 0 0;
   color: var(--stale);
-  font-weight: 700;
+  font-weight: 400;
   font-size: 0.9rem;
-}
-
-.board-pin-extra {
-  display: none;
 }

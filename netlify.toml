@@ -2,6 +2,9 @@
   publish = "."
   functions = "netlify/functions"
 
+[functions.board]
+  timeout = 26
+
 [[redirects]]
   from = "/.env"
   to = "/index.html"

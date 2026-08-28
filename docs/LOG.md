@@ -2,6 +2,74 @@
 
 Session history for rebuild. Older narrative also lives in `CURSOR_general_logs/ATIS_PWA/LOG.md`.
 
+## 2026-08-28 — version 1.4
+
+Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`. SW `gearup-v252`. Live: https://gearup4u.netlify.app
+
+PWA now matches the iOS client: Focus overlay (FOCUS CARGO, CANCEL/CLEAR | APPLY), Regular/Bold, CDM tab countdown, TOBT under the logo, ADS-B top-left i help (in-app 10,000 ft AGL, unfiltered browser tab), and AMS board preload after TAF when EHAM ATIS is showing.
+
+SW `gearup-v252`. ADS-B help says the in-app map hides overflights above 10,000 ft AGL; the browser-tab link has no altitude filter.
+
+SW `gearup-v251`. Phone TOBT sits under the CDM logo and above Updated, one line. Hidden NOTIFY/CLEAR no longer leak. ADS-B help and Focus/FOCUS CARGO/fonts match iOS.
+
+SW `gearup-v250`. PWA matches iOS Focus overlay, FOCUS CARGO, Regular/Bold, and CDM countdown. Phone TOBT is one line under the logo. ADS-B has a top-left i help and an unfiltered browser link. AMS board still preloads after TAF when EHAM ATIS is showing.
+
+SW `gearup-v249`. DEPARTURES/ARRIVALS keep sweeping until a list or error is on screen. Same-direction tap retries an empty board.
+
+SW `gearup-v248`. Board preload is sequential; `/api/board` returns a snapshot with rows before a Netlify timeout so Refresh is not a blank 502. Hard board errors show instead of “Loading…”.
+
+SW `gearup-v247`. TOBT to-go sits under the EHAMCDM logo, just above Updated, not between NOTIFY and CLEAR.
+
+SW `gearup-v246`. Focus APPLY sits right of CANCEL/CLEAR, with a hairline above. DEPARTURES/ARRIVALS keep sweeping until a list or error is on screen.
+
+SW `gearup-v245`. Focus overlay uses one CANCEL/CLEAR button again, with APPLY under it.
+
+SW `gearup-v244`. Flight board Refresh and pull-to-refresh both show the same spinning update wheel.
+
+SW `gearup-v243`. Focus overlay: i explains search modes; CANCEL and CLEAR are separate; APPLY sits under CANCEL.
+
+SW `gearup-v242`. Info button stays on an empty AMS CDM search. ICAO/IATA headers, clocks, and the search field use Regular.
+
+SW `gearup-v241`. AMS CDM chip is NOTIFY. If the header is tight, i sits under CLEAR; button labels do not wrap.
+
+SW `gearup-v240`. Narrow-phone CDM chrome wraps; unused pin-extra stub removed.
+
+SW `gearup-v239`. AMS CDM tab has an info circle left of CLEAR that opens an A-CDM terms overlay.
+
+SW `gearup-v238`. Overlay titles, notes, errors, and secondary board/TAF copy use Regular; chips, flight numbers, and ops highlights stay Bold.
+
+SW `gearup-v237`. TOBT timer turns amber under 5 minutes, then CDM-logo red with `PASSED` and an up-count at zero.
+
+SW `gearup-v236`. On a narrow phone, `to go` wraps as one pair under `TOBT H:MM`.
+
+SW `gearup-v235`. TOBT countdown uses Atkinson Regular.
+
+SW `gearup-v234`. TOBT countdown type is about 35% larger.
+
+SW `gearup-v233`. AMS CDM tab and pin overlay show TOBT H:MM to go next to NOTIFY CDM.
+
+SW `gearup-v232`. NOTIFY CDM also pops TOBT now at 0m. Alerts vanish after a few seconds.
+
+SW `gearup-v231`. AMS CDM CLEAR sits on the far right of the header, away from NOTIFY CDM.
+
+SW `gearup-v230`. NOTIFY CDM sits just after the Amsterdam CDM logo on the AMS CDM tab and on a pinned departure. Cargo chip is FOCUS CARGO.
+
+SW `gearup-v229`. AMS CDM Notify of CDM changes uses the live CDM page only.
+
+SW `gearup-v228`. LAST on Focus is a toggle so a previous search can be turned off.
+
+SW `gearup-v227`. Focus overlay opens the letter keyboard with caps lock and stores only A–Z / 0–9.
+
+SW `gearup-v226`. AMS CDM tab with a loaded flight stacks callsign over remain (two rows) instead of shrinking to one line.
+
+SW `gearup-v225`. Same dest/day padded twins (DL057 vs DL0057) drop the fewer-zero row; the extra-zero copy is the one Schiphol updates.
+
+SW `gearup-v224`. AMS CDM flight search opens the number keyboard (`inputmode=numeric` on the search field). Letters stay available for a KL prefix.
+
+SW `gearup-v223`. SHOW DEPARTED/ARRIVED, FILTER CARGO, and Focus ticks force a board refetch. Departed rows stay pinned above the 60 cap. FOCUS uses the same filled hot state as DEPARTURES.
+
+SW `gearup-v222`. Opening Amsterdam ATIS still preloads TAF, then both 9-hour D and A boards so FLIGHT BOARD paints immediately. Board rows put the airline next to the flight number; airline, type/reg, and status type is slightly larger.
+
 ## 2026-08-27 — version 1.4
 
 Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`. SW `gearup-v219`. Live: https://gearup4u.netlify.app

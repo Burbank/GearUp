@@ -51,6 +51,18 @@
     return { airline: "", num: "" };
   }
 
+  function padParts(value) {
+    const raw = compactFlight(value);
+    const m = raw.match(/^([A-Z]{2,3}|[A-Z][0-9]|[0-9][A-Z])(0*)(\d{1,4})$/);
+    if (!m) return null;
+    return {
+      airline: m[1],
+      zeros: m[2].length,
+      num: String(Number(m[3])),
+      raw,
+    };
+  }
+
   function matchReg(row, query) {
     const q = compactFlight(query);
     const reg = compactFlight(row && row.reg);
@@ -100,6 +112,44 @@
     return String((row && row.route) || "")
       .toUpperCase()
       .match(/\b[A-Z]{3}\b/g) || [];
+  }
+
+  function twinKey(row, parts) {
+    const dest = destsOf(row).slice().sort().join("-");
+    const day = String((row && row.dayKey) || "");
+    if (dest) return `${parts.airline}:${parts.num}:${dest}:${day}`;
+    const gate = compactFlight(row && row.gate);
+    const aircraft = compactFlight(row && row.aircraft);
+    const reg = compactFlight(row && row.reg);
+    if (!day || (!gate && !aircraft && !reg)) return "";
+    return `${parts.airline}:${parts.num}::${day}:${gate}:${aircraft}:${reg}`;
+  }
+
+  function dropPaddedFlightDupes(flights) {
+    const list = Array.isArray(flights) ? flights : [];
+    const parts = list.map((row) => padParts(row && row.flight));
+    const groups = new Map();
+    list.forEach((row, i) => {
+      const p = parts[i];
+      if (!p) return;
+      const key = twinKey(row, p);
+      if (!key) return;
+      const bucket = groups.get(key);
+      if (bucket) bucket.push(i);
+      else groups.set(key, [i]);
+    });
+    const drop = new Set();
+    for (const idxs of groups.values()) {
+      if (idxs.length < 2) continue;
+      let maxZ = -1;
+      for (const i of idxs) maxZ = Math.max(maxZ, parts[i].zeros);
+      if (maxZ < 1) continue;
+      for (const i of idxs) {
+        if (parts[i].zeros < maxZ) drop.add(i);
+      }
+    }
+    if (!drop.size) return list;
+    return list.filter((_, i) => !drop.has(i));
   }
 
   function matchRoute(row, query) {
@@ -449,7 +499,7 @@
   }
 
   function visibleFlights(flights, focusQuery, opts) {
-    let list = filterBoardFlights(flights, opts);
+    let list = dropPaddedFlightDupes(filterBoardFlights(flights, opts));
     const kind = classifyQuery(focusQuery);
     if (kind.q) list = list.filter((row) => matchFocus(row, kind.q));
     const cap = Number(opts && opts.limit);
@@ -459,6 +509,11 @@
     }
     if (opts && opts.cargoOnly) return list;
     const limit = Number.isFinite(cap) && cap > 0 ? cap : LIST_MAX;
+    if (opts && opts.showGone) {
+      const gone = list.filter((row) => row && row.statusKind === "done");
+      const rest = list.filter((row) => !(row && row.statusKind === "done"));
+      return gone.concat(rest.slice(0, limit));
+    }
     return list.slice(0, limit);
   }
 
@@ -541,14 +596,12 @@
       } else {
         time.append(paintZulu(row.timeZ || "——Z"));
       }
+      const ident = el("span", "board-ident");
+      ident.append(el("span", "board-flight", row.flight || ""));
       const airline = el("span", "board-airline", row.airline || "");
       if (!row.airline) airline.hidden = true;
-      li.append(
-        time,
-        el("span", "board-flight", row.flight || ""),
-        airline,
-        el("span", "board-route", routeLabel(row))
-      );
+      ident.append(airline);
+      li.append(time, ident, el("span", "board-route", routeLabel(row)));
       const meta = el("span", "board-meta");
       fillMeta(meta, row.meta || "", "");
       const gate = el("span", "board-gate", row.gate || "");
@@ -572,6 +625,7 @@
     classifyQuery,
     compactFlight,
     destsOf,
+    dropPaddedFlightDupes,
     destIsEu,
     destIsNonEu,
     fillMeta,

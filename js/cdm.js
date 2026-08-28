@@ -75,6 +75,47 @@
     return { text: rem ? `${hr}h ${rem}m` : `${hr}h`, soon };
   }
 
+  function formatTobtGoParts(ms) {
+    const passed = !Number.isFinite(ms) || ms <= 0;
+    const abs = passed ? Math.abs(Number.isFinite(ms) ? ms : 0) : ms;
+    const total = Math.floor(abs / 60000);
+    const hr = Math.floor(total / 60);
+    const min = String(total % 60).padStart(2, "0");
+    const tone = passed ? "passed" : total < 5 ? "soon" : "";
+    return {
+      clock: `TOBT ${hr}:${min}`,
+      words: passed ? "PASSED" : "TO GO",
+      tone,
+    };
+  }
+
+  function formatTobtGo(ms) {
+    const parts = formatTobtGoParts(ms);
+    return `${parts.clock} ${parts.words}`;
+  }
+
+  function tobtZeroNotifyKey(callsign, tobt) {
+    const sign = String(callsign || "").replace(/\s+/g, "").toUpperCase();
+    const clock = String(tobt || "").trim();
+    if (!sign || !/^\d{1,2}:\d{2}$/.test(clock)) return "";
+    return sign + "|" + clock;
+  }
+
+  function shouldNotifyTobtZero(opts) {
+    const ms = opts && opts.remainMs;
+    const wasPositive = !!(opts && opts.wasPositive);
+    const key = tobtZeroNotifyKey(opts && opts.callsign, opts && opts.tobt);
+    const sent = opts && opts.sentKey;
+    if (!key || !Number.isFinite(ms)) {
+      return { fire: false, wasPositive: false, key };
+    }
+    if (ms > 0) return { fire: false, wasPositive: true, key };
+    if (!wasPositive || sent === key) {
+      return { fire: false, wasPositive: false, key };
+    }
+    return { fire: true, wasPositive: false, key };
+  }
+
   function detailsCallsign(doc) {
     if (!doc || typeof doc.querySelector !== "function") return "";
     const root = doc.querySelector(".flight-details");
@@ -173,16 +214,188 @@
     }
   }
 
+  function preferNumericSearch(doc) {
+    if (!doc || typeof doc.querySelector !== "function") return;
+    const seen = new Set();
+    const add = (el) => {
+      if (!el || seen.has(el) || typeof el.setAttribute !== "function") return;
+      seen.add(el);
+      el.setAttribute("inputmode", "numeric");
+      el.setAttribute("enterkeyhint", "search");
+      el.setAttribute("autocomplete", "off");
+      el.setAttribute("autocapitalize", "characters");
+    };
+    if (typeof doc.getElementById === "function") add(doc.getElementById("search"));
+    const list =
+      typeof doc.querySelectorAll === "function"
+        ? doc.querySelectorAll('input[name="search"]')
+        : [];
+    for (const el of list) add(el);
+  }
+
+  const CDM_LABELS = {
+    TOBT: "TOBT",
+    TSAT: "TSAT",
+    TTOT: "TTOT",
+    ASAT: "ASAT",
+    AOBT: "AOBT",
+    EOBT: "EOBT",
+    CTOT: "CTOT",
+    RUNWAY: "RWY",
+    RWY: "RWY",
+    STAND: "STAND",
+    GATE: "GATE",
+    PARKING: "STAND",
+    REGISTRATION: "REG",
+    REG: "REG",
+    ACREG: "REG",
+    "AC REG": "REG",
+    AIRCRAFT: "TYPE",
+    TYPE: "TYPE",
+    "AC TYPE": "TYPE",
+  };
+
+  function normalizeCdmLabel(raw) {
+    const t = String(raw || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toUpperCase();
+    if (!t || t === "UNSET" || t === "REMAIN" || t === "REMAINING") return "";
+    if (CDM_LABELS[t]) return CDM_LABELS[t];
+    if (t.length <= 12 && /^[A-Z][A-Z0-9 /]*$/.test(t)) return t;
+    return "";
+  }
+
+  function normalizeCdmValue(raw) {
+    const v = String(raw || "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!v) return "";
+    const u = v.toUpperCase();
+    if (u === "UNSET" || u === "-" || u === "N/A" || u === "NA" || u === "TBD" || u === "NONE") {
+      return "";
+    }
+    if (/^\d{1,2}:\d{2}$/.test(v)) return v;
+    return u;
+  }
+
+  function addCdmField(fields, label, value) {
+    const key = normalizeCdmLabel(label);
+    const val = normalizeCdmValue(value);
+    if (!key || !val) return;
+    fields[key] = val;
+  }
+
+  function collectCdmFieldsFromHtml(html) {
+    const fields = {};
+    const re =
+      /<li[^>]*>\s*<span>\s*([^<]+?)\s*<\/span>\s*<span>\s*([^<]*?)\s*<\/span>/gi;
+    let m;
+    while ((m = re.exec(String(html || "")))) {
+      addCdmField(fields, m[1], m[2]);
+    }
+    return fields;
+  }
+
+  function collectCdmFieldsFromDoc(doc) {
+    const fields = {};
+    if (!doc || typeof doc.querySelectorAll !== "function") return fields;
+    const nodes = doc.querySelectorAll(
+      ".flight-details li, .flight-timeline li, .positioning li"
+    );
+    for (const li of nodes) {
+      const spans = li.querySelectorAll("span");
+      if (spans.length >= 2) {
+        addCdmField(fields, spans[0].textContent, spans[1].textContent);
+      }
+    }
+    return fields;
+  }
+
+  function readCdmWatch(doc) {
+    const callsign = detailsCallsign(doc);
+    if (!callsign) return null;
+    const fields = collectCdmFieldsFromDoc(doc);
+    return { callsign, fields };
+  }
+
+  function readCdmWatchFromHtml(html) {
+    const parsed = parseFlightHtml(html);
+    if (!parsed || !parsed.callsign) return null;
+    const fields = collectCdmFieldsFromHtml(html);
+    if (parsed.tobt && !fields.TOBT) fields.TOBT = parsed.tobt;
+    if (parsed.rwy && !fields.RWY) fields.RWY = parsed.rwy;
+    return { callsign: parsed.callsign, fields };
+  }
+
+  function formatCdmFieldValue(key, value) {
+    const v = String(value || "");
+    if (!v) return "";
+    if (/^\d{1,2}:\d{2}$/.test(v)) return v + "Z";
+    return v;
+  }
+
+  function formatCdmChangeSummary(changes) {
+    const rows = (changes || []).slice(0, 3).map((row) => {
+      const to = formatCdmFieldValue(row.key, row.to);
+      const from = formatCdmFieldValue(row.key, row.from);
+      if (from && to && from !== to) return `${row.key} ${to} (was ${from})`;
+      return `${row.key} ${to || from}`;
+    });
+    return rows.join(" · ");
+  }
+
+  function diffCdmWatch(prev, next) {
+    if (!next || !next.callsign) return null;
+    if (!prev || prev.callsign !== next.callsign) {
+      return { reset: true, summary: "", changes: [] };
+    }
+    const a = (prev && prev.fields) || {};
+    const b = next.fields || {};
+    const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+    const changes = [];
+    for (const key of keys) {
+      const from = a[key] || "";
+      const to = b[key] || "";
+      if (from === to || !to) continue;
+      changes.push({ key, from, to });
+    }
+    if (!changes.length) return null;
+    return { reset: false, summary: formatCdmChangeSummary(changes), changes };
+  }
+
+  function numericSearchScript() {
+    return (
+      "(function(){function pad(el){if(!el||!el.setAttribute)return;el.setAttribute('inputmode','numeric');" +
+      "el.setAttribute('enterkeyhint','search');el.setAttribute('autocomplete','off');" +
+      "el.setAttribute('autocapitalize','characters');}function apply(){pad(document.getElementById('search'));" +
+      "document.querySelectorAll('input[name=\"search\"]').forEach(pad);}apply();" +
+      "document.addEventListener('focusin',function(ev){var t=ev&&ev.target;if(!t)return;" +
+      "if(t.id==='search'||t.name==='search')pad(t);},true);" +
+      "document.addEventListener('DOMContentLoaded',apply);}());"
+    );
+  }
+
   return {
     parseFlightHtml,
     parseCdmPost,
     formatCdmSlot,
     tobtRemainMs,
     formatTobtRemain,
+    formatTobtGo,
+    formatTobtGoParts,
+    tobtZeroNotifyKey,
+    shouldNotifyTobtZero,
     detailsCallsign,
     submitSearch,
     clickMatchingChoice,
     shellReady,
     isBareFlightHtml,
+    preferNumericSearch,
+    numericSearchScript,
+    readCdmWatch,
+    readCdmWatchFromHtml,
+    diffCdmWatch,
+    formatCdmChangeSummary,
   };
 });

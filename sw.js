@@ -1,4 +1,4 @@
-const CACHE = "gearup-v219";
+const CACHE = "gearup-v252";
 const PRECACHE = [
   "/",
   "/index.html",
@@ -46,6 +46,19 @@ function cacheCopy(request, res) {
   }
   return res;
 }
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      for (const client of windows) {
+        if (client.url && "focus" in client) return client.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow("/");
+      return undefined;
+    })
+  );
+});
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;

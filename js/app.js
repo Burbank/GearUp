@@ -132,7 +132,19 @@
   const wxSnowtamTitle = document.getElementById("wx-snowtam-title");
   const slotsFrame = document.getElementById("slots-frame");
   const adsbFrame = document.getElementById("adsb-frame");
+  const adsbHelpBtn = document.getElementById("adsb-help");
+  const adsbHelpDialog = document.getElementById("adsb-help-dialog");
+  const adsbHelpClose = document.getElementById("adsb-help-close");
+  const adsbHelpOpen = document.getElementById("adsb-help-open");
   const cdmReset = document.getElementById("cdm-reset");
+  const cdmHelpBtn = document.getElementById("cdm-help");
+  const cdmHelpDialog = document.getElementById("cdm-help-dialog");
+  const cdmHelpClose = document.getElementById("cdm-help-close");
+  const cdmChrome = document.getElementById("cdm-chrome");
+  const cdmNotifyBtn = document.getElementById("cdm-notify");
+  const boardPinCdmWrap = document.getElementById("board-pin-cdm-wrap");
+  const boardPinCdmChrome = document.getElementById("board-pin-cdm-chrome");
+  const boardPinCdmNotify = document.getElementById("board-pin-cdm-notify");
   const tabButtons = [...document.querySelectorAll(".tabs .tab")];
   const tabAtis = document.getElementById("tab-atis");
   const tabBrief = document.getElementById("tab-brief");
@@ -145,9 +157,19 @@
   const boardUtcEl = document.getElementById("board-utc");
   const boardUtcTime = document.getElementById("board-utc-time");
   const boardRefresh = document.getElementById("board-refresh");
+  const boardUpdateSpin = document.getElementById("board-update-spin");
   const boardEmpty = document.getElementById("board-empty");
   const boardList = document.getElementById("board-list");
   const boardDirBtns = [...document.querySelectorAll(".board-dir[data-dir]")];
+
+  function boardDirButton(dir) {
+    const want = dir === "A" ? "A" : "D";
+    return boardDirBtns.find((btn) => btn.dataset.dir === want);
+  }
+
+  function stopDirSweep() {
+    for (const btn of boardDirBtns) endBtnSweep(btn, { immediate: true });
+  }
   const boardAdsbBtn = document.getElementById("board-adsb");
   const boardFocusBtn = document.getElementById("board-focus-btn");
   const boardFocusDialog = document.getElementById("board-focus-dialog");
@@ -155,6 +177,9 @@
   const boardFocusInput = document.getElementById("board-focus-input");
   const boardFocusErr = document.getElementById("board-focus-err");
   const boardFocusCancel = document.getElementById("board-focus-cancel");
+  const boardFocusHelpBtn = document.getElementById("board-focus-help");
+  const boardFocusHelpDialog = document.getElementById("board-focus-help-dialog");
+  const boardFocusHelpClose = document.getElementById("board-focus-help-close");
   const focusTickLast = document.getElementById("focus-tick-last");
   const focusTickLastLabel = document.getElementById("focus-tick-last-label");
   const focusTickHeavy = document.getElementById("focus-tick-heavy");
@@ -169,7 +194,6 @@
   const boardPinClose = document.getElementById("board-pin-close");
   const boardPinCdm = document.getElementById("board-pin-cdm");
   const boardPinCdmNote = document.getElementById("board-pin-cdm-note");
-  const boardPinExtra = document.getElementById("board-pin-extra");
   const boardShowGoneBtn = document.getElementById("board-show-gone");
   const boardFilterCargoBtn = document.getElementById("board-filter-cargo");
   const boardShowMoreBtn = document.getElementById("board-show-more");
@@ -186,6 +210,8 @@
   let lastBriefHold = { icao: "", at: 0, taf: null, wx: null };
   let briefPreloadTimer = 0;
   let briefPreloadToken = 0;
+  let boardPreloadToken = 0;
+  const boardPreloadInflight = { D: null, A: null };
   const atisFetchedAt = Object.create(null);
   let clockTimer = 0;
   let boardFlights = [];
@@ -225,6 +251,14 @@
   let cdmObsDebounce = 0;
   let cdmTickTimer = 0;
   let cdmPollTimer = 0;
+  let cdmNotifyOn = false;
+  let cdmWatchBaseline = null;
+  let cdmNotifyAt = 0;
+  let cdmTobtTimer = 0;
+  let cdmTobtWasPositive = false;
+  let cdmTobtZeroSent = "";
+  let cdmToastTimer = 0;
+  const cdmToast = document.getElementById("cdm-toast");
   let adsbFrameUrl = "";
   let adsbFrameToken = 0;
   let metarToken = 0;
@@ -237,6 +271,22 @@
   const sweepEnds = new WeakMap();
   const SWEEP_MIN_MS = 1650;
   const SWEEP_DONE_MS = 80;
+
+  let boardSpinDepth = 0;
+
+  function setBoardUpdateSpin(on) {
+    boardSpinDepth = Math.max(0, boardSpinDepth + (on ? 1 : -1));
+    const show = boardSpinDepth > 0;
+    if (boardUpdateSpin) {
+      boardUpdateSpin.hidden = !show;
+      boardUpdateSpin.setAttribute("aria-hidden", show ? "false" : "true");
+    }
+    if (boardRefresh) {
+      boardRefresh.classList.toggle("is-updating", show);
+      if (show) boardRefresh.setAttribute("aria-busy", "true");
+      else boardRefresh.removeAttribute("aria-busy");
+    }
+  }
 
   function startBtnSweep(btn) {
     if (!btn) return;
@@ -259,9 +309,13 @@
     delete btn.dataset.sweepAt;
   }
 
-  function endBtnSweep(btn) {
+  function endBtnSweep(btn, opts) {
     if (!btn || !btn.classList.contains("sweeping")) {
       if (btn) btn.classList.remove("loading");
+      return;
+    }
+    if (opts && opts.immediate) {
+      clearBtnSweep(btn);
       return;
     }
     const prev = sweepEnds.get(btn);
@@ -428,7 +482,7 @@
       return;
     }
     clearCdmWatch();
-    tabSlots.classList.remove("cdm-soon");
+    tabSlots.classList.remove("cdm-soon", "tab-cdm-flight");
     const tag = adsbTabCode(selectedIcao());
     tabSlots.textContent = tag ? `${tag} ADS-B` : "ADS-B";
   }
@@ -1405,7 +1459,7 @@
     if (on) {
       atisDeptNote.textContent =
         mode === "shown"
-          ? "SHOWN DUE NO RECENT DEPT ATIS AVAIL."
+          ? "ARRIVAL SHOWN DUE NO RECENT DEPT ATIS AVAIL."
           : "ALSO NO RECENT DEPT ATIS AVAIL";
     }
     atisDeptNote.hidden = !on;
@@ -1510,14 +1564,25 @@
   const airportCache = Object.create(null);
   const AGL_CAP_FT = 10000;
 
-  function adsbAirportUrl(icao, elevFt) {
+  function adsbAirportUrl(icao, elevFt, opts) {
     const code = String(icao || "")
       .trim()
       .toUpperCase();
     if (!/^[A-Z]{4}$/.test(code)) return "";
     const field = Number.isFinite(elevFt) ? elevFt : 0;
     const altMax = Math.max(1000, Math.round(field + AGL_CAP_FT));
-    return `https://globe.airplanes.live/?airport=${encodeURIComponent(code)}&zoom=12&enableLabels&extendedLabels=1&filterAltMax=${altMax}&tableInView=1&hideSideBar&legacyUI`;
+    const cap = !opts || opts.capAltitude !== false;
+    const q = [
+      `airport=${encodeURIComponent(code)}`,
+      "zoom=12",
+      "enableLabels",
+      "extendedLabels=1",
+      "tableInView=1",
+      "hideSideBar",
+      "legacyUI",
+    ];
+    if (cap) q.splice(4, 0, `filterAltMax=${altMax}`);
+    return `https://globe.airplanes.live/?${q.join("&")}`;
   }
 
   function setIdent(icao, iata) {
@@ -2850,17 +2915,74 @@
   }
 
   async function preloadBrief(code) {
-    if (briefHoldFresh(code)) return;
     const token = briefPreloadToken;
-    try {
-      const { tafPromise, wxPromise } = fetchBriefPayload(code);
-      const [taf, wx] = await Promise.all([tafPromise, wxPromise]);
+    if (!briefHoldFresh(code)) {
+      try {
+        const { tafPromise, wxPromise } = fetchBriefPayload(code);
+        const [taf, wx] = await Promise.all([tafPromise, wxPromise]);
+        if (token !== briefPreloadToken || currentIcao !== code) return;
+        lastBriefHold = { icao: code, at: Date.now(), taf, wx };
+        if (currentTab === "atis") fillAtisNasDelay(wx && wx.delay);
+      } catch {
+        /* keep whatever TAF we already have */
+      }
       if (token !== briefPreloadToken || currentIcao !== code) return;
-      lastBriefHold = { icao: code, at: Date.now(), taf, wx };
-      if (currentTab === "atis") fillAtisNasDelay(wx && wx.delay);
-    } catch {
-      /* keep whatever TAF we already have */
     }
+    if (code === "EHAM") preloadAmsBoards();
+  }
+
+  function boardHoldHasFlights(dir) {
+    const held = boardHoldFor(dir);
+    return !!(
+      held &&
+      held.data &&
+      Array.isArray(held.data.flights) &&
+      held.data.flights.length
+    );
+  }
+
+  async function preloadAmsBoards() {
+    if (normalizeIcao(currentIcao) !== "EHAM") return;
+    const token = ++boardPreloadToken;
+    await preloadBoardDir("D", token);
+    await preloadBoardDir("A", token);
+  }
+
+  async function preloadBoardDir(dir, token) {
+    if (token !== boardPreloadToken) return;
+    if (boardHoldHasFlights(dir)) return;
+    if (currentTab === "board" && boardDir === dir) return;
+    if (boardPreloadInflight[dir]) return boardPreloadInflight[dir];
+    const job = (async () => {
+      try {
+        const data = await fetchBoardDir(dir, { ahead: 9 });
+        if (token !== boardPreloadToken) return;
+        if (normalizeIcao(currentIcao) !== "EHAM") return;
+        if (!data || !Array.isArray(data.flights)) return;
+        if (boardHoldHasFlights(dir)) return;
+        const aheadRaw = Number(data.aheadHours);
+        const ahead = aheadRaw === 18 || aheadRaw === 24 ? aheadRaw : 9;
+        lastBoardHold[dir] = {
+          at: Date.now(),
+          data,
+          aheadHours: ahead,
+          cargo: false,
+        };
+        if (
+          currentTab === "board" &&
+          boardDir === dir &&
+          (!Array.isArray(boardFlights) || !boardFlights.length)
+        ) {
+          paintBoard(data);
+        }
+      } catch {
+        /* FLIGHT BOARD will fetch if the hold is still empty */
+      } finally {
+        if (boardPreloadInflight[dir] === job) boardPreloadInflight[dir] = null;
+      }
+    })();
+    boardPreloadInflight[dir] = job;
+    return job;
   }
 
   function scheduleBriefPreload(icao) {
@@ -3074,6 +3196,7 @@
       applyBoardFocus();
       refreshBoardPinExtras();
       syncBoardMoreBtn([]);
+      if (errorText !== "Loading…") stopDirSweep();
       return;
     }
     const shown = api
@@ -3104,6 +3227,7 @@
         if (boardShowMoreBtn) boardShowMoreBtn.hidden = true;
       } else {
         syncBoardMoreBtn(flights);
+        stopDirSweep();
       }
       return;
     }
@@ -3114,6 +3238,7 @@
     applyBoardFocus({ scroll: !!(opts && opts.scroll) });
     refreshBoardPinExtras();
     syncBoardMoreBtn(flights);
+    stopDirSweep();
   }
 
   function boardDataSignature(data) {
@@ -3229,8 +3354,8 @@
       if (pending) scheduleBoardRetry();
       else {
         boardRetryN = 0;
-        ensureCargoPreload(dir);
-        ensureCargoPreload(dir === "A" ? "D" : "A");
+        if (needsWideBoard()) ensureCargoPreload(dir);
+        else preloadBoardDir(dir === "A" ? "D" : "A", ++boardPreloadToken);
       }
       return;
     }
@@ -3246,8 +3371,8 @@
     if (pending) scheduleBoardRetry();
     else {
       boardRetryN = 0;
-      ensureCargoPreload(dir);
-      ensureCargoPreload(dir === "A" ? "D" : "A");
+      if (needsWideBoard()) ensureCargoPreload(dir);
+      else preloadBoardDir(dir === "A" ? "D" : "A", ++boardPreloadToken);
     }
   }
 
@@ -3262,7 +3387,22 @@
     boardFocusErr.hidden = !msg;
   }
 
+  function closeBoardFocusHelpDialog() {
+    if (!boardFocusHelpDialog || boardFocusHelpDialog.hidden) return;
+    boardFocusHelpDialog.hidden = true;
+    if (boardFocusHelpBtn && boardFocusDialog && !boardFocusDialog.hidden) {
+      boardFocusHelpBtn.focus();
+    }
+  }
+
+  function openBoardFocusHelpDialog() {
+    if (!boardFocusHelpDialog) return;
+    boardFocusHelpDialog.hidden = false;
+    if (boardFocusHelpClose) boardFocusHelpClose.focus();
+  }
+
   function closeBoardFocusDialog() {
+    closeBoardFocusHelpDialog();
     if (boardFocusDialog) boardFocusDialog.hidden = true;
     setBoardFocusErr("");
   }
@@ -3287,6 +3427,28 @@
     if (lock) closeBoardFocusDialog();
   }
 
+  function sanitizeBoardFocusInput() {
+    if (!boardFocusInput) return;
+    const next = String(boardFocusInput.value || "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "");
+    if (boardFocusInput.value !== next) boardFocusInput.value = next;
+  }
+
+  function showBoardFocusKeyboard() {
+    if (!boardFocusInput) return;
+    boardFocusInput.setAttribute("inputmode", "text");
+    boardFocusInput.setAttribute("autocapitalize", "characters");
+    boardFocusInput.setAttribute("autocorrect", "off");
+    boardFocusInput.setAttribute("spellcheck", "false");
+    sanitizeBoardFocusInput();
+    boardFocusInput.focus();
+    requestAnimationFrame(() => {
+      boardFocusInput.focus();
+      if (boardFocusInput.value) boardFocusInput.select();
+    });
+  }
+
   function openBoardFocusDialog() {
     if (!boardFocusDialog || pinOverlayIsOpen()) return;
     if (!boardFocusDialog.hidden) {
@@ -3298,8 +3460,7 @@
     setBoardFocusErr("");
     if (boardFocusInput) {
       boardFocusInput.value = boardFocusQuery || "";
-      boardFocusInput.focus();
-      boardFocusInput.select();
+      showBoardFocusKeyboard();
     }
   }
 
@@ -3359,7 +3520,7 @@
   function syncFocusTicks() {
     if (focusTickLast) {
       focusTickLast.disabled = !boardFocusLast;
-      focusTickLast.checked = !!(boardFocusLastOn && boardFocusQuery);
+      focusTickLast.checked = lastFocusIsOn();
     }
     if (focusTickLastLabel) {
       focusTickLastLabel.textContent = boardFocusLast
@@ -3399,10 +3560,7 @@
       return;
     }
     if (focusTicksOn()) boardListLimit = 60;
-    const held = boardHoldForView(boardDir);
-    if (held) paintBoard(held.data);
-    else applyBoardFocus();
-    if (needsWideBoard()) ensureCargoPreload(boardDir);
+    refreshBoardAfterFilter();
   }
 
   function applyBoardFocus(opts) {
@@ -3513,10 +3671,6 @@
       boardPinSub.textContent = line;
       boardPinSub.hidden = !line;
     }
-    if (boardPinExtra) {
-      boardPinExtra.textContent = "";
-      boardPinExtra.hidden = true;
-    }
   }
 
   function refreshBoardPinExtras() {
@@ -3591,9 +3745,12 @@
       boardPinCdmNote && !boardPinCdmNote.hidden ? boardPinCdmNote.offsetHeight : 0;
     const chrome = headH + noteH + 28;
     const room = boardPinOverlay ? boardPinOverlay.clientHeight : window.innerHeight;
-    const max = Math.max(200, room - chrome);
-    boardPinCdm.style.height = Math.round(max) + "px";
+    const max = Math.round(Math.max(200, room - chrome));
+    const host = boardPinCdmWrap || boardPinCdm;
+    host.style.height = max + "px";
+    boardPinCdm.style.height = max + "px";
     boardPinCdm.style.overflow = "auto";
+    placeCdmChrome(boardPinCdm, boardPinCdmChrome);
   }
 
   function scheduleFitPinCdm() {
@@ -3627,11 +3784,12 @@
     pinCdmSearchAt = 0;
     setPinCdmNote("");
     if (boardPinCdm) {
-      boardPinCdm.hidden = true;
+      setPinCdmFrameVisible(false);
       boardPinCdm.removeAttribute("srcdoc");
       boardPinCdm.removeAttribute("style");
       boardPinCdm.src = "about:blank";
     }
+    if (boardPinCdmWrap) boardPinCdmWrap.removeAttribute("style");
   }
 
   async function fetchCdmFlightHtml(query) {
@@ -3747,6 +3905,10 @@
         pinCdmObsDebounce = 0;
         ensurePinCdmFlight();
         scheduleFitPinCdm();
+        maybeNotifyCdmWatch();
+        maybeNotifyTobtZero();
+        paintCdmTobtGo();
+        syncCdmTobtTimer();
       }, 400);
     });
     pinCdmObserver.observe(doc.documentElement || doc.body, {
@@ -3756,6 +3918,10 @@
     });
     ensurePinCdmFlight();
     scheduleFitPinCdm();
+    maybeNotifyCdmWatch();
+    maybeNotifyTobtZero();
+    paintCdmTobtGo();
+    syncCdmTobtTimer();
     if (!pinCdmPollTimer) {
       pinCdmPollTimer = setInterval(() => {
         if (document.hidden) return;
@@ -3776,7 +3942,7 @@
     pinCdmLoadedFor = "";
     pinCdmBareReloads = 0;
     pinCdmSearchAt = 0;
-    boardPinCdm.hidden = false;
+    setPinCdmFrameVisible(true);
     boardPinCdm.removeAttribute("srcdoc");
     boardPinCdm.src = "about:blank";
     setTimeout(() => {
@@ -3790,7 +3956,7 @@
       setPinCdmNote("Could not load CDM for this flight.");
       return;
     }
-    boardPinCdm.hidden = false;
+    setPinCdmFrameVisible(true);
     if (pinCdmShowsFlight(flight)) {
       pinCdmLoadedFor = flight;
       watchPinCdmFrame();
@@ -4057,15 +4223,24 @@
       return true;
     }
     const limited = err && err.status === 429;
-    if (boardRetryN < 4) {
+    const hard =
+      err &&
+      (err.status === 403 ||
+        err.status === 502 ||
+        err.status === 503 ||
+        err.status === 504);
+    if (!hard && boardRetryN < 4) {
       if (!quiet) paintBoard(null, limited ? BOARD_RATE_MSG : "Loading…");
       scheduleBoardRetry();
       return true;
     }
     paintBoard(
       null,
-      limited ? BOARD_RATE_MSG : "Could not load Schiphol board."
+      limited
+        ? BOARD_RATE_MSG
+        : (err && err.message) || "Could not load Schiphol board."
     );
+    stopDirSweep();
     return false;
   }
 
@@ -4236,12 +4411,6 @@
     else if (boardFlights.length) {
       paintBoard({ flights: boardFlights, aheadHours: boardDataAhead });
     }
-    if (focusTicksOn()) {
-      ensureCargoPreload(boardDir);
-      return;
-    }
-    if (boardFocusQuery) return;
-    if (boardHoldFor(boardDir)) return;
     loadBoard({ force: true, quiet: true });
   }
 
@@ -4275,25 +4444,32 @@
     const api = boardApi();
     const ahead = desiredAheadHours();
     const focusKind = api ? api.classifyQuery(boardFocusQuery) : { kind: "" };
+    const showUpdate = force && !quiet;
     if (focusKind.q) {
-      if (boardRefresh) {
-        if (force) startBtnSweep(boardRefresh);
-        boardRefresh.disabled = true;
+      if (boardRefresh) boardRefresh.disabled = true;
+      if (showUpdate) setBoardUpdateSpin(true);
+      const dirBtn = boardDirButton(dir);
+      const sweepDir = !quiet && !sameList && !held;
+      if (sweepDir) {
+        endBtnSweep(boardDirButton(dir === "A" ? "D" : "A"), { immediate: true });
+        startBtnSweep(dirBtn);
       }
       try {
         await submitBoardFocus(focusKind.q, { stay: true, force });
       } finally {
-        if (boardRefresh) {
-          boardRefresh.disabled = false;
-          if (force) endBtnSweep(boardRefresh);
-        }
+        if (showUpdate) setBoardUpdateSpin(false);
+        if (boardRefresh) boardRefresh.disabled = false;
       }
       return;
     }
 
-    if (boardRefresh) {
-      if (force) startBtnSweep(boardRefresh);
-      boardRefresh.disabled = true;
+    if (boardRefresh) boardRefresh.disabled = true;
+    if (showUpdate) setBoardUpdateSpin(true);
+    const dirBtn = boardDirButton(dir);
+    const sweepDir = !quiet && !sameList && !held;
+    if (sweepDir) {
+      endBtnSweep(boardDirButton(dir === "A" ? "D" : "A"), { immediate: true });
+      startBtnSweep(dirBtn);
     }
     const token = ++boardToken;
     try {
@@ -4317,10 +4493,8 @@
         keepList: true,
       });
     } finally {
-      if (token === boardToken && boardRefresh) {
-        boardRefresh.disabled = false;
-        if (force) endBtnSweep(boardRefresh);
-      }
+      if (showUpdate) setBoardUpdateSpin(false);
+      if (token === boardToken && boardRefresh) boardRefresh.disabled = false;
     }
   }
 
@@ -4374,9 +4548,12 @@
   function paintCdmTab() {
     if (!tabSlots || !shouldShowAmsCdm()) return;
     if (!cdmFlight || !cdmFlight.callsign) {
-      tabSlots.classList.remove("cdm-soon");
+      tabSlots.classList.remove("cdm-soon", "tab-cdm-flight");
       tabSlots.textContent = "AMS CDM";
       tabSlots.removeAttribute("title");
+      paintCdmTobtGo();
+      syncCdmTobtTimer();
+      syncCdmFlightChrome();
       return;
     }
     const api = cdmApi();
@@ -4389,18 +4566,25 @@
         ? api.formatTobtRemain(ms)
         : { text: "", soon: false };
     tabSlots.replaceChildren();
-    tabSlots.appendChild(document.createTextNode(cdmFlight.callsign));
+    const ident = document.createElement("span");
+    ident.className = "cdm-tab-ident";
+    ident.textContent = cdmFlight.callsign;
+    tabSlots.appendChild(ident);
     if (fmt.text) {
-      tabSlots.appendChild(document.createTextNode(" "));
       const remain = document.createElement("span");
       remain.className = "tobt-remain";
       remain.textContent = fmt.text;
       tabSlots.appendChild(remain);
     }
+    tabSlots.classList.toggle("tab-cdm-flight", !!fmt.text);
     tabSlots.classList.toggle("cdm-soon", !!(fmt.soon && fmt.text));
     tabSlots.title = cdmFlight.tobt
       ? `${cdmFlight.callsign} TOBT ${cdmFlight.tobt}Z`
       : cdmFlight.callsign;
+    maybeNotifyTobtZero();
+    paintCdmTobtGo();
+    syncCdmTobtTimer();
+    syncCdmFlightChrome();
   }
 
   function readCdmFlight() {
@@ -4438,17 +4622,19 @@
         cdmFlight = null;
         paintCdmTab();
       }
+      if (cdmNotifyOn) cdmWatchBaseline = null;
       return;
     }
     if (
-      prev &&
-      prev.callsign === next.callsign &&
-      prev.tobt === next.tobt
+      !prev ||
+      prev.callsign !== next.callsign ||
+      prev.tobt !== next.tobt
     ) {
-      return;
+      cdmFlight = next;
+      paintCdmTab();
     }
-    cdmFlight = next;
-    paintCdmTab();
+    maybeNotifyCdmWatch();
+    maybeNotifyTobtZero();
   }
 
   function clearCdmWatch() {
@@ -4469,6 +4655,8 @@
       cdmPollTimer = 0;
     }
     cdmFlight = null;
+    cdmWatchBaseline = null;
+    cdmTobtWasPositive = false;
   }
 
   function watchCdmFrame() {
@@ -4508,9 +4696,391 @@
     }
   }
 
+  function cdmLogoEnd(frame) {
+    try {
+      const doc = frame && frame.contentDocument;
+      const logo =
+        doc &&
+        (doc.querySelector("header a") ||
+          doc.querySelector("header svg") ||
+          doc.querySelector("header img"));
+      if (!logo) return 0;
+      const box = logo.getBoundingClientRect();
+      if (!box.width) return 0;
+      return Math.round(box.right + 8);
+    } catch {
+      return 0;
+    }
+  }
+
+  function fitCdmChrome(chrome) {
+    if (!chrome || chrome.hidden) return;
+    const bar = chrome.querySelector(".cdm-chrome-bar") || chrome;
+    chrome.classList.remove("cdm-chrome-tight");
+    if (bar.scrollWidth > bar.clientWidth + 1) {
+      chrome.classList.add("cdm-chrome-tight");
+    }
+  }
+
+  function padCdmTobtGap(frame, on) {
+    try {
+      const narrow = window.matchMedia("(max-width: 700px)").matches;
+      const doc = frame && frame.contentDocument;
+      if (!doc) return;
+      let style = doc.getElementById("gearup-tobt-gap");
+      if (!on || narrow) {
+        if (style) style.remove();
+        return;
+      }
+      if (!style) {
+        style = doc.createElement("style");
+        style.id = "gearup-tobt-gap";
+        (doc.head || doc.documentElement).appendChild(style);
+      }
+      style.textContent = "header{padding-bottom:28px!important;}";
+    } catch {
+      /* cross-origin or not ready */
+    }
+  }
+
+  function placeCdmChrome(frame, chrome) {
+    if (!chrome) return;
+    chrome.style.setProperty("--cdm-logo-end", (cdmLogoEnd(frame) || 218) + "px");
+    requestAnimationFrame(() => fitCdmChrome(chrome));
+  }
+
+  function placeAllCdmChrome() {
+    placeCdmChrome(slotsFrame, cdmChrome);
+    if (boardPinCdm && boardPinCdmWrap && !boardPinCdmWrap.hidden) {
+      placeCdmChrome(boardPinCdm, boardPinCdmChrome);
+    }
+  }
+
+  function setPinCdmFrameVisible(on) {
+    if (boardPinCdmWrap) boardPinCdmWrap.hidden = !on;
+    if (boardPinCdm) boardPinCdm.hidden = !on;
+    if (on) {
+      paintCdmNotifyBtn();
+      paintCdmTobtGo();
+      syncCdmTobtTimer();
+      placeCdmChrome(boardPinCdm, boardPinCdmChrome);
+    } else {
+      padCdmTobtGap(boardPinCdm, false);
+    }
+  }
+
+  function liveCdmDoc() {
+    if (
+      boardPinOverlay &&
+      !boardPinOverlay.hidden &&
+      boardPinCdm &&
+      !boardPinCdm.hidden
+    ) {
+      try {
+        const pinDoc = boardPinCdm.contentDocument;
+        if (pinDoc) return pinDoc;
+      } catch {
+        /* iframe not ready */
+      }
+    }
+    try {
+      return slotsFrame && slotsFrame.contentDocument;
+    } catch {
+      return null;
+    }
+  }
+
+  function paintCdmNotifyBtn() {
+    const label = "NOTIFY";
+    document.querySelectorAll(".cdm-notify").forEach((btn) => {
+      btn.classList.toggle("active", cdmNotifyOn);
+      btn.setAttribute("aria-pressed", cdmNotifyOn ? "true" : "false");
+      btn.textContent = label;
+    });
+  }
+
+  function syncCdmFlightChrome() {
+    const on = !!(cdmChrome && !cdmChrome.hidden);
+    if (cdmHelpBtn) cdmHelpBtn.hidden = !on;
+    const flight = on && !!(cdmFlight && cdmFlight.callsign);
+    if (cdmReset) cdmReset.hidden = !flight;
+    if (cdmNotifyBtn) cdmNotifyBtn.hidden = !flight;
+    if (on) requestAnimationFrame(() => fitCdmChrome(cdmChrome));
+  }
+
   function setCdmResetVisible(on) {
-    if (!cdmReset) return;
-    cdmReset.hidden = !on;
+    if (cdmChrome) cdmChrome.hidden = !on;
+    paintCdmNotifyBtn();
+    syncCdmFlightChrome();
+    if (on) placeCdmChrome(slotsFrame, cdmChrome);
+    if (!on) {
+      padCdmTobtGap(slotsFrame, false);
+      closeCdmHelpDialog();
+    }
+  }
+
+  function openCdmHelpDialog() {
+    if (!cdmHelpDialog) return;
+    cdmHelpDialog.hidden = false;
+    if (cdmHelpClose) cdmHelpClose.focus();
+  }
+
+  function closeCdmHelpDialog() {
+    if (!cdmHelpDialog || cdmHelpDialog.hidden) return;
+    cdmHelpDialog.hidden = true;
+    if (cdmHelpBtn && !cdmHelpBtn.hidden) cdmHelpBtn.focus();
+  }
+
+  function openAdsbHelpDialog() {
+    if (!adsbHelpDialog) return;
+    const code = adsbIcaoFromHash() || selectedIcao();
+    const elev = airportCache[code] ? airportCache[code].elevFt : 0;
+    if (adsbHelpOpen) {
+      const openUrl = adsbAirportUrl(code, elev, { capAltitude: false });
+      if (openUrl) adsbHelpOpen.href = openUrl;
+    }
+    adsbHelpDialog.hidden = false;
+    if (adsbHelpClose) adsbHelpClose.focus();
+  }
+
+  function closeAdsbHelpDialog() {
+    if (!adsbHelpDialog || adsbHelpDialog.hidden) return;
+    adsbHelpDialog.hidden = true;
+    if (adsbHelpBtn && !adsbHelpBtn.hidden) adsbHelpBtn.focus();
+  }
+
+  function maybeNotifyCdmWatch() {
+    if (!cdmNotifyOn) return;
+    const api = cdmApi();
+    if (!api || !api.readCdmWatch || !api.diffCdmWatch) return;
+    const watch = api.readCdmWatch(liveCdmDoc());
+    if (!watch || !watch.callsign) {
+      cdmWatchBaseline = null;
+      return;
+    }
+    if (!cdmWatchBaseline || cdmWatchBaseline.callsign !== watch.callsign) {
+      cdmWatchBaseline = watch;
+      return;
+    }
+    const diff = api.diffCdmWatch(cdmWatchBaseline, watch);
+    cdmWatchBaseline = watch;
+    if (!diff || !diff.summary) return;
+    showCdmPopup(watch.callsign, diff.summary, { throttle: true });
+  }
+
+  function watchedCdmClock() {
+    const api = cdmApi();
+    const watch = api && api.readCdmWatch ? api.readCdmWatch(liveCdmDoc()) : null;
+    const tobt = watch && watch.fields ? watch.fields.TOBT : "";
+    if (watch && watch.callsign && /^\d{1,2}:\d{2}$/.test(tobt)) {
+      return { callsign: watch.callsign, tobt };
+    }
+    if (cdmFlight && cdmFlight.callsign && /^\d{1,2}:\d{2}$/.test(cdmFlight.tobt)) {
+      return { callsign: cdmFlight.callsign, tobt: cdmFlight.tobt };
+    }
+    return null;
+  }
+
+  function paintCdmTobtGo() {
+    const api = cdmApi();
+    const clock = watchedCdmClock();
+    const ms =
+      api && clock && api.tobtRemainMs ? api.tobtRemainMs(clock.tobt) : null;
+    const parts =
+      api && api.formatTobtGoParts && Number.isFinite(ms)
+        ? api.formatTobtGoParts(ms)
+        : null;
+    let visChanged = false;
+    document.querySelectorAll(".cdm-tobt-go").forEach((el) => {
+      const wasHidden = el.hidden;
+      el.replaceChildren();
+      el.classList.toggle("soon", !!(parts && parts.tone === "soon"));
+      el.classList.toggle("passed", !!(parts && parts.tone === "passed"));
+      if (!parts) {
+        el.hidden = true;
+      } else {
+        const clockEl = document.createElement("span");
+        clockEl.className = "cdm-tobt-clock";
+        clockEl.textContent = parts.clock;
+        const words = document.createElement("span");
+        words.className = "cdm-tobt-words";
+        words.textContent = parts.words;
+        el.append(clockEl, words);
+        el.hidden = false;
+      }
+      if (el.hidden !== wasHidden) visChanged = true;
+    });
+    const show = !!parts;
+    padCdmTobtGap(slotsFrame, show && cdmChrome && !cdmChrome.hidden);
+    padCdmTobtGap(
+      boardPinCdm,
+      show && boardPinCdmWrap && !boardPinCdmWrap.hidden
+    );
+    if (visChanged) {
+      requestAnimationFrame(() => {
+        fitCdmChrome(cdmChrome);
+        fitCdmChrome(boardPinCdmChrome);
+      });
+    }
+  }
+
+  function syncCdmTobtTimer() {
+    const clock = watchedCdmClock();
+    const need = cdmNotifyOn || !!(clock && clock.tobt);
+    if (need && !cdmTobtTimer) {
+      cdmTobtTimer = setInterval(() => {
+        paintCdmTobtGo();
+        maybeNotifyTobtZero();
+      }, 1000);
+    }
+    if (!need && cdmTobtTimer) {
+      clearInterval(cdmTobtTimer);
+      cdmTobtTimer = 0;
+    }
+  }
+
+  function maybeNotifyTobtZero() {
+    if (!cdmNotifyOn) return;
+    const api = cdmApi();
+    if (!api || !api.shouldNotifyTobtZero || !api.tobtRemainMs) return;
+    const clock = watchedCdmClock();
+    if (!clock) {
+      cdmTobtWasPositive = false;
+      return;
+    }
+    const next = api.shouldNotifyTobtZero({
+      callsign: clock.callsign,
+      tobt: clock.tobt,
+      remainMs: api.tobtRemainMs(clock.tobt),
+      wasPositive: cdmTobtWasPositive,
+      sentKey: cdmTobtZeroSent,
+    });
+    cdmTobtWasPositive = next.wasPositive;
+    if (!next.fire) return;
+    cdmTobtZeroSent = next.key;
+    showCdmPopup(clock.callsign, "TOBT now", { throttle: false });
+  }
+
+  function showCdmToast(title, body) {
+    if (!cdmToast) return;
+    cdmToast.replaceChildren();
+    const ident = document.createElement("strong");
+    ident.textContent = title;
+    const line = document.createElement("span");
+    line.textContent = body;
+    cdmToast.append(ident, line);
+    cdmToast.hidden = false;
+    clearTimeout(cdmToastTimer);
+    cdmToastTimer = setTimeout(() => {
+      cdmToast.hidden = true;
+    }, 5000);
+  }
+
+  async function closeCdmSystemNotes() {
+    try {
+      const reg =
+        navigator.serviceWorker &&
+        (await navigator.serviceWorker.getRegistration());
+      if (!reg || !reg.getNotifications) return;
+      const notes = await reg.getNotifications({ tag: "gearup-cdm" });
+      notes.forEach((note) => note.close());
+    } catch {
+      /* ignored */
+    }
+  }
+
+  function showCdmPopup(title, body, opts) {
+    const throttle = !opts || opts.throttle !== false;
+    const now = Date.now();
+    if (throttle) {
+      if (now - cdmNotifyAt < 20000) return;
+      cdmNotifyAt = now;
+    }
+    showCdmToast(title, body);
+    showCdmChangeNotification(title, body);
+  }
+
+  async function showCdmChangeNotification(title, body) {
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") {
+      return;
+    }
+    try {
+      const reg =
+        navigator.serviceWorker &&
+        (await navigator.serviceWorker.getRegistration());
+      if (reg && reg.showNotification) {
+        await reg.showNotification(title, {
+          body,
+          tag: "gearup-cdm",
+          renotify: true,
+          requireInteraction: false,
+        });
+        setTimeout(() => {
+          closeCdmSystemNotes();
+        }, 5000);
+        return;
+      }
+    } catch {
+      /* fall through */
+    }
+    try {
+      const note = new Notification(title, {
+        body,
+        tag: "gearup-cdm",
+        requireInteraction: false,
+      });
+      setTimeout(() => {
+        try {
+          note.close();
+        } catch {
+          /* ignored */
+        }
+      }, 5000);
+    } catch {
+      /* ignored */
+    }
+  }
+
+  async function toggleCdmNotify() {
+    if (cdmNotifyOn) {
+      cdmNotifyOn = false;
+      cdmWatchBaseline = null;
+      cdmTobtWasPositive = false;
+      paintCdmTobtGo();
+      syncCdmTobtTimer();
+      paintCdmNotifyBtn();
+      return;
+    }
+    if (typeof Notification === "undefined") {
+      paintCdmNotifyBtn();
+      return;
+    }
+    let perm = Notification.permission;
+    if (perm === "default") {
+      try {
+        perm = await Notification.requestPermission();
+      } catch {
+        perm = Notification.permission;
+      }
+    }
+    if (perm !== "granted") {
+      cdmNotifyOn = false;
+      paintCdmNotifyBtn();
+      return;
+    }
+    cdmNotifyOn = true;
+    const api = cdmApi();
+    cdmWatchBaseline = api && api.readCdmWatch ? api.readCdmWatch(liveCdmDoc()) : null;
+    const clock = watchedCdmClock();
+    if (clock && api && api.tobtRemainMs) {
+      const ms = api.tobtRemainMs(clock.tobt);
+      cdmTobtWasPositive = Number.isFinite(ms) && ms > 0;
+    } else {
+      cdmTobtWasPositive = false;
+    }
+    paintCdmTobtGo();
+    syncCdmTobtTimer();
+    paintCdmNotifyBtn();
   }
 
   function cdmIframeReady() {
@@ -4522,11 +5092,13 @@
   function showCdmIframe() {
     if (slotsFrame) slotsFrame.hidden = false;
     if (adsbFrame) adsbFrame.hidden = true;
+    if (adsbHelpBtn) adsbHelpBtn.hidden = true;
   }
 
   function showAdsbIframe() {
     if (slotsFrame) slotsFrame.hidden = true;
     if (adsbFrame) adsbFrame.hidden = false;
+    if (adsbHelpBtn) adsbHelpBtn.hidden = false;
   }
 
   function resetCdmFrame() {
@@ -4573,6 +5145,7 @@
         adsbFrameUrl = "";
       }
       thirdMode = "adsb-empty";
+      if (adsbHelpBtn) adsbHelpBtn.hidden = true;
       paintCdmTab();
       return;
     }
@@ -4585,6 +5158,11 @@
       adsbFrameUrl = url;
     }
     thirdMode = "adsb";
+    if (adsbHelpBtn) adsbHelpBtn.hidden = false;
+    if (adsbHelpOpen) {
+      const openUrl = adsbAirportUrl(code, elev, { capAltitude: false });
+      if (openUrl) adsbHelpOpen.href = openUrl;
+    }
     paintCdmTab();
     ensureAirport(code).then((data) => {
       if (token !== adsbFrameToken || selectedIcao() !== code) return;
@@ -4820,6 +5398,21 @@
   }
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
+    if (cdmHelpDialog && !cdmHelpDialog.hidden) {
+      event.preventDefault();
+      closeCdmHelpDialog();
+      return;
+    }
+    if (adsbHelpDialog && !adsbHelpDialog.hidden) {
+      event.preventDefault();
+      closeAdsbHelpDialog();
+      return;
+    }
+    if (boardFocusHelpDialog && !boardFocusHelpDialog.hidden) {
+      event.preventDefault();
+      closeBoardFocusHelpDialog();
+      return;
+    }
     if (boardFocusDialog && !boardFocusDialog.hidden) {
       event.preventDefault();
       closeBoardFocusDialog();
@@ -4890,7 +5483,16 @@
   if (boardFocusForm) {
     boardFocusForm.addEventListener("submit", (event) => {
       event.preventDefault();
+      sanitizeBoardFocusInput();
       submitBoardFocus(boardFocusInput ? boardFocusInput.value : "");
+    });
+  }
+  if (boardFocusInput) {
+    boardFocusInput.addEventListener("input", sanitizeBoardFocusInput);
+    boardFocusInput.addEventListener("focus", () => {
+      boardFocusInput.setAttribute("inputmode", "text");
+      boardFocusInput.setAttribute("autocapitalize", "characters");
+      boardFocusInput.setAttribute("autocorrect", "off");
     });
   }
   if (boardFocusCancel) {
@@ -4898,21 +5500,50 @@
       clearBoardFocus({ ticks: true })
     );
   }
+  if (boardFocusHelpBtn) {
+    boardFocusHelpBtn.addEventListener("click", openBoardFocusHelpDialog);
+  }
+  if (boardFocusHelpClose) {
+    boardFocusHelpClose.addEventListener("click", closeBoardFocusHelpDialog);
+  }
+  if (boardFocusHelpDialog) {
+    boardFocusHelpDialog.addEventListener("click", (event) => {
+      if (event.target === boardFocusHelpDialog) closeBoardFocusHelpDialog();
+    });
+  }
   if (boardFocusDialog) {
     boardFocusDialog.addEventListener("click", (event) => {
       if (event.target === boardFocusDialog) closeBoardFocusDialog();
     });
   }
+  function lastFocusIsOn() {
+    return !!(
+      boardFocusLast &&
+      boardFocusLastOn &&
+      boardFocusQuery === boardFocusLast
+    );
+  }
+
   function applyLastFocus() {
     if (!boardFocusLast) {
       if (focusTickLast) focusTickLast.checked = false;
       return;
     }
+    if (lastFocusIsOn()) {
+      boardFocusLastOn = false;
+      boardFocusQuery = "";
+      boardFocusSlot = null;
+      if (boardFocusInput) boardFocusInput.value = "";
+      if (focusTickLast) focusTickLast.checked = false;
+      setBoardFocusErr("");
+      applyFocusTickFilters();
+      return;
+    }
     boardFocusLastOn = true;
     if (focusTickLast) focusTickLast.checked = true;
-    closeBoardFocusDialog();
+    if (boardFocusInput) boardFocusInput.value = boardFocusLast;
     setBoardFocusErr("");
-    submitBoardFocus(boardFocusLast, { stay: true });
+    submitBoardFocus(boardFocusLast, { stay: true, keepDialog: true });
   }
 
   function onFocusTickChange(which) {
@@ -4970,9 +5601,19 @@
     boardPinCdm.addEventListener("load", () => {
       onPinCdmLoad();
       scheduleFitPinCdm();
+      placeCdmChrome(boardPinCdm, boardPinCdmChrome);
+      const api = cdmApi();
+      if (api && api.preferNumericSearch) {
+        try {
+          api.preferNumericSearch(boardPinCdm.contentDocument);
+        } catch {
+          /* iframe not ready */
+        }
+      }
     });
   }
   const placePinOnViewport = () => {
+    placeAllCdmChrome();
     if (boardPin && currentTab === "board") {
       placeBoardPinOverlay();
       if (boardPin.dir === "D") scheduleFitPinCdm();
@@ -4996,12 +5637,6 @@
       if (pinOverlayIsOpen()) return;
       boardShowGone = !boardShowGone;
       syncBoardFilterBtns();
-      const held = boardHoldForView(boardDir);
-      paintBoard(
-        held && held.data
-          ? held.data
-          : { flights: boardFlights, aheadHours: boardDataAhead }
-      );
       refreshBoardAfterFilter();
     });
   }
@@ -5011,12 +5646,7 @@
       boardCargoOnly = !boardCargoOnly;
       boardListLimit = 60;
       syncBoardFilterBtns();
-      const held = boardHoldFor(boardDir);
-      paintBoard(
-        held && held.data
-          ? held.data
-          : { flights: boardFlights, aheadHours: boardDataAhead }
-      );
+      refreshBoardAfterFilter();
     });
   }
   if (boardShowMoreBtn) {
@@ -5026,10 +5656,23 @@
     btn.addEventListener("click", () => {
       if (pinOverlayIsOpen()) return;
       const next = btn.dataset.dir === "A" ? "A" : "D";
-      if (next === boardDir && currentTab === "board") return;
+      const same = next === boardDir && currentTab === "board";
+      const held = boardHoldForView(next);
+      const haveList =
+        held &&
+        held.data &&
+        Array.isArray(held.data.flights) &&
+        held.data.flights.length;
+      if (same && haveList) return;
       setBoardDir(next);
       resetBoardPaging();
       if (currentTab !== "board") return;
+      if (!haveList) {
+        endBtnSweep(boardDirButton(next === "A" ? "D" : "A"), {
+          immediate: true,
+        });
+        startBtnSweep(btn);
+      }
       const api = boardApi();
       const kind = api ? api.classifyQuery(boardFocusQuery) : { kind: "" };
       if (kind.q) {
@@ -5054,9 +5697,52 @@
   if (cdmReset) {
     cdmReset.addEventListener("click", () => resetCdmFrame());
   }
+  if (cdmHelpBtn) {
+    cdmHelpBtn.addEventListener("click", openCdmHelpDialog);
+  }
+  if (cdmHelpClose) {
+    cdmHelpClose.addEventListener("click", closeCdmHelpDialog);
+  }
+  if (cdmHelpDialog) {
+    cdmHelpDialog.addEventListener("click", (event) => {
+      if (event.target === cdmHelpDialog) closeCdmHelpDialog();
+    });
+  }
+  if (adsbHelpBtn) {
+    adsbHelpBtn.addEventListener("click", openAdsbHelpDialog);
+  }
+  if (adsbHelpClose) {
+    adsbHelpClose.addEventListener("click", closeAdsbHelpDialog);
+  }
+  if (adsbHelpDialog) {
+    adsbHelpDialog.addEventListener("click", (event) => {
+      if (event.target === adsbHelpDialog) closeAdsbHelpDialog();
+    });
+  }
+  if (cdmNotifyBtn) {
+    cdmNotifyBtn.addEventListener("click", () => {
+      toggleCdmNotify();
+    });
+  }
+  if (boardPinCdmNotify) {
+    boardPinCdmNotify.addEventListener("click", () => {
+      toggleCdmNotify();
+    });
+  }
   if (slotsFrame) {
     slotsFrame.addEventListener("load", () => {
-      if (thirdMode === "cdm") watchCdmFrame();
+      if (thirdMode === "cdm") {
+        watchCdmFrame();
+        placeCdmChrome(slotsFrame, cdmChrome);
+        const api = cdmApi();
+        if (api && api.preferNumericSearch) {
+          try {
+            api.preferNumericSearch(slotsFrame.contentDocument);
+          } catch {
+            /* iframe not ready */
+          }
+        }
+      }
     });
   }
 
@@ -5069,6 +5755,9 @@
       (staleDialog && !staleDialog.hidden) ||
       (inferPreviewDialog && !inferPreviewDialog.hidden) ||
       (worstwindDialog && !worstwindDialog.hidden) ||
+      (cdmHelpDialog && !cdmHelpDialog.hidden) ||
+      (adsbHelpDialog && !adsbHelpDialog.hidden) ||
+      (boardFocusHelpDialog && !boardFocusHelpDialog.hidden) ||
       (boardFocusDialog && !boardFocusDialog.hidden) ||
       (boardPinOverlay && !boardPinOverlay.hidden)
     );
@@ -5107,7 +5796,12 @@
           : currentTab === "board"
             ? boardRefresh
             : null;
-    return !!(btn && (btn.disabled || btn.classList.contains("sweeping")));
+    return !!(
+      btn &&
+      (btn.disabled ||
+        btn.classList.contains("sweeping") ||
+        btn.classList.contains("is-updating"))
+    );
   }
 
   function runPullRefresh() {

@@ -337,7 +337,37 @@ const named = filterAndShape([kl], "D", now, new Map([["JFK", "New York"]]));
 assert.strictEqual(named[0].route, "New York JFK");
 assert.deepStrictEqual(named[0].dests, ["JFK"]);
 
-const { matchFlight, classifyQuery, matchRoute, matchFocus, visibleFlights, findBoardRow, pinExtras, pinExtraLine, filterBoardFlights, LIST_MAX, isHeavyJet, destIsEu, destIsNonEu, boardDayCaption } = require("../js/board");
+const dlFat = {
+  ...kl,
+  id: "dl0057",
+  flightName: "DL0057",
+  mainFlight: "DL0057",
+};
+const dlThin = {
+  ...kl,
+  id: "dl057",
+  flightName: "DL057",
+  mainFlight: "DL057",
+  publicEstimatedOffBlockTime: "2026-08-26T14:25:00.000Z",
+};
+const dl157 = {
+  ...kl,
+  id: "dl157",
+  flightName: "DL0157",
+  mainFlight: "DL0157",
+};
+assert.deepStrictEqual(
+  filterAndShape([dlThin, dlFat], "D", now).map((row) => row.flight),
+  ["DL0057"]
+);
+assert.deepStrictEqual(
+  filterAndShape([dlFat, dl157], "D", now)
+    .map((row) => row.flight)
+    .sort(),
+  ["DL0057", "DL0157"]
+);
+
+const { matchFlight, classifyQuery, matchRoute, matchFocus, visibleFlights, findBoardRow, pinExtras, pinExtraLine, filterBoardFlights, LIST_MAX, isHeavyJet, destIsEu, destIsNonEu, boardDayCaption, dropPaddedFlightDupes } = require("../js/board");
 assert.strictEqual(matchFlight("KL0871", "KL871"), true);
 assert.strictEqual(matchFlight("KL0871", "871"), true);
 assert.strictEqual(matchFlight("KL0871", "KL"), true);
@@ -358,6 +388,42 @@ assert.strictEqual(matchFocus(jfkRow, "KL"), true);
 assert.deepStrictEqual(visibleFlights([jfkRow, bcnRow], "KL"), [jfkRow]);
 assert.deepStrictEqual(visibleFlights([jfkRow, bcnRow], "BCN"), [bcnRow]);
 assert.strictEqual(visibleFlights([jfkRow, bcnRow], "").length, 2);
+const padFat = {
+  flight: "DL0057",
+  dests: ["ATL"],
+  dayKey: "2026-08-28",
+  statusKind: "delay",
+};
+const padThin = {
+  flight: "DL057",
+  dests: ["ATL"],
+  dayKey: "2026-08-28",
+  statusKind: "sch",
+};
+const padBare = {
+  flight: "DL57",
+  dests: ["ATL"],
+  dayKey: "2026-08-28",
+  statusKind: "sch",
+};
+const padOther = {
+  flight: "DL057",
+  dests: ["JFK"],
+  dayKey: "2026-08-28",
+  statusKind: "sch",
+};
+assert.deepStrictEqual(
+  dropPaddedFlightDupes([padThin, padFat, padBare]).map((row) => row.flight),
+  ["DL0057"]
+);
+assert.deepStrictEqual(
+  visibleFlights([padThin, padFat], "").map((row) => row.flight),
+  ["DL0057"]
+);
+assert.deepStrictEqual(
+  dropPaddedFlightDupes([padThin, padOther]).map((row) => row.flight),
+  ["DL057", "DL057"]
+);
 const ehdRow = {
   flight: "KL1234",
   dests: ["JFK"],
@@ -516,11 +582,23 @@ assert.strictEqual(LIST_MAX, 60);
 assert.strictEqual(filterBoardFlights(many, { showGone: false }).length, 65);
 assert.strictEqual(visibleFlights(many, "", { showGone: false }).length, 60);
 assert.ok(visibleFlights(many, "", { showGone: false }).every((row) => row.statusKind !== "done"));
-assert.strictEqual(visibleFlights(many, "", { showGone: true }).length, 60);
+assert.strictEqual(visibleFlights(many, "", { showGone: true }).length, 65);
+assert.ok(
+  visibleFlights(many, "", { showGone: true })
+    .slice(0, 5)
+    .every((row) => row.statusKind === "done")
+);
 assert.strictEqual(visibleFlights(many, "", { showGone: true, limit: 120 }).length, 70);
 assert.deepStrictEqual(
   visibleFlights(many, "", { showGone: true, limit: 120 }).slice(60, 62).map((row) => row.flight),
   ["KL0060", "KL0061"]
+);
+const goneLast = many.slice(5).concat(many.slice(0, 5));
+assert.deepStrictEqual(
+  visibleFlights(goneLast, "", { showGone: true })
+    .slice(0, 5)
+    .map((row) => row.statusKind),
+  ["done", "done", "done", "done", "done"]
 );
 const cargoOnly = visibleFlights(many, "", {
   cargoOnly: true,

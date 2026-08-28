@@ -83,7 +83,7 @@
       media="(prefers-color-scheme: dark)"
     />
     <script src="/js/theme.js"></script>
-    <link rel="stylesheet" href="/css/app.css?v=217" />
+    <link rel="stylesheet" href="/css/app.css?v=250" />
   </head>
   <body>
     <div id="app">
@@ -106,8 +106,8 @@
       <section id="home" class="view view-home" hidden>
         <header class="home-header">
           <div class="home-brand" aria-label="GearUp Right Away">
-            <span class="home-script" aria-hidden="true"></span>
             <h1>GearUp</h1>
+            <span class="home-script" aria-hidden="true"></span>
           </div>
           <div
             id="theme-toggle"
@@ -160,7 +160,7 @@
             />
             <ul id="airport-suggest" class="airport-suggest" hidden role="listbox"></ul>
           </div>
-          <button type="submit">Go</button>
+          <button type="submit">GO</button>
         </form>
         <div id="pins" class="pins"></div>
         <div class="disclaimer">
@@ -434,7 +434,7 @@
           <button
             type="button"
             id="board-dir-d"
-            class="board-dir active"
+            class="board-dir sweep-btn active"
             data-dir="D"
             aria-selected="true"
           >
@@ -443,7 +443,7 @@
           <button
             type="button"
             id="board-dir-a"
-            class="board-dir"
+            class="board-dir sweep-btn"
             data-dir="A"
             aria-selected="false"
           >
@@ -483,10 +483,17 @@
             class="board-dir board-filter-btn"
             aria-pressed="false"
           >
-            FILTER CARGO
+            FOCUS CARGO
           </button>
         </div>
         <p id="board-empty" class="brief-empty" hidden></p>
+        <div
+          id="board-update-spin"
+          class="board-update-spin"
+          hidden
+          aria-hidden="true"
+          aria-label="Updating flights"
+        ></div>
         <ul id="board-list" class="board-list" hidden></ul>
         <div class="board-more-row">
           <button type="button" id="board-show-more" class="board-dir board-more-btn" hidden>
@@ -512,13 +519,47 @@
           ></iframe>
           <button
             type="button"
-            id="cdm-reset"
-            class="cdm-reset"
+            id="adsb-help"
+            class="cdm-reset cdm-help adsb-help"
             hidden
-            aria-label="Clear flight"
+            aria-label="ADS-B help"
+            aria-controls="adsb-help-dialog"
           >
-            CLEAR
+            i
           </button>
+          <div class="cdm-chrome" id="cdm-chrome" hidden>
+            <div class="cdm-chrome-bar">
+              <button
+                type="button"
+                id="cdm-notify"
+                class="cdm-reset cdm-notify"
+                aria-pressed="false"
+                aria-label="Notify of CDM changes"
+              >
+                NOTIFY
+              </button>
+              <div class="cdm-chrome-end">
+                <button
+                  type="button"
+                  id="cdm-help"
+                  class="cdm-reset cdm-help"
+                  aria-label="CDM terms"
+                  aria-controls="cdm-help-dialog"
+                >
+                  i
+                </button>
+                <button
+                  type="button"
+                  id="cdm-reset"
+                  class="cdm-reset"
+                  aria-label="Clear flight"
+                >
+                  CLEAR
+                </button>
+              </div>
+            </div>
+            <span id="cdm-tobt-go" class="cdm-tobt-go" hidden></span>
+          </div>
         </div>
       </section>
     </div>
@@ -543,16 +584,30 @@
             ×
           </button>
         </header>
-        <iframe
-          id="board-pin-cdm"
-          class="board-pin-cdm"
-          title="Schiphol CDM"
-          src="about:blank"
-          scrolling="yes"
-          hidden
-        ></iframe>
+        <div class="board-pin-cdm-wrap" id="board-pin-cdm-wrap" hidden>
+          <iframe
+            id="board-pin-cdm"
+            class="board-pin-cdm"
+            title="Schiphol CDM"
+            src="about:blank"
+            scrolling="yes"
+          ></iframe>
+          <div class="cdm-chrome cdm-chrome-pin" id="board-pin-cdm-chrome">
+            <div class="cdm-chrome-bar">
+              <button
+                type="button"
+                id="board-pin-cdm-notify"
+                class="cdm-reset cdm-notify"
+                aria-pressed="false"
+                aria-label="Notify of CDM changes"
+              >
+                NOTIFY
+              </button>
+            </div>
+            <span id="board-pin-cdm-tobt-go" class="cdm-tobt-go" hidden></span>
+          </div>
+        </div>
         <p id="board-pin-cdm-note" class="board-pin-note" hidden></p>
-        <p id="board-pin-extra" class="board-pin-extra"></p>
       </div>
     </div>
     <div id="board-focus-dialog" class="board-focus-dialog" hidden>
@@ -572,12 +627,23 @@
             name="flight"
             type="text"
             inputmode="text"
+            enterkeyhint="go"
             autocapitalize="characters"
+            autocorrect="off"
             autocomplete="off"
             spellcheck="false"
+            lang="en"
             placeholder="KL871, BCN, or PH-EHD"
           />
-          <button type="submit" class="icon-btn">GO</button>
+          <button
+            type="button"
+            id="board-focus-help"
+            class="cdm-reset cdm-help"
+            aria-label="Focus search help"
+            aria-controls="board-focus-help-dialog"
+          >
+            i
+          </button>
         </form>
         <p id="board-focus-err" class="board-focus-err" hidden></p>
         <div class="board-focus-ticks" id="board-focus-ticks">
@@ -606,8 +672,87 @@
             <span id="focus-tick-status-label">CANCELLED</span>
           </label>
         </div>
-        <button type="button" id="board-focus-cancel" class="board-focus-cancel">
-          CANCEL/CLEAR
+        <hr class="board-focus-rule" />
+        <div class="board-focus-actions">
+          <button type="button" id="board-focus-cancel" class="board-focus-cancel">
+            CANCEL/CLEAR
+          </button>
+          <button
+            type="submit"
+            form="board-focus-form"
+            id="board-focus-apply"
+            class="icon-btn board-focus-apply"
+          >
+            APPLY
+          </button>
+        </div>
+      </div>
+    </div>
+    <div id="board-focus-help-dialog" class="cdm-help-dialog" hidden>
+      <div
+        class="cdm-help-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="board-focus-help-title"
+      >
+        <h2 id="board-focus-help-title">Focus search</h2>
+        <div class="cdm-help-body">
+          <p>
+            Type an airline, flight, airport, or registration. The chips
+            narrow those results.
+          </p>
+          <p>
+            Example: type KL, then tap HEAVY JETS. Only the large KLM jets
+            remain.
+          </p>
+          <p>
+            LAST repeats the previous search. EU, NON-EU, NEXT 2 HOURS, and
+            CANCELLED or DELAYED can combine with the typed term.
+          </p>
+        </div>
+        <button type="button" id="board-focus-help-close" class="icon-btn">
+          CLOSE
+        </button>
+      </div>
+    </div>
+    <div id="adsb-help-dialog" class="cdm-help-dialog" hidden>
+      <div
+        class="cdm-help-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="adsb-help-title"
+      >
+        <h2 id="adsb-help-title">ADS-B map</h2>
+        <div class="cdm-help-body">
+          <p>
+            Start by opening the map layers and turning on the rain viewer
+            radar. That shows weather on the same picture as the traffic.
+          </p>
+          <p>
+            To follow one flight and see its route, tap the aircraft, then
+            tap the I button. Pan and zoom if you need a clearer view.
+          </p>
+          <p>
+            The colour of each aircraft is its altitude. This in-app map
+            only shows traffic up to about 10,000 feet above the airport,
+            so high overflights stay hidden.
+          </p>
+          <p>
+            To see every altitude, including overflights, open the same
+            map in a browser tab. That view has no 10,000-foot filter.
+          </p>
+          <p>
+            <a
+              id="adsb-help-open"
+              href="https://globe.airplanes.live/"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Open ADS-B Viewer in Browser Tab</a
+            >
+          </p>
+        </div>
+        <button type="button" id="adsb-help-close" class="icon-btn">
+          CLOSE
         </button>
       </div>
     </div>
@@ -680,15 +825,91 @@
         </button>
       </div>
     </div>
+    <div id="cdm-help-dialog" class="cdm-help-dialog" hidden>
+      <div
+        class="cdm-help-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cdm-help-title"
+      >
+        <h2 id="cdm-help-title">TSAT EOBT slots</h2>
+        <div class="cdm-help-body">
+          <p>
+            EOBT is Estimated Off Blocks Time: The flight plan time for the
+            flight to be ready for departure. ATC usually allow a tolerance of
+            +/- 15 minutes.
+          </p>
+          <p>
+            TOBT, Target Off Blocks Time, is a more accurate measure, usually
+            within +/- 5 minutes, which tells the local CDM system and NMOC
+            Brussels when the airline believes a flight will be ready.
+          </p>
+          <p>
+            From this, a TTOT is calculated (Target Take Off Time), which may
+            be adjusted to allow for departure separations, CTOT etc, and then
+            working backwards will provide a TSAT (Target Start Approval Time)
+            which will provide both ATC and the airline the most suitable start
+            up time given all the factors that the local CDM system takes into
+            account.
+          </p>
+          <ul class="cdm-help-terms">
+            <li>
+              <span class="cdm-help-term">EOBT: Estimated Off-Block Time</span>
+              This is the estimated time at which an aircraft expects to start
+              moving from its parking position at the airport (i.e., push back
+              from the gate or start taxiing).
+            </li>
+            <li>
+              <span class="cdm-help-term">TOBT: Target Off-Block Time</span>
+              This is the time that an aircraft operator or ground handler has
+              agreed upon with air traffic control or airport authorities for
+              starting the off-block procedure. It's essentially the target
+              time for when an aircraft should begin its departure process.
+            </li>
+            <li>
+              <span class="cdm-help-term">TSAT: Target Start Approval Time</span>
+              This is the time provided by air traffic control when an aircraft
+              can expect to receive its start-up approval, which is crucial for
+              sequencing departures at busy airports. It helps in managing the
+              flow of traffic on the ground to avoid congestion.
+            </li>
+            <li>
+              <span class="cdm-help-term">CTOT: Calculated Take-Off Time</span>
+              Also known as “slot time,” this is the time calculated by air
+              traffic control for an aircraft to take off. It's used in flow
+              management to regulate the departure sequence, especially in
+              scenarios where there's a need to balance demand with capacity at
+              departure or arrival airports.
+            </li>
+            <li>
+              <span class="cdm-help-term">TTOT: Target Take-Off Time</span>
+              Similar to CTOT, this is the specific time at which an aircraft
+              is scheduled to take off, considering all the previous steps like
+              TOBT and TSAT have been coordinated. It's a target rather than an
+              actual time of take-off, which might differ due to various
+              operational factors.
+            </li>
+          </ul>
+          <p>
+            These abbreviations are part of the Airport Collaborative Decision
+            Making (A-CDM).
+          </p>
+        </div>
+        <button type="button" id="cdm-help-close" class="icon-btn">
+          Close
+        </button>
+      </div>
+    </div>
+    <div id="cdm-toast" class="cdm-toast" hidden role="status"></div>
     <script src="/js/sun.js" defer></script>
     <script src="/js/tz.js" defer></script>
     <script src="/js/hl.js?v=219" defer></script>
     <script src="/js/worstwind.js?v=214" defer></script>
     <script src="/js/ehamrwy.js" defer></script>
     <script src="/js/rwycond.js" defer></script>
-    <script src="/js/cdm.js" defer></script>
-    <script src="/js/board.js?v=202" defer></script>
+    <script src="/js/cdm.js?v=237" defer></script>
+    <script src="/js/board.js?v=225" defer></script>
     <script src="/js/airports.js?v=211" defer></script>
-    <script src="/js/app.js?v=218" defer></script>
+    <script src="/js/app.js?v=250" defer></script>
   </body>
 </html>
