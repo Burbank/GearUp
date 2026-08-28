@@ -1,8 +1,9 @@
-const CACHE = "gearup-v252";
+const CACHE = "gearup-v253";
 const PRECACHE = [
   "/",
   "/index.html",
   "/css/app.css",
+  "/icons/map-layers.png",
   "/js/theme.js",
   "/js/app.js",
   "/js/sun.js",

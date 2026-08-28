@@ -2,6 +2,10 @@
 
 Session history for rebuild. Older narrative also lives in `CURSOR_general_logs/ATIS_PWA/LOG.md`.
 
+## 2026-08-28 — Privacy and Support
+
+One page at `/privacy-policy.html` (title Privacy and Support). Home `1.4` has a small Support i next to it. ADS-B overlay: layers icon, Isolate selected aircraft, Map help, Look up a flight, unfiltered browser tab. SW `gearup-v253`. Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`.
+
 ## 2026-08-28 — version 1.4
 
 Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`. SW `gearup-v252`. Live: https://gearup4u.netlify.app

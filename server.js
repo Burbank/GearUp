@@ -47,6 +47,8 @@ const MIME = {
   ".webmanifest": "application/manifest+json",
   ".json": "application/json; charset=utf-8",
   ".png": "image/png",
+  ".jpeg": "image/jpeg",
+  ".jpg": "image/jpeg",
   ".svg": "image/svg+xml",
   ".ico": "image/x-icon",
   ".woff2": "font/woff2",
@@ -54,6 +56,8 @@ const MIME = {
 
 const PUBLIC_ROOT = new Set([
   "index.html",
+  "privacy-policy.html",
+  "background.jpeg",
   "sw.js",
   "manifest.webmanifest",
   "robots.txt",

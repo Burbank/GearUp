@@ -729,7 +729,10 @@ html.pin-scroll-lock body {
 
 .home-version {
   margin-top: 0.45rem;
-  text-align: right;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
   font-size: 0.84rem;
   line-height: 1.45;
   color: var(--muted);
@@ -1597,6 +1600,15 @@ html.pin-scroll-lock body {
   line-height: 1;
 }
 
+.cdm-help.home-support {
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  min-height: 24px;
+  font-size: 0.72rem;
+  text-decoration: none;
+}
+
 #board-focus-help-dialog {
   z-index: 45;
 }
@@ -1654,6 +1666,14 @@ html.pin-scroll-lock body {
   color: var(--accent);
   font-weight: 400;
   text-decoration: underline;
+}
+
+.adsb-layers-icon {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  vertical-align: -3px;
+  margin: 0 0.18em;
 }
 
 .adsb-help {

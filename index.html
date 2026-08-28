@@ -83,7 +83,7 @@
       media="(prefers-color-scheme: dark)"
     />
     <script src="/js/theme.js"></script>
-    <link rel="stylesheet" href="/css/app.css?v=250" />
+    <link rel="stylesheet" href="/css/app.css?v=253" />
   </head>
   <body>
     <div id="app">
@@ -191,7 +191,17 @@
             The author assumes no liability. EDUCATIONAL USE ONLY
           </p>
         </div>
-        <p class="home-version" aria-label="Version 1.4">1.4</p>
+        <div class="home-version">
+          <p aria-label="Version 1.4">1.4</p>
+          <a
+            class="cdm-reset cdm-help home-support"
+            href="https://gearup4u.netlify.app/privacy-policy.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Support"
+            >i</a
+          >
+        </div>
       </section>
 
       <section id="detail" class="view view-detail" hidden>
@@ -725,21 +735,44 @@
         <h2 id="adsb-help-title">ADS-B map</h2>
         <div class="cdm-help-body">
           <p>
-            Start by opening the map layers and turning on the rain viewer
-            radar. That shows weather on the same picture as the traffic.
+            Open map layers
+            <img
+              class="adsb-layers-icon"
+              src="/icons/map-layers.png"
+              width="18"
+              height="18"
+              alt="Map layers"
+            />
+            and turn on rain viewer radar.
           </p>
           <p>
-            To follow one flight and see its route, tap the aircraft, then
-            tap the I button. Pan and zoom if you need a clearer view.
+            Tap an aircraft, then I — Isolate selected aircraft — to see its
+            route. Pan and zoom if needed.
           </p>
           <p>
-            The colour of each aircraft is its altitude. This in-app map
-            only shows traffic up to about 10,000 feet above the airport,
-            so high overflights stay hidden.
+            Colour is altitude. Grey is on the ground. This in-app map only
+            shows traffic up to about 10,000 feet above the airport, so high
+            overflights stay hidden.
           </p>
           <p>
-            To see every altitude, including overflights, open the same
-            map in a browser tab. That view has no 10,000-foot filter.
+            Search finds ICAO, registration, or type. Zoom in if a plane is
+            missing from the list.
+          </p>
+          <p>
+            <a
+              href="https://airplanes.live/map-help/"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Map help</a
+            >
+          </p>
+          <p>
+            <a
+              href="https://www.flightradar24.com/data"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Look up a flight</a
+            >
           </p>
           <p>
             <a
