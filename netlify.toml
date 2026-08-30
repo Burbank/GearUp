@@ -106,6 +106,44 @@
   to = "/.netlify/functions/delay?icao=:icao"
   status = 200
 
+[[redirects]]
+  from = "/api/fr24"
+  to = "/.netlify/functions/fr24"
+  status = 200
+
+[[redirects]]
+  from = "/api/hex/live"
+  to = "/.netlify/functions/hex?kind=live"
+  status = 200
+
+[[redirects]]
+  from = "/api/hex/reg/:reg"
+  to = "/.netlify/functions/hex?kind=reg&id=:reg"
+  status = 200
+
+[[redirects]]
+  from = "/api/hex/:hex"
+  to = "/.netlify/functions/hex?kind=hex&id=:hex"
+  status = 200
+
+[[redirects]]
+  from = "/globe"
+  to = "/.netlify/functions/globe"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/globe/"
+  to = "/.netlify/functions/globe"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/globe/*"
+  to = "https://globe.airplanes.live/:splat"
+  status = 200
+  force = true
+
 [[headers]]
   for = "/api/board"
   [headers.values]
@@ -129,6 +167,16 @@
 
 [[headers]]
   for = "/api/cdm"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+
+[[headers]]
+  for = "/globe"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+
+[[headers]]
+  for = "/globe/*"
   [headers.values]
     X-Frame-Options = "SAMEORIGIN"
 

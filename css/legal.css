@@ -126,19 +126,33 @@ h1 {
 }
 
 .legal-mark {
+  position: relative;
+  left: -0.55rem;
+  top: -0.4rem;
+  transform: translate(-15%, -10%);
   flex: 0 0 auto;
-  height: 4.32rem;
+  height: 1.73rem;
   width: auto;
-  aspect-ratio: 965 / 1280;
+  aspect-ratio: 213 / 175;
   background-color: var(--text-color);
-  -webkit-mask-image: url("/icons/rightaway-flat.png");
-  mask-image: url("/icons/rightaway-flat.png");
+  -webkit-mask-image: url("/icons/four-u.png?v=262");
+  mask-image: url("/icons/four-u.png?v=262");
   -webkit-mask-size: 100% 100%;
   mask-size: 100% 100%;
   -webkit-mask-repeat: no-repeat;
   mask-repeat: no-repeat;
   -webkit-mask-position: center;
   mask-position: center;
+}
+
+@media (prefers-color-scheme: light) {
+  .legal-mark {
+    filter:
+      drop-shadow(0.1rem 0 0 var(--text-color))
+      drop-shadow(-0.1rem 0 0 var(--text-color))
+      drop-shadow(0 0.1rem 0 var(--text-color))
+      drop-shadow(0 -0.1rem 0 var(--text-color));
+  }
 }
 
 h2 {

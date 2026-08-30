@@ -1,10 +1,15 @@
-const CACHE = "gearup-v253";
+const CACHE = "gearup-v360";
 const PRECACHE = [
   "/",
   "/index.html",
   "/css/app.css",
   "/icons/map-layers.png",
   "/js/theme.js",
+  "/js/fr24card.js",
+  "/js/flytify.js",
+  "/js/hextory.js",
+  "/js/adsb-hook.js",
+  "/js/actype.js",
   "/js/app.js",
   "/js/sun.js",
   "/js/tz.js",
@@ -17,7 +22,7 @@ const PRECACHE = [
   "/js/airports.js",
   "/fonts/AtkinsonHyperlegible-Regular.woff2",
   "/fonts/AtkinsonHyperlegible-Bold.woff2",
-  "/icons/rightaway-flat.png",
+  "/icons/four-u.png",
   "/manifest.webmanifest",
   "/icons/icon-192.png",
   "/icons/icon-192-dark.png",

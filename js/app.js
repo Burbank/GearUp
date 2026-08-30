@@ -41,6 +41,7 @@
   const LS_NODATIS = "atis.nodatis";
   const LS_CACHE = "atis.cache";
   const LS_LAST = "atis.lastIcao";
+  const LS_PREV = "atis.prevIcao";
   const LS_FOCUS_LAST = "atis.boardFocusLast";
   const SS_BOARD_PIN = "atis.boardPin";
   const SLOTS_URL = "/api/cdm";
@@ -54,7 +55,7 @@
   const form = document.getElementById("lookup-form");
   const icaoInput = document.getElementById("icao-input");
   const airportSuggest = document.getElementById("airport-suggest");
-  const backBtn = document.getElementById("back-btn");
+  const selectAirportBtn = document.getElementById("select-airport");
   const pinBtn = document.getElementById("pin-btn");
   const refreshBtn = document.getElementById("refresh-btn");
   const sideToggle = document.getElementById("side-toggle");
@@ -82,7 +83,6 @@
   const metarAgeEl = document.getElementById("metar-age");
   const metarText = document.getElementById("metar-text");
   const bodyEl = document.getElementById("atis-body");
-  const adsbLink = document.getElementById("adsb-link");
   const briefIdent = document.getElementById("brief-ident");
   const briefIata = document.getElementById("brief-iata");
   const briefUtcEl = document.getElementById("brief-utc");
@@ -133,9 +133,31 @@
   const slotsFrame = document.getElementById("slots-frame");
   const adsbFrame = document.getElementById("adsb-frame");
   const adsbHelpBtn = document.getElementById("adsb-help");
+  const adsbHextoryBtn = document.getElementById("adsb-hextory");
+  const hextoryOverlay = document.getElementById("hextory-overlay");
+  const hextoryHelpDialog = document.getElementById("hextory-help-dialog");
+  const boardPinAdsb = document.getElementById("board-pin-adsb");
   const adsbHelpDialog = document.getElementById("adsb-help-dialog");
   const adsbHelpClose = document.getElementById("adsb-help-close");
-  const adsbHelpOpen = document.getElementById("adsb-help-open");
+  const adsbExternal = document.getElementById("adsb-external");
+  const adsbReturnBtn = document.getElementById("adsb-return");
+  const adsbUtcEl = document.getElementById("adsb-utc");
+  const adsbUtcTime = document.getElementById("adsb-utc-time");
+  const adsbAddBtn = document.getElementById("adsb-hextory-add");
+  const adsbFr24 = document.getElementById("adsb-fr24");
+  const adsbFr24Link = document.getElementById("adsb-fr24-link");
+  const adsbFr24Airline = document.getElementById("adsb-fr24-airline");
+  const adsbFr24Num = document.getElementById("adsb-fr24-num");
+  const adsbFr24Ete = document.getElementById("adsb-fr24-ete");
+  const adsbFr24Ident = document.getElementById("adsb-fr24-ident");
+  const adsbFr24Dep = document.getElementById("adsb-fr24-dep");
+  const adsbFr24From = document.getElementById("adsb-fr24-from");
+  const adsbFr24Arrow = document.getElementById("adsb-fr24-arrow");
+  const adsbFr24To = document.getElementById("adsb-fr24-to");
+  const adsbFr24Arr = document.getElementById("adsb-fr24-arr");
+  const adsbFr24CityFrom = document.getElementById("adsb-fr24-city-from");
+  const adsbFr24CityTo = document.getElementById("adsb-fr24-city-to");
+  const adsbFr24Motion = document.getElementById("adsb-fr24-motion");
   const cdmReset = document.getElementById("cdm-reset");
   const cdmHelpBtn = document.getElementById("cdm-help");
   const cdmHelpDialog = document.getElementById("cdm-help-dialog");
@@ -392,9 +414,23 @@
     return normalizeIcao(localStorage.getItem(LS_LAST) || "");
   }
 
+  function loadPrevIcao() {
+    return normalizeIcao(localStorage.getItem(LS_PREV) || "");
+  }
+
+  function savePrevIcao(icao) {
+    const code = normalizeIcao(icao);
+    if (code.length === 4) localStorage.setItem(LS_PREV, code);
+    else localStorage.removeItem(LS_PREV);
+  }
+
   function saveLastIcao(icao) {
     const code = normalizeIcao(icao);
-    if (code.length === 4) localStorage.setItem(LS_LAST, code);
+    if (code.length === 4) {
+      const was = loadLastIcao();
+      if (was && was !== code) savePrevIcao(was);
+      localStorage.setItem(LS_LAST, code);
+    }
     updateTabLabels();
     updateSlotsTab();
   }
@@ -457,7 +493,6 @@
   }
 
   function thirdHashFor(icao) {
-    if (shouldShowAmsCdm()) return "slots";
     const code = normalizeIcao(icao);
     return code.length === 4 ? `adsb/${code}` : "adsb";
   }
@@ -477,12 +512,9 @@
 
   function updateThirdTabLabel() {
     tabSlots.hidden = false;
-    if (shouldShowAmsCdm()) {
-      paintCdmTab();
-      return;
-    }
-    clearCdmWatch();
+    if (!shouldShowAmsCdm()) clearCdmWatch();
     tabSlots.classList.remove("cdm-soon", "tab-cdm-flight");
+    tabSlots.removeAttribute("title");
     const tag = adsbTabCode(selectedIcao());
     tabSlots.textContent = tag ? `${tag} ADS-B` : "ADS-B";
   }
@@ -953,10 +985,9 @@
     const dy = g.y - g.y0;
     if (!g.mode) {
       if (Math.abs(dx) < PIN_SLOP_PX && Math.abs(dy) < PIN_SLOP_PX) return;
-      const leftSwipe =
-        dx < -PIN_SLOP_PX && Math.abs(dx) > Math.abs(dy) * 1.15;
+      const horiz = Math.abs(dx) > Math.abs(dy) * 1.15;
       const mouse = g.type === "mouse";
-      if (leftSwipe) {
+      if (horiz) {
         beginPinSwipe();
       } else if (!mouse && Math.abs(dy) > Math.abs(dx)) {
         pinDragEnd();
@@ -967,9 +998,8 @@
     }
     if (g.mode === "swipe") {
       event.preventDefault();
-      const x = Math.min(0, dx);
-      g.btn.style.transform = "translateX(" + x + "px)";
-      g.btn.style.opacity = String(Math.max(0.35, 1 + x / 180));
+      g.btn.style.transform = "translateX(" + dx + "px)";
+      g.btn.style.opacity = String(Math.max(0.35, 1 - Math.abs(dx) / 220));
       return;
     }
     if (g.mode === "drag") {
@@ -978,17 +1008,37 @@
     }
   }
 
+  function cardPastViewportLeft(btn) {
+    return btn && btn.getBoundingClientRect().right < 8;
+  }
+
+  function cardPastViewportRight(btn) {
+    return btn && btn.getBoundingClientRect().left > window.innerWidth - 8;
+  }
+
   function finishPinSwipe(dx) {
     const g = pinDrag;
     if (!g) return;
     const btn = g.btn;
     const icao = g.icao;
-    if (dx <= -PIN_SWIPE_PX) {
+    if (cardPastViewportLeft(btn)) {
       btn.style.transition = "transform 0.18s ease, opacity 0.18s ease";
       btn.style.transform = "translateX(-120%)";
       btn.style.opacity = "0";
       pinDragEnd();
       setTimeout(() => removePin(icao), 160);
+      return;
+    }
+    if (cardPastViewportRight(btn)) {
+      pinDragEnd();
+      btn.style.transition = "transform 0.16s ease, opacity 0.16s ease";
+      btn.style.transform = "";
+      btn.style.opacity = "";
+      setTimeout(() => {
+        btn.classList.remove("swiping");
+        btn.style.transition = "";
+      }, 180);
+      copyAirportBrief(icao);
       return;
     }
     btn.style.transition = "transform 0.16s ease, opacity 0.16s ease";
@@ -1018,12 +1068,6 @@
       return;
     }
     if (g.mode === "drag") {
-      if (dx <= -PIN_SWIPE_PX * 1.35 && Math.abs(dx) > Math.abs(dy)) {
-        pinDragEnd();
-        renderPins();
-        removePin(icao);
-        return;
-      }
       commitPinOrder();
       pinDragEnd();
       return;
@@ -1054,6 +1098,34 @@
     briefView.hidden = true;
     if (boardView) boardView.hidden = true;
     slotsView.hidden = true;
+    document.documentElement.classList.remove("cdm-under-board");
+  }
+
+  function syncBoardCdmChrome() {
+    const onCdm = document.documentElement.classList.contains("cdm-under-board");
+    if (boardAdsbBtn) {
+      boardAdsbBtn.classList.toggle("active", onCdm);
+      boardAdsbBtn.setAttribute("aria-pressed", onCdm ? "true" : "false");
+    }
+    if (onCdm) {
+      for (const btn of boardDirBtns) {
+        btn.classList.remove("active");
+        btn.setAttribute("aria-selected", "false");
+      }
+    }
+  }
+
+  function closeCdmUnderBoard() {
+    if (!document.documentElement.classList.contains("cdm-under-board")) return;
+    document.documentElement.classList.remove("cdm-under-board");
+    if (slotsView) slotsView.hidden = true;
+    if (hashKey() === "slots") {
+      history.replaceState(null, "", location.pathname + location.search + "#board");
+    }
+    setBoardDir(boardDir);
+    syncBoardCdmChrome();
+    syncSelectAirportBtn();
+    syncBoardPinOverlay();
   }
 
   function layoutStaleRow() {
@@ -1145,6 +1217,31 @@
     if (!staleEl.hidden && staleText) staleText.focus();
   }
 
+  function syncSelectAirportBtn() {
+    if (!selectAirportBtn) return;
+    const onHome = home && !home.hidden;
+    selectAirportBtn.hidden = Boolean(onHome);
+  }
+
+  function dismissFrontOverlays() {
+    if (window.Hextory && window.Hextory.closeOverlay) {
+      window.Hextory.closeOverlay({ force: true });
+    }
+    closeCdmHelpDialog();
+    closeAdsbHelpDialog();
+    closeBoardFocusHelpDialog();
+    closeBoardFocusDialog();
+    closeWorstwindDialog();
+    closeInferPreview();
+    closeStaleDialog();
+  }
+
+  function goSelectAirport() {
+    dismissFrontOverlays();
+    location.hash = "";
+    showHome();
+  }
+
   function showHome() {
     currentIcao = "";
     resetAtisSide();
@@ -1156,12 +1253,14 @@
     renderPins();
     updateTabLabels();
     updateSlotsTab();
+    syncSelectAirportBtn();
   }
 
   function showDetail() {
     hideViews();
     setTab("atis");
     detail.hidden = false;
+    syncSelectAirportBtn();
   }
 
   function updatePinButton() {
@@ -1219,6 +1318,10 @@
     const hm = `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
     const hms = `${hm}:${pad2(d.getUTCSeconds())}`;
     if (!detail.hidden) setText(utcTimeEl, hms);
+    if (adsbUtcEl && !adsbUtcEl.hidden) {
+      setText(adsbUtcTime, hms);
+      adsbUtcEl.setAttribute("datetime", d.toISOString());
+    }
     setText(briefUtcTime, hm);
     setText(briefUtcDay, day);
     if (currentTab === "board") paintBoardClocks(d);
@@ -1560,6 +1663,7 @@
     }
   }
 
+  let adsbFollowUrl = "";
   let adsbToken = 0;
   const airportCache = Object.create(null);
   const AGL_CAP_FT = 10000;
@@ -1582,7 +1686,11 @@
       "legacyUI",
     ];
     if (cap) q.splice(4, 0, `filterAltMax=${altMax}`);
-    return `https://globe.airplanes.live/?${q.join("&")}`;
+    const query = q.join("&");
+    if (opts && opts.publicGlobe) {
+      return `https://globe.airplanes.live/?${query}`;
+    }
+    return `/globe/?${query}`;
   }
 
   function setIdent(icao, iata) {
@@ -1629,7 +1737,6 @@
 
   function updateAdsbLink(icao) {
     const code = normalizeIcao(icao);
-    adsbLink.hidden = code !== "EHAM";
     if (airportCache[code] && airportCache[code].iata && iataEl.hidden) {
       setIdent(code, airportCache[code].iata);
     }
@@ -3013,6 +3120,7 @@
     hideWxBlocks();
     briefSun.hidden = true;
     updateTabLabels();
+    syncSelectAirportBtn();
   }
 
   async function loadBrief(icao, opts) {
@@ -3024,6 +3132,7 @@
     hideViews();
     setTab("taf");
     briefView.hidden = false;
+    syncSelectAirportBtn();
     if (code.length !== 4) {
       showBriefEmpty();
       return;
@@ -4072,6 +4181,7 @@
       syncBoardFocusBtnLock();
     }
     if (boardPinClose && currentTab === "board") boardPinClose.focus();
+    hextoryFromPin(row);
     if (nextDir !== "D") {
       stopPinCdm();
       return;
@@ -4091,7 +4201,12 @@
 
   function syncBoardPinOverlay() {
     if (!boardPinOverlay) return;
-    const show = currentTab === "board" && !!boardPin;
+    const show =
+      currentTab === "board" &&
+      !!boardPin &&
+      boardView &&
+      !boardView.hidden &&
+      hashKey() !== "slots";
     boardPinOverlay.hidden = !show;
     boardPinOverlay.classList.toggle("is-departure", !!(boardPin && boardPin.dir === "D"));
     boardPinOverlay.classList.toggle("is-arrival", !!(boardPin && boardPin.dir === "A"));
@@ -4292,6 +4407,7 @@
   }
 
   async function submitBoardFocus(raw, opts) {
+    closeCdmUnderBoard();
     const api = boardApi();
     const kind = api ? api.classifyQuery(raw) : { kind: "", q: "" };
     if (!kind.q || kind.q.length < 2) {
@@ -4405,6 +4521,7 @@
   }
 
   function refreshBoardAfterFilter() {
+    closeCdmUnderBoard();
     if (currentTab !== "board") return;
     const held = boardHoldForView(boardDir);
     if (held) paintBoard(held.data);
@@ -4415,6 +4532,7 @@
   }
 
   async function loadBoard(opts) {
+    closeCdmUnderBoard();
     const quiet = !!(opts && opts.quiet);
     const force = !!(opts && opts.force);
     const dir = boardDir;
@@ -4434,6 +4552,7 @@
       currentIcao = "EHAM";
       saveLastIcao("EHAM");
       if (boardIdent) boardIdent.textContent = "AMS";
+      syncSelectAirportBtn();
     } else {
       setTab("board");
     }
@@ -4535,10 +4654,18 @@
   function showThirdView() {
     cancelQuietAcars();
     hideStaleBanner();
+    const underBoard = hashKey() === "slots";
     hideViews();
-    setTab(isAdsbHash() && shouldShowAmsCdm() ? "adsb" : "slots");
+    setTab(isAdsbHash() ? "adsb" : "board");
+    if (underBoard && boardView) {
+      document.documentElement.classList.add("cdm-under-board");
+      boardView.hidden = false;
+      paintBoardClocks();
+      syncBoardCdmChrome();
+    }
     slotsView.hidden = false;
     updateThirdTabLabel();
+    syncSelectAirportBtn();
   }
 
   function cdmApi() {
@@ -4546,42 +4673,8 @@
   }
 
   function paintCdmTab() {
-    if (!tabSlots || !shouldShowAmsCdm()) return;
-    if (!cdmFlight || !cdmFlight.callsign) {
-      tabSlots.classList.remove("cdm-soon", "tab-cdm-flight");
-      tabSlots.textContent = "AMS CDM";
-      tabSlots.removeAttribute("title");
-      paintCdmTobtGo();
-      syncCdmTobtTimer();
-      syncCdmFlightChrome();
-      return;
-    }
-    const api = cdmApi();
-    const ms =
-      api && cdmFlight.tobt
-        ? api.tobtRemainMs(cdmFlight.tobt)
-        : null;
-    const fmt =
-      api && Number.isFinite(ms)
-        ? api.formatTobtRemain(ms)
-        : { text: "", soon: false };
-    tabSlots.replaceChildren();
-    const ident = document.createElement("span");
-    ident.className = "cdm-tab-ident";
-    ident.textContent = cdmFlight.callsign;
-    tabSlots.appendChild(ident);
-    if (fmt.text) {
-      const remain = document.createElement("span");
-      remain.className = "tobt-remain";
-      remain.textContent = fmt.text;
-      tabSlots.appendChild(remain);
-    }
-    tabSlots.classList.toggle("tab-cdm-flight", !!fmt.text);
-    tabSlots.classList.toggle("cdm-soon", !!(fmt.soon && fmt.text));
-    tabSlots.title = cdmFlight.tobt
-      ? `${cdmFlight.callsign} TOBT ${cdmFlight.tobt}Z`
-      : cdmFlight.callsign;
-    maybeNotifyTobtZero();
+    if (!shouldShowAmsCdm()) return;
+    if (cdmFlight && cdmFlight.callsign) maybeNotifyTobtZero();
     paintCdmTobtGo();
     syncCdmTobtTimer();
     syncCdmFlightChrome();
@@ -4790,9 +4883,21 @@
     }
   }
 
+  function phoneNotifyOn() {
+    const Fly = window.GearUpFlytify;
+    return Boolean(Fly && Fly.available && Fly.available());
+  }
+
   function paintCdmNotifyBtn() {
     const label = "NOTIFY";
+    const phone = phoneNotifyOn();
     document.querySelectorAll(".cdm-notify").forEach((btn) => {
+      if (!phone) {
+        btn.hidden = true;
+        btn.classList.remove("active");
+        btn.setAttribute("aria-pressed", "false");
+        return;
+      }
       btn.classList.toggle("active", cdmNotifyOn);
       btn.setAttribute("aria-pressed", cdmNotifyOn ? "true" : "false");
       btn.textContent = label;
@@ -4804,7 +4909,7 @@
     if (cdmHelpBtn) cdmHelpBtn.hidden = !on;
     const flight = on && !!(cdmFlight && cdmFlight.callsign);
     if (cdmReset) cdmReset.hidden = !flight;
-    if (cdmNotifyBtn) cdmNotifyBtn.hidden = !flight;
+    if (cdmNotifyBtn) cdmNotifyBtn.hidden = !phoneNotifyOn() || !flight;
     if (on) requestAnimationFrame(() => fitCdmChrome(cdmChrome));
   }
 
@@ -4833,12 +4938,7 @@
 
   function openAdsbHelpDialog() {
     if (!adsbHelpDialog) return;
-    const code = adsbIcaoFromHash() || selectedIcao();
-    const elev = airportCache[code] ? airportCache[code].elevFt : 0;
-    if (adsbHelpOpen) {
-      const openUrl = adsbAirportUrl(code, elev, { capAltitude: false });
-      if (openUrl) adsbHelpOpen.href = openUrl;
-    }
+    setAdsbExternalHref(adsbIcaoFromHash() || selectedIcao());
     adsbHelpDialog.hidden = false;
     if (adsbHelpClose) adsbHelpClose.focus();
   }
@@ -4961,6 +5061,137 @@
     showCdmPopup(clock.callsign, "TOBT now", { throttle: false });
   }
 
+  async function copyTextToClipboard(text) {
+    const hx = window.Hextory;
+    if (hx && hx.copyText) return hx.copyText(text);
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {
+      /* fall through */
+    }
+    return false;
+  }
+
+  async function copyAirportBrief(icao) {
+    const code = String(icao || "").toUpperCase();
+    const parts = [];
+    const bundle = cache[code];
+    const atis =
+      (bundle && bundle.text) ||
+      (bundle && bundle.departureAtis && bundle.departureAtis.text) ||
+      (bundle && bundle.arrivalAtis && bundle.arrivalAtis.text) ||
+      "";
+    if (atis) parts.push("ATIS " + code + "\n" + atis);
+    let metar = code === currentIcao ? lastMetarRaw : "";
+    let taf = code === currentIcao ? lastTafRaw : "";
+    try {
+      if (!metar) {
+        const m = await fetchMetar(code);
+        if (m && m.text) {
+          metar = Hl && Hl.formatMetar ? Hl.formatMetar(m.text) : m.text;
+        }
+      }
+      if (!taf) {
+        const res = await fetch(`/api/taf/${code}`, { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          taf = (data && data.text) || "";
+        }
+      }
+    } catch {
+      /* use what we have */
+    }
+    if (metar) parts.push("METAR " + code + "\n" + metar);
+    if (taf) parts.push("TAF " + code + "\n" + taf);
+    if (!parts.length) {
+      showCdmToast(code, "No ATIS, METAR, or TAF to copy.");
+      return;
+    }
+    const ok = await copyTextToClipboard(parts.join("\n\n"));
+    showCdmToast(code, ok ? "ATIS · METAR · TAF copied." : "Could not copy.");
+  }
+
+  function aircraftAtFlightLevel(row) {
+    const hx = window.Hextory;
+    if (hx && typeof hx.atFlightLevel === "function") return hx.atFlightLevel(row);
+    const nums = [row && row.alt, row && row.lastAlt];
+    return nums.some((n) => Number.isFinite(Number(n)) && Number(n) >= 18000);
+  }
+
+  async function warnIfAircraftOffMap(entry) {
+    if (!entry || aircraftAtFlightLevel(entry)) return;
+    const q = entry.hex
+      ? "/api/hex/" + String(entry.hex).toLowerCase()
+      : entry.reg
+        ? "/api/hex/reg/" + encodeURIComponent(entry.reg)
+        : "";
+    if (!q) return;
+    try {
+      const res = await fetch(q, { cache: "no-store" });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (aircraftAtFlightLevel(data)) return;
+      const seen = data.live === true || data.alt != null || data.gs != null;
+      if (!seen) {
+        showCdmToast(
+          entry.reg || String(entry.hex || "").toUpperCase(),
+          "The aircraft is not moving right now."
+        );
+      }
+    } catch {
+      /* offline */
+    }
+  }
+
+  const LS_TOAST_SEEN = "atis.toast.seen";
+  const TOAST_LONG_MS = 10000;
+  const TOAST_SHORT_MS = 3500;
+  const TOAST_TRAIN_N = 5;
+  const TOAST_SEEN_CAP = 40;
+
+  function toastKind(body) {
+    return String(body || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  }
+
+  function readToastSeen() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(LS_TOAST_SEEN) || "{}");
+      return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function writeToastSeen(seen) {
+    const keys = Object.keys(seen);
+    if (keys.length > TOAST_SEEN_CAP) {
+      keys.slice(0, keys.length - TOAST_SEEN_CAP).forEach((key) => {
+        delete seen[key];
+      });
+    }
+    try {
+      localStorage.setItem(LS_TOAST_SEEN, JSON.stringify(seen));
+    } catch {
+      /* quota */
+    }
+  }
+
+  function toastDuration(body) {
+    const kind = toastKind(body);
+    if (!kind) return TOAST_LONG_MS;
+    const seen = readToastSeen();
+    const n = Number(seen[kind]) || 0;
+    seen[kind] = n + 1;
+    writeToastSeen(seen);
+    return n >= TOAST_TRAIN_N ? TOAST_SHORT_MS : TOAST_LONG_MS;
+  }
+
   function showCdmToast(title, body) {
     if (!cdmToast) return;
     cdmToast.replaceChildren();
@@ -4973,7 +5204,7 @@
     clearTimeout(cdmToastTimer);
     cdmToastTimer = setTimeout(() => {
       cdmToast.hidden = true;
-    }, 5000);
+    }, toastDuration(body));
   }
 
   async function closeCdmSystemNotes() {
@@ -5000,7 +5231,36 @@
     showCdmChangeNotification(title, body);
   }
 
+  async function showFlytifyNotification(title, body) {
+    const Fly = window.GearUpFlytify;
+    if (!Fly || !Fly.available || !Fly.available()) return;
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") {
+      return;
+    }
+    try {
+      const reg =
+        navigator.serviceWorker &&
+        (await navigator.serviceWorker.getRegistration());
+      if (reg && reg.showNotification) {
+        await reg.showNotification(title, {
+          body,
+          tag: "gearup-flytify",
+          renotify: true,
+        });
+        return;
+      }
+    } catch {
+      /* fall through */
+    }
+    try {
+      new Notification(title, { body, tag: "gearup-flytify" });
+    } catch {
+      /* ignored */
+    }
+  }
+
   async function showCdmChangeNotification(title, body) {
+    if (!phoneNotifyOn()) return;
     if (typeof Notification === "undefined" || Notification.permission !== "granted") {
       return;
     }
@@ -5042,6 +5302,11 @@
   }
 
   async function toggleCdmNotify() {
+    if (!phoneNotifyOn()) {
+      cdmNotifyOn = false;
+      paintCdmNotifyBtn();
+      return;
+    }
     if (cdmNotifyOn) {
       cdmNotifyOn = false;
       cdmWatchBaseline = null;
@@ -5089,16 +5354,475 @@
     return src === SLOTS_URL || src.indexOf("/api/cdm") !== -1;
   }
 
+  function setAdsbPlaneOverlay(open, shiftPx) {
+    const on = Boolean(open);
+    document.documentElement.classList.toggle("adsb-plane-open", on);
+    if (!on) {
+      document.documentElement.style.setProperty("--adsb-plane-shift", "0px");
+      if (adsbAddBtn) adsbAddBtn.hidden = true;
+      hideAdsbFr24();
+      return;
+    }
+    const n = Number(shiftPx);
+    if (Number.isFinite(n) && n > 4) {
+      document.documentElement.style.setProperty("--adsb-plane-shift", Math.round(n) + "px");
+    }
+    syncAdsbFr24Dock();
+  }
+
+  function setAdsbExternalHref(icao) {
+    if (!adsbExternal) return;
+    const code = normalizeIcao(icao) || selectedIcao() || loadLastIcao() || "EHAM";
+    const elev = airportCache[code] ? airportCache[code].elevFt : 0;
+    const openUrl = adsbAirportUrl(code, elev, {
+      capAltitude: false,
+      publicGlobe: true,
+    });
+    adsbExternal.href = openUrl || "https://globe.airplanes.live/";
+  }
+
+  function airportCardMeta(code) {
+    if (!/^[A-Z]{4}$/.test(code)) return null;
+    const cached = airportCache[code] || {};
+    const catalog =
+      window.GearUpAirports && typeof window.GearUpAirports.get === "function"
+        ? window.GearUpAirports.get(code)
+        : null;
+    return {
+      icao: code,
+      iata: cached.iata || (catalog && catalog.a) || "",
+      name: cached.name || (catalog && catalog.n) || "",
+      city: (catalog && catalog.c) || "",
+    };
+  }
+
+  function hextoryHomeAirport() {
+    const code = selectedIcao() || loadLastIcao() || "EHAM";
+    return airportCardMeta(code);
+  }
+
+  function hextoryHomeAirports() {
+    const recent = hextoryHomeAirport();
+    const prev = loadPrevIcao() || normalizeIcao(adsbPrevIcao);
+    const second =
+      recent && prev && prev !== recent.icao ? airportCardMeta(prev) : null;
+    return [recent, second].filter(Boolean);
+  }
+
+  function rememberAdsbAirport(nextIcao) {
+    const next = normalizeIcao(nextIcao);
+    const cur = normalizeIcao(currentIcao);
+    if (next.length === 4 && cur.length === 4 && next !== cur) {
+      adsbPrevIcao = cur;
+      savePrevIcao(cur);
+    }
+    adsbPlaneSelected = false;
+    paintAdsbReturnBtn();
+  }
+
+  function paintAdsbReturnBtn() {
+    if (!adsbReturnBtn) return;
+    if (adsbPlaneSelected) {
+      adsbReturnBtn.setAttribute("aria-label", "Return to airport view");
+    } else if (adsbPrevIcao && adsbPrevIcao !== selectedIcao()) {
+      adsbReturnBtn.setAttribute("aria-label", "Return to last airport");
+    } else {
+      adsbReturnBtn.setAttribute("aria-label", "Return to airport view");
+    }
+  }
+
+  function returnAdsbToAirport() {
+    adsbFollowUrl = "";
+    adsbPlaneSelected = false;
+    setAdsbPlaneOverlay(false);
+    const code = selectedIcao() || loadLastIcao() || "EHAM";
+    adsbFrameUrl = "";
+    if (adsbFrame) adsbFrame.src = "about:blank";
+    loadAdsbFrame(code);
+    preloadAtisAndTaf(code);
+    paintAdsbReturnBtn();
+  }
+
+  function returnAdsbSmart() {
+    if (adsbPlaneSelected) {
+      returnAdsbToAirport();
+      return;
+    }
+    const back = normalizeIcao(adsbPrevIcao);
+    if (back.length === 4 && back !== selectedIcao()) {
+      adsbPrevIcao = "";
+      jumpAdsbToCity(back, { silent: true });
+      return;
+    }
+    returnAdsbToAirport();
+  }
+
+  function atisAlreadyLoaded(code) {
+    const cached = cache[code];
+    return Boolean(
+      atisFetchedAt[code] &&
+        cached &&
+        cached.kind !== "error" &&
+        (cached.text || cached.departureAtis || cached.arrivalAtis)
+    );
+  }
+
+  function tafAlreadyLoaded(code) {
+    return Boolean(
+      lastBriefHold.icao === code &&
+        lastBriefHold.taf &&
+        lastBriefHold.taf.text &&
+        !lastBriefHold.taf.error
+    );
+  }
+
+  function preloadAtisAndTaf(icao) {
+    const code = normalizeIcao(icao);
+    if (code.length !== 4) return;
+    if (!atisAlreadyLoaded(code) && !atisInFlight[code]) {
+      atisInFlight[code] = (async () => {
+        try {
+          const data = await fetchAtis(code);
+          atisFetchedAt[code] = Date.now();
+          if (currentTab === "atis" && currentIcao === code) {
+            renderResult(data);
+          }
+        } catch {
+          /* stay on ADS-B */
+        } finally {
+          delete atisInFlight[code];
+        }
+      })();
+    }
+    if (!tafAlreadyLoaded(code)) {
+      Promise.resolve()
+        .then(() => {
+          const { tafPromise, wxPromise } = fetchBriefPayload(code);
+          return Promise.all([tafPromise, wxPromise]);
+        })
+        .then(([taf, wx]) => {
+          lastBriefHold = { icao: code, at: Date.now(), taf, wx };
+          if (currentTab === "taf" && currentIcao === code) {
+            renderTaf(taf);
+            if (wx) renderBriefWx(wx);
+          }
+        })
+        .catch(() => {
+          /* stay on ADS-B */
+        });
+    }
+  }
+
+  let adsbFr24Token = 0;
+  let adsbFr24Reg = "";
+  let adsbFr24Info = null;
+  let adsbPrevIcao = loadPrevIcao();
+  let adsbPlaneSelected = false;
+
+  function hideAdsbFr24() {
+    adsbFr24Token += 1;
+    adsbFr24Reg = "";
+    adsbFr24Info = null;
+    adsbPlaneSelected = false;
+    if (adsbFr24) adsbFr24.hidden = true;
+    if (adsbFr24Link) {
+      adsbFr24Link.removeAttribute("href");
+      adsbFr24Link.removeAttribute("aria-label");
+    }
+    if (adsbFr24Airline) adsbFr24Airline.textContent = "";
+    if (adsbFr24Num) adsbFr24Num.textContent = "";
+    if (adsbFr24Ete) adsbFr24Ete.textContent = "";
+    if (adsbFr24Ident) adsbFr24Ident.textContent = "";
+    if (adsbFr24Dep) adsbFr24Dep.textContent = "";
+    if (adsbFr24From) adsbFr24From.textContent = "";
+    if (adsbFr24Arrow) adsbFr24Arrow.textContent = "";
+    if (adsbFr24To) adsbFr24To.textContent = "";
+    if (adsbFr24Arr) adsbFr24Arr.textContent = "";
+    paintFr24City(adsbFr24CityFrom, "", "");
+    paintFr24City(adsbFr24CityTo, "", "");
+    if (adsbFr24Motion) adsbFr24Motion.textContent = "";
+    if (adsbFr24) adsbFr24.classList.remove("is-dock");
+    document.documentElement.classList.remove("adsb-fr24-dock");
+    paintAdsbReturnBtn();
+  }
+
+  function remnantFr24Px() {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue(
+      "--adsb-plane-shift"
+    );
+    const shift = parseFloat(raw) || 0;
+    return window.innerWidth - shift - 20;
+  }
+
+  function syncAdsbFr24Dock() {
+    if (!adsbFr24) return;
+    const dock = !adsbFr24.hidden && remnantFr24Px() < 200;
+    adsbFr24.classList.toggle("is-dock", dock);
+    document.documentElement.classList.toggle("adsb-fr24-dock", dock);
+  }
+
+  function fr24Card() {
+    return window.Fr24Card || {};
+  }
+
+  function formatFr24ClockPair(iso, code, fallbackIcao, side) {
+    const fn = fr24Card().formatFr24ClockPair;
+    return fn ? fn(iso, code, fallbackIcao, side) : "";
+  }
+
+  function formatFr24EteRem(info) {
+    const fn = fr24Card().formatFr24EteRem;
+    return fn ? fn(info) : "";
+  }
+
+  function formatFr24Motion(info, dock) {
+    const fn = fr24Card().formatFr24Motion;
+    return fn ? fn(info, dock) : "";
+  }
+
+  function formatFr24Type(info) {
+    const fn = fr24Card().formatFr24Type;
+    return fn ? fn(info) : String((info && info.type) || "").trim().toUpperCase();
+  }
+
+  function formatFr24Airline(info) {
+    const fn = fr24Card().formatFr24Airline;
+    return fn ? fn(info) : "";
+  }
+
+  function icaoForFr24Code(code, fallbackIcao) {
+    const fn = fr24Card().icaoForFr24Code;
+    return fn ? fn(code, fallbackIcao) : "";
+  }
+
+  function formatFr24Place(code) {
+    const fn = fr24Card().formatFr24Place;
+    return fn ? fn(code) : "";
+  }
+
+  function fr24HasUseful(info) {
+    const fn = fr24Card().fr24HasUseful;
+    return fn ? fn(info) : false;
+  }
+
+  function cleanFlightId(value) {
+    const fn = fr24Card().cleanFlightId;
+    return fn ? fn(value) : String(value || "").trim();
+  }
+
+  function jumpAdsbToCity(icao, opts) {
+    const code = normalizeIcao(icao);
+    if (code.length !== 4) return;
+    hideAdsbFr24();
+    setAdsbPlaneOverlay(false);
+    adsbFollowUrl = "";
+    if (selectedIcao() === code) {
+      returnAdsbToAirport();
+      return;
+    }
+    if (!(opts && opts.silent)) rememberAdsbAirport(code);
+    currentIcao = code;
+    saveLastIcao(code);
+    adsbFrameUrl = "";
+    if (adsbFrame) adsbFrame.src = "about:blank";
+    preloadAtisAndTaf(code);
+    const want = "adsb/" + code;
+    if (hashKey() !== want.toLowerCase()) location.hash = want;
+    else loadAdsbFrame(code);
+  }
+
+  function paintFr24City(btn, label, code, fallbackIcao) {
+    if (!btn) return;
+    const icao = icaoForFr24Code(code, fallbackIcao);
+    const name = String(label || "").trim();
+    btn.textContent = name;
+    if (name && icao) {
+      btn.hidden = false;
+      btn.dataset.icao = icao;
+      btn.setAttribute("aria-label", "Open " + name);
+    } else {
+      btn.hidden = true;
+      delete btn.dataset.icao;
+      btn.removeAttribute("aria-label");
+    }
+  }
+
+  function paintAdsbFr24(info) {
+    if (!adsbFr24) return;
+    adsbFr24Info = info;
+    syncAdsbFr24Dock();
+    const dock = adsbFr24.classList.contains("is-dock");
+    const flight = cleanFlightId(info && (info.flight || info.callsign));
+    const reg = String((info && info.reg) || "").trim();
+    const from = String((info && info.from) || "").trim();
+    const to = String((info && info.to) || "").trim();
+    const route = from && to ? from + " → " + to : from || to;
+    const fromPlace = formatFr24Place(from);
+    const toPlace = formatFr24Place(to);
+    const airline = formatFr24Airline(info) || String((info && info.category) || "").trim();
+    const depClock = formatFr24ClockPair(
+      info && info.dep,
+      from,
+      info && info.fromIcao,
+      "dep"
+    );
+    const arrClock = formatFr24ClockPair(
+      info && info.eta,
+      to,
+      info && info.toIcao,
+      "arr"
+    );
+    const type = formatFr24Type(info);
+    const ident = [reg && reg !== flight ? reg : "", type].filter(Boolean).join(" · ");
+    const motion = formatFr24Motion(info, dock);
+    const href = String((info && (info.liveUrl || info.historyUrl)) || "").trim();
+    if (!fr24HasUseful(Object.assign({}, info, { flight }))) {
+      adsbFr24.hidden = true;
+      return;
+    }
+    if (adsbFr24Airline) adsbFr24Airline.textContent = airline;
+    if (adsbFr24Num) adsbFr24Num.textContent = flight || (!airline ? reg : "");
+    if (adsbFr24Ete) adsbFr24Ete.textContent = formatFr24EteRem(info);
+    if (adsbFr24Ident) adsbFr24Ident.textContent = ident;
+    if (adsbFr24Dep) adsbFr24Dep.textContent = depClock;
+    if (adsbFr24From) adsbFr24From.textContent = from;
+    if (adsbFr24Arrow) adsbFr24Arrow.textContent = from && to ? "→" : "";
+    if (adsbFr24To) adsbFr24To.textContent = to;
+    if (adsbFr24Arr) adsbFr24Arr.textContent = arrClock;
+    paintFr24City(
+      adsbFr24CityFrom,
+      fromPlace && fromPlace !== from ? fromPlace : "",
+      from,
+      info && info.fromIcao
+    );
+    paintFr24City(
+      adsbFr24CityTo,
+      toPlace && toPlace !== to ? toPlace : "",
+      to,
+      info && info.toIcao
+    );
+    if (adsbFr24Motion) adsbFr24Motion.textContent = motion;
+    if (adsbFr24Link) {
+      if (href) {
+        adsbFr24Link.href = href;
+        adsbFr24Link.setAttribute("aria-label", "FlightRadar24 live");
+      } else {
+        adsbFr24Link.removeAttribute("href");
+        adsbFr24Link.removeAttribute("aria-label");
+      }
+    }
+    adsbFr24.hidden = false;
+  }
+
+  function showAdsbFr24(select) {
+    const reg = String((select && select.reg) || "")
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, "");
+    if (!reg) {
+      hideAdsbFr24();
+      return;
+    }
+    adsbFr24Reg = reg;
+    adsbPlaneSelected = true;
+    paintAdsbReturnBtn();
+    const token = ++adsbFr24Token;
+    adsbFr24Info = null;
+    const history =
+      window.Hextory && window.Hextory.fr24Url
+        ? window.Hextory.fr24Url({ reg })
+        : "";
+    const peek =
+      window.Hextory && window.Hextory.peekFr24
+        ? window.Hextory.peekFr24({ reg })
+        : null;
+    if (peek && peek.payload && fr24HasUseful(peek.payload)) {
+      paintAdsbFr24(
+        Object.assign({}, peek.payload, { historyUrl: history })
+      );
+      if (!peek.stale) return;
+    }
+    const airportsReady =
+      window.GearUpAirports && window.GearUpAirports.load
+        ? window.GearUpAirports.load()
+        : Promise.resolve();
+    fetch("/api/fr24?reg=" + encodeURIComponent(reg), { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (token !== adsbFr24Token || adsbFr24Reg !== reg || !data) return;
+        return airportsReady.then(() => {
+          if (token !== adsbFr24Token || adsbFr24Reg !== reg) return;
+          const info = {
+            reg: data.reg || reg,
+            flight: data.flight || (select && select.flight) || "",
+            callsign: data.callsign || (select && select.flight) || "",
+            from: data.from || "",
+            to: data.to || "",
+            eta: data.eta || "",
+            dep: data.dep || "",
+            fromIcao: data.fromIcao || "",
+            toIcao: data.toIcao || "",
+            liveUrl: data.liveUrl || "",
+            historyUrl: history,
+            type: data.type || (select && select.type) || "",
+            airline: data.airline || (select && select.airline) || "",
+            category: data.category || "",
+            squawk: data.squawk || "",
+            flightTime: data.flightTime,
+            alt: data.alt != null ? data.alt : select && select.alt,
+            gs: data.gs != null ? data.gs : select && select.gs,
+            track: data.track,
+          };
+          if (!fr24HasUseful(info)) return;
+          paintAdsbFr24(info);
+        });
+      })
+      .catch(() => {});
+  }
+
+  function setAdsbChrome(show) {
+    if (!show) setAdsbPlaneOverlay(false);
+    if (adsbHelpBtn) adsbHelpBtn.hidden = !show;
+    if (adsbExternal) adsbExternal.hidden = !show;
+    if (adsbHextoryBtn) adsbHextoryBtn.hidden = !show;
+    if (adsbReturnBtn) adsbReturnBtn.hidden = !show;
+    if (adsbUtcEl) {
+      adsbUtcEl.hidden = !show;
+      if (show) {
+        const now = new Date();
+        setText(
+          adsbUtcTime,
+          `${pad2(now.getUTCHours())}:${pad2(now.getUTCMinutes())}:${pad2(now.getUTCSeconds())}`
+        );
+        adsbUtcEl.setAttribute("datetime", now.toISOString());
+      }
+    }
+    if (show) setAdsbExternalHref(selectedIcao() || loadLastIcao());
+    const hx = window.Hextory;
+    if (hx) {
+      if (show && hx.startLive) hx.startLive();
+      if (!show) {
+        if (hx.stopLive) hx.stopLive();
+      }
+    }
+  }
+
   function showCdmIframe() {
     if (slotsFrame) slotsFrame.hidden = false;
     if (adsbFrame) adsbFrame.hidden = true;
-    if (adsbHelpBtn) adsbHelpBtn.hidden = true;
+    setAdsbChrome(false);
   }
 
   function showAdsbIframe() {
     if (slotsFrame) slotsFrame.hidden = true;
-    if (adsbFrame) adsbFrame.hidden = false;
-    if (adsbHelpBtn) adsbHelpBtn.hidden = false;
+    if (adsbFrame) {
+      adsbFrame.hidden = false;
+      adsbFrame.setAttribute(
+        "allow",
+        "clipboard-write; clipboard-read; fullscreen"
+      );
+    }
+    setAdsbChrome(true);
   }
 
   function resetCdmFrame() {
@@ -5145,7 +5869,20 @@
         adsbFrameUrl = "";
       }
       thirdMode = "adsb-empty";
-      if (adsbHelpBtn) adsbHelpBtn.hidden = true;
+      setAdsbChrome(false);
+      paintCdmTab();
+      return;
+    }
+    if (adsbFollowUrl) {
+      if (frame) {
+        frame.title = `${adsbTabCode(code)} ADS-B`;
+        if (frame.getAttribute("src") !== adsbFollowUrl) {
+          frame.src = adsbFollowUrl;
+          adsbFrameUrl = adsbFollowUrl;
+        }
+      }
+      thirdMode = "adsb";
+      setAdsbChrome(true);
       paintCdmTab();
       return;
     }
@@ -5158,11 +5895,8 @@
       adsbFrameUrl = url;
     }
     thirdMode = "adsb";
-    if (adsbHelpBtn) adsbHelpBtn.hidden = false;
-    if (adsbHelpOpen) {
-      const openUrl = adsbAirportUrl(code, elev, { capAltitude: false });
-      if (openUrl) adsbHelpOpen.href = openUrl;
-    }
+    setAdsbChrome(true);
+    setAdsbExternalHref(code);
     paintCdmTab();
     ensureAirport(code).then((data) => {
       if (token !== adsbFrameToken || selectedIcao() !== code) return;
@@ -5181,10 +5915,21 @@
     if (isAdsbHash()) {
       const code = adsbIcaoFromHash() || icao;
       if (code.length === 4 && currentIcao !== code) {
+        rememberAdsbAirport(code);
         currentIcao = code;
         saveLastIcao(code);
       }
       loadAdsbFrame(code);
+      return;
+    }
+    if (hashKey() === "slots") {
+      if (shouldShowAmsCdm()) {
+        currentIcao = "EHAM";
+        saveLastIcao("EHAM");
+        loadCdmFrame();
+      } else {
+        location.hash = thirdHashFor(icao);
+      }
       return;
     }
     const want = thirdHashFor(icao);
@@ -5192,16 +5937,46 @@
       location.hash = want;
       return;
     }
-    if (shouldShowAmsCdm()) loadCdmFrame();
-    else loadAdsbFrame(icao);
+    loadAdsbFrame(icao);
   }
 
-  function openAdsbFromBoard() {
+  function openAmsCdmFromBoard() {
     if (pinOverlayIsOpen()) return;
+    if (!shouldShowAmsCdm()) return;
+    adsbFollowUrl = "";
     currentIcao = "EHAM";
     saveLastIcao("EHAM");
-    if (hashKey() !== "adsb/eham") location.hash = "adsb/EHAM";
-    else loadAdsbFrame("EHAM");
+    if (hashKey() !== "slots") location.hash = "slots";
+    else loadCdmFrame();
+  }
+
+  function openAdsbFollow(url, entry) {
+    if (!url) return;
+    adsbFollowUrl = url;
+    const code = selectedIcao() || "EHAM";
+    if (code.length === 4) {
+      currentIcao = code;
+      saveLastIcao(code);
+    }
+    const want = "adsb/" + (currentIcao || "EHAM");
+    if (hashKey() !== want.toLowerCase()) location.hash = want;
+    else loadAdsbFrame(currentIcao || "EHAM");
+  }
+
+  async function hextoryFromPin(row, opts) {
+    const hx = window.Hextory;
+    if (!hx) return null;
+    const entry = hx.addFromBoard(row || {});
+    if (!entry) return null;
+    const share = hx.shareClipboardText
+      ? hx.shareClipboardText(entry)
+      : hx.shareUrl(entry);
+    const copied = share ? await hx.copyText(share) : false;
+    const title = entry.reg || (row && row.flight) || "Aircraft";
+    if (!opts || opts.toast !== false) {
+      showCdmToast(title, copied ? "Hextory · link copied." : "Hextory.");
+    }
+    return entry;
   }
 
   async function loadAtis(icao, { force = false } = {}) {
@@ -5247,7 +6022,12 @@
       renderResult({ icao, text: "" }, { loading: true });
     }
 
-    if (!force && atisInFlight[icao]) return;
+    if (!force && atisInFlight[icao]) {
+      await atisInFlight[icao];
+      const ready = cache[icao];
+      if (ready && currentIcao === icao) renderResult(ready);
+      return;
+    }
 
     if (force) {
       startBtnSweep(refreshBtn);
@@ -5434,10 +6214,9 @@
     }
   });
 
-  backBtn.addEventListener("click", () => {
-    location.hash = "";
-    showHome();
-  });
+  if (selectAirportBtn) {
+    selectAirportBtn.addEventListener("click", () => goSelectAirport());
+  }
 
   pinBtn.addEventListener("click", () => {
     if (currentIcao) togglePin(currentIcao);
@@ -5460,6 +6239,21 @@
     const icao = briefIcaoFromHash() || currentIcao || loadLastIcao();
     if (icao) loadBrief(icao, { force: true });
   });
+
+  const tabsNav = document.querySelector(".tabs");
+  if (tabsNav) {
+    tabsNav.addEventListener(
+      "click",
+      (event) => {
+        const btn = event.target.closest(".tab");
+        if (!btn || !tabsNav.contains(btn) || btn.classList.contains("active")) {
+          return;
+        }
+        dismissFrontOverlays();
+      },
+      true
+    );
+  }
 
   document.getElementById("tab-atis").addEventListener("click", () => {
     if (currentTab === "atis" && !home.hidden) return;
@@ -5597,6 +6391,38 @@
   if (boardPinClose) {
     boardPinClose.addEventListener("click", () => unpinBoardFlight());
   }
+  if (boardPinAdsb) {
+    boardPinAdsb.addEventListener("click", () => {
+      const row = (boardPin && boardPin.row) || {};
+      const hx = window.Hextory;
+      const entry = hx ? hx.addFromBoard(row) : null;
+      const url = hx && entry ? hx.followUrl(entry) : "";
+      openAdsbFollow(url);
+    });
+  }
+  if (window.Hextory) {
+    window.Hextory.init({
+      toast: showCdmToast,
+      notify: (title, body) => {
+        showCdmToast(title, body);
+        showFlytifyNotification(title, body);
+      },
+      planeOverlay: setAdsbPlaneOverlay,
+      liveFlight: showAdsbFr24,
+      follow: (url, row) => {
+        openAdsbFollow(url, row);
+        if (row) showAdsbFr24(row);
+        warnIfAircraftOffMap(row);
+      },
+      homeAirport: hextoryHomeAirport,
+      homeAirports: hextoryHomeAirports,
+      home: (ap) => {
+        const code = ap && ap.icao;
+        if (code && code !== selectedIcao()) jumpAdsbToCity(code);
+        else returnAdsbToAirport();
+      },
+    });
+  }
   if (boardPinCdm) {
     boardPinCdm.addEventListener("load", () => {
       onPinCdmLoad();
@@ -5619,7 +6445,10 @@
       if (boardPin.dir === "D") scheduleFitPinCdm();
     }
   };
-  window.addEventListener("resize", placePinOnViewport);
+  window.addEventListener("resize", () => {
+    placePinOnViewport();
+    syncAdsbFr24Dock();
+  });
   if (window.visualViewport) {
     window.visualViewport.addEventListener("resize", placePinOnViewport);
   }
@@ -5655,6 +6484,11 @@
   for (const btn of boardDirBtns) {
     btn.addEventListener("click", () => {
       if (pinOverlayIsOpen()) return;
+      if (hashKey() === "slots") {
+        setBoardDir(btn.dataset.dir === "A" ? "A" : "D");
+        location.hash = "board";
+        return;
+      }
       const next = btn.dataset.dir === "A" ? "A" : "D";
       const same = next === boardDir && currentTab === "board";
       const held = boardHoldForView(next);
@@ -5683,10 +6517,7 @@
     });
   }
   if (boardAdsbBtn) {
-    boardAdsbBtn.addEventListener("click", () => openAdsbFromBoard());
-  }
-  if (adsbLink) {
-    adsbLink.addEventListener("click", () => openAdsbFromBoard());
+    boardAdsbBtn.addEventListener("click", () => openAmsCdmFromBoard());
   }
   document.getElementById("tab-slots").addEventListener("click", () => {
     const icao = selectedIcao();
@@ -5711,6 +6542,16 @@
   if (adsbHelpBtn) {
     adsbHelpBtn.addEventListener("click", openAdsbHelpDialog);
   }
+  if (adsbReturnBtn) {
+    adsbReturnBtn.addEventListener("click", () => returnAdsbSmart());
+  }
+  const onFr24CityClick = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    jumpAdsbToCity(event.currentTarget.dataset.icao);
+  };
+  if (adsbFr24CityFrom) adsbFr24CityFrom.addEventListener("click", onFr24CityClick);
+  if (adsbFr24CityTo) adsbFr24CityTo.addEventListener("click", onFr24CityClick);
   if (adsbHelpClose) {
     adsbHelpClose.addEventListener("click", closeAdsbHelpDialog);
   }
@@ -5729,6 +6570,7 @@
       toggleCdmNotify();
     });
   }
+  paintCdmNotifyBtn();
   if (slotsFrame) {
     slotsFrame.addEventListener("load", () => {
       if (thirdMode === "cdm") {
@@ -5757,6 +6599,8 @@
       (worstwindDialog && !worstwindDialog.hidden) ||
       (cdmHelpDialog && !cdmHelpDialog.hidden) ||
       (adsbHelpDialog && !adsbHelpDialog.hidden) ||
+      (hextoryOverlay && !hextoryOverlay.hidden) ||
+      (hextoryHelpDialog && !hextoryHelpDialog.hidden) ||
       (boardFocusHelpDialog && !boardFocusHelpDialog.hidden) ||
       (boardFocusDialog && !boardFocusDialog.hidden) ||
       (boardPinOverlay && !boardPinOverlay.hidden)
@@ -5768,7 +6612,14 @@
       return detail;
     }
     if (currentTab === "taf" && briefView && !briefView.hidden) return briefView;
-    if (currentTab === "board" && boardView && !boardView.hidden) return boardView;
+    if (
+      currentTab === "board" &&
+      boardView &&
+      !boardView.hidden &&
+      !document.documentElement.classList.contains("cdm-under-board")
+    ) {
+      return boardView;
+    }
     return null;
   }
 

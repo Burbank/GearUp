@@ -2,6 +2,51 @@
 
 Session history for rebuild. Older narrative also lives in `CURSOR_general_logs/ATIS_PWA/LOG.md`.
 
+## 2026-08-30 — version 1.6
+
+Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`. SW `gearup-v360`. Live: https://gearup4u.netlify.app
+
+This is the first public cut after 1.5 that includes local Aug 29–30 work. Rolled back the broken ADS-B / Hextory chrome from the iOS-sideload session (v356–v368 experiments). Kept the new 4U mask and the later lockup tweaks. ATIS now uses the same floating Select Airport as TAF and ADS-B.
+
+What landed since 1.5:
+
+- **Hextory** — ⬡ list, ADD to HEXTORY, Backup / Search registration, FR24 history icons, FLYtification (phone-only).
+- **FR24 card** — selected-plane overlay via `FR24_API_KEY` (server / Netlify only).
+- **ADS-B chips** — i / E / ⬡ / ↺ / UTC / ADD grid; chips slide with the GAL card (`--adsb-plane-shift`).
+- **NOTIFY** — same phone-only rule as FLYtification. Hidden and inert on a Mac.
+- **4U** — new rounded-U mask (`213×175`, `four-u.png?v=262`). Home is smaller and half a P right / a bit down. Hextory 4U sits to the right of GearUp, half a P closer to the **p**. Hextory title is under GearUp, not on top of it.
+- **ATIS chrome** — DEPT / Pin / Refresh match the tab row. Select Airport floats at the bottom.
+
+Cleanup before ship: removed the dead ATIS `SELECT AIRPORT` / `back-btn` and the always-hidden `adsb-link` button plus `openAdsbFromBoard`. Ignored local scratch files (`grok_report-2.pdf`, `Gear_Up_Right_Away.png`, `icons/fasttrack-your.png`).
+
+## 2026-08-30 — ATIS uses floating Select Airport
+
+ATIS no longer has Select Airport in the top chrome. DEPT, Pin/Unpin, and Refresh sit in a three-wide row matching the tab switches. Select Airport is the same bottom float as TAF and ADS-B. SW `gearup-v359`. Not deployed.
+
+## 2026-08-30 — 4U lockup and Hextory title
+
+Home 4U is another 10% smaller, half a P right, a bit down. Hextory 4U is 20% larger and sits to the right of GearUp. Hextory sits under GearUp, not on top of it. SW `gearup-v357`. Not deployed.
+
+## 2026-08-30 — 4U 60% smaller
+
+Home and Hextory 4U are 40% of the restored size (2.3rem / 1.28rem). SW `gearup-v356`. Not deployed.
+
+## 2026-08-30 — Restore v354 plus new 4U mask
+
+Local PWA is back to phone-only NOTIFY (`gearup-v354` behavior). The only later change kept is the new 4U mask (`213×175`, `four-u.png?v=262`). ADS-B / Hextory chrome from v356–v368 is out. SW `gearup-v355`. Not deployed.
+
+## 2026-08-28 — waiting on App Store
+
+Native GearUp4U 1.0 (build 1) uploaded. Privacy page: national providers first, open-data second; host may keep standard web logs. Waiting for Apple to release.
+
+## 2026-08-28 — combined CYVR ATIS
+
+NavCanada copies that are one briefing for both sides (ARR header plus landing and departure runways, or both ATIS headers) are `combined`. ARR no longer says none when that same copy is on DEPT. Do not invent a DEP header on an ARR-titled combined message.
+
+## 2026-08-28 — version 1.5
+
+Home shows **1.5** and the Support i next to it, opening https://gearup4u.netlify.app/privacy-policy.html. SW `gearup-v254`. Shipped to Netlify `gearup4u`.
+
 ## 2026-08-28 — Privacy and Support
 
 One page at `/privacy-policy.html` (title Privacy and Support). Home `1.4` has a small Support i next to it. ADS-B overlay: layers icon, Isolate selected aircraft, Map help, Look up a flight, unfiltered browser tab. SW `gearup-v253`. Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`.

@@ -83,7 +83,7 @@
       media="(prefers-color-scheme: dark)"
     />
     <script src="/js/theme.js"></script>
-    <link rel="stylesheet" href="/css/app.css?v=253" />
+    <link rel="stylesheet" href="/css/app.css?v=333" />
   </head>
   <body>
     <div id="app">
@@ -98,14 +98,14 @@
           <span>FLIGHT</span>
           <span>BOARD</span>
         </button>
-        <button type="button" id="tab-slots" class="tab" data-tab="slots">
-          AMS CDM
+        <button type="button" id="tab-slots" class="tab" data-tab="adsb">
+          ADS-B
         </button>
       </nav>
 
       <section id="home" class="view view-home" hidden>
         <header class="home-header">
-          <div class="home-brand" aria-label="GearUp Right Away">
+          <div class="home-brand" aria-label="GearUp4U">
             <h1>GearUp</h1>
             <span class="home-script" aria-hidden="true"></span>
           </div>
@@ -165,7 +165,9 @@
         <div id="pins" class="pins"></div>
         <div class="disclaimer">
           <p>
-            Drag a card to rearrange. Swipe or drag left to delete.
+            Hold a card to rearrange. Swipe a card past the left edge of the
+            screen to delete. Swipe past the right edge to copy ATIS, METAR, and
+            TAF.
           </p>
           <p>
             To save as a web app on iPhone, open this page in Safari, tap Share,
@@ -192,7 +194,7 @@
           </p>
         </div>
         <div class="home-version">
-          <p aria-label="Version 1.4">1.4</p>
+          <p aria-label="Version 1.6">1.6</p>
           <a
             class="cdm-reset cdm-help home-support"
             href="https://gearup4u.netlify.app/privacy-policy.html"
@@ -206,24 +208,6 @@
 
       <section id="detail" class="view view-detail" hidden>
         <header class="detail-chrome">
-          <button
-            type="button"
-            id="back-btn"
-            class="icon-btn back-btn"
-            aria-label="Back to previous"
-          >
-            <span>SELECT</span>
-            <span>AIRPORT</span>
-          </button>
-          <button
-            type="button"
-            id="adsb-link"
-            class="icon-btn"
-            hidden
-            aria-label="Amsterdam ADS-B"
-          >
-            ADS-B
-          </button>
           <button
             type="button"
             id="side-toggle"
@@ -463,9 +447,9 @@
             type="button"
             id="board-adsb"
             class="board-dir board-adsb"
-            aria-label="Amsterdam ADS-B"
+            aria-label="Amsterdam CDM"
           >
-            ADS-B
+            AMS CDM
           </button>
           <button
             type="button"
@@ -524,7 +508,7 @@
             id="adsb-frame"
             title="ADS-B"
             src="about:blank"
-            allow="fullscreen"
+            allow="clipboard-write; clipboard-read; fullscreen"
             hidden
           ></iframe>
           <button
@@ -535,8 +519,100 @@
             aria-label="ADS-B help"
             aria-controls="adsb-help-dialog"
           >
-            i
+            <span class="adsb-glyph">i</span>
           </button>
+          <a
+            id="adsb-external"
+            class="cdm-reset cdm-help adsb-help adsb-external"
+            hidden
+            href="https://globe.airplanes.live/"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Open ADS-B in browser"
+            ><span class="adsb-glyph">E</span></a
+          >
+          <button
+            type="button"
+            id="adsb-hextory"
+            class="cdm-reset cdm-help adsb-help adsb-hextory"
+            hidden
+            aria-label="Hextory"
+            aria-controls="hextory-overlay"
+          >
+            <span class="adsb-glyph">⬡</span>
+          </button>
+          <button
+            type="button"
+            id="adsb-return"
+            class="cdm-reset cdm-help adsb-help adsb-return"
+            hidden
+            aria-label="Return to last airport"
+          >
+            <span class="adsb-glyph">↺</span>
+          </button>
+          <time
+            id="adsb-utc"
+            class="adsb-utc utc-clock"
+            hidden
+            datetime=""
+            aria-label="Zulu time"
+          >
+            <span id="adsb-utc-time">--:--:--</span
+            ><span class="utc-suffix">Z</span>
+          </time>
+          <button
+            type="button"
+            id="adsb-hextory-add"
+            class="cdm-reset adsb-help adsb-hextory-add"
+            hidden
+            aria-label="Add to Hextory"
+          >
+            <span class="adsb-add-line">ADD <span class="adsb-add-to">to</span></span>
+            <span class="adsb-add-line">HEXTORY</span>
+          </button>
+          <div id="adsb-fr24" class="adsb-fr24" hidden>
+            <a
+              id="adsb-fr24-link"
+              class="adsb-fr24-link"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span class="adsb-fr24-flight" id="adsb-fr24-flight">
+                <span class="adsb-fr24-airline" id="adsb-fr24-airline"></span>
+                <span class="adsb-fr24-num" id="adsb-fr24-num"></span>
+              </span>
+            </a>
+            <span class="adsb-fr24-reg" id="adsb-fr24-reg">
+              <span class="adsb-fr24-ete" id="adsb-fr24-ete"></span>
+              <span class="adsb-fr24-ident" id="adsb-fr24-ident"></span>
+            </span>
+            <span class="adsb-fr24-route" id="adsb-fr24-route">
+              <span class="adsb-fr24-leg adsb-fr24-leg-from">
+                <span class="adsb-fr24-dep" id="adsb-fr24-dep"></span>
+                <span class="adsb-fr24-from" id="adsb-fr24-from"></span>
+                <span class="adsb-fr24-arrow" id="adsb-fr24-arrow"></span>
+              </span>
+              <span class="adsb-fr24-leg adsb-fr24-leg-to">
+                <span class="adsb-fr24-to" id="adsb-fr24-to"></span>
+                <span class="adsb-fr24-arr" id="adsb-fr24-arr"></span>
+              </span>
+            </span>
+            <span class="adsb-fr24-places" id="adsb-fr24-places">
+              <button
+                type="button"
+                class="adsb-fr24-city"
+                id="adsb-fr24-city-from"
+                hidden
+              ></button>
+              <button
+                type="button"
+                class="adsb-fr24-city"
+                id="adsb-fr24-city-to"
+                hidden
+              ></button>
+            </span>
+            <span class="adsb-fr24-motion" id="adsb-fr24-motion"></span>
+          </div>
           <div class="cdm-chrome" id="cdm-chrome" hidden>
             <div class="cdm-chrome-bar">
               <button
@@ -585,14 +661,24 @@
             <h2 id="board-pin-title"></h2>
             <p id="board-pin-sub"></p>
           </div>
-          <button
-            type="button"
-            id="board-pin-close"
-            class="board-pin-close"
-            aria-label="Unpin flight"
-          >
-            ×
-          </button>
+          <div class="board-pin-actions">
+            <button
+              type="button"
+              id="board-pin-adsb"
+              class="board-pin-adsb"
+              aria-label="Open aircraft on ADS-B"
+            >
+              ADS-B
+            </button>
+            <button
+              type="button"
+              id="board-pin-close"
+              class="board-pin-close"
+              aria-label="Unpin flight"
+            >
+              ×
+            </button>
+          </div>
         </header>
         <div class="board-pin-cdm-wrap" id="board-pin-cdm-wrap" hidden>
           <iframe
@@ -746,8 +832,10 @@
             and turn on rain viewer radar.
           </p>
           <p>
-            Tap an aircraft, then I — Isolate selected aircraft — to see its
-            route. Pan and zoom if needed.
+            Tap an aircraft to isolate it and open Globe Airplanes Live full aircraft card
+            (the same extensive card as O on Global Aircraft Live). Pan and
+            zoom if needed. ADD to HEXTORY under ⬡ and ↺ saves that aircraft;
+            tapping a plane no longer adds it by itself.
           </p>
           <p>
             Colour is altitude. Grey is on the ground. This in-app map only
@@ -756,7 +844,9 @@
           </p>
           <p>
             Search finds ICAO, registration, or type. Zoom in if a plane is
-            missing from the list.
+            missing from the list. Selecting a plane also opens a small
+            FlightRadar24 card at the bottom right with the live route and
+            ETA when that registration is airborne.
           </p>
           <p>
             <a
@@ -775,13 +865,12 @@
             >
           </p>
           <p>
-            <a
-              id="adsb-help-open"
-              href="https://globe.airplanes.live/"
-              target="_blank"
-              rel="noopener noreferrer"
-              >Open ADS-B Viewer in Browser Tab</a
-            >
+            E opens the unfiltered airplanes.live globe in a new browser tab,
+            so you can search and zoom freely.
+          </p>
+          <p>
+            ↺ returns to the last airport zoom. Pan and tap the map freely;
+            only this button goes back.
           </p>
         </div>
         <button type="button" id="adsb-help-close" class="icon-btn">
@@ -927,13 +1016,284 @@
             These abbreviations are part of the Airport Collaborative Decision
             Making (A-CDM).
           </p>
+          <p>
+            NOTIFY is on the phone only. It watches the open flight for CDM
+            time changes and TOBT now. The Mac does not show NOTIFY or those
+            alerts.
+          </p>
         </div>
         <button type="button" id="cdm-help-close" class="icon-btn">
           Close
         </button>
       </div>
     </div>
+    <div id="hextory-overlay" class="hextory-overlay" hidden>
+      <div
+        class="hextory-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="hextory-kicker"
+      >
+        <header class="hextory-head">
+          <div class="hextory-brand-col">
+            <div class="home-brand hextory-brand" aria-hidden="true">
+              <p class="hextory-word">GearUp</p>
+              <span class="home-script"></span>
+            </div>
+            <p id="hextory-kicker" class="hextory-kicker">Hextory</p>
+          </div>
+          <div
+            id="hextory-theme"
+            class="theme-toggle"
+            role="group"
+            aria-label="Theme"
+          >
+            <button type="button" data-theme="system" title="Follow device appearance">
+              SYSTEM
+            </button>
+            <button type="button" data-theme="bright" title="Manual bright theme">
+              BRIGHT
+            </button>
+            <button type="button" data-theme="dim" title="Manual dim theme">
+              DIM
+            </button>
+          </div>
+        </header>
+        <div id="hextory-pins" class="pins hextory-pins"></div>
+        <div class="hextory-foot">
+          <div class="hextory-foot-actions">
+            <button type="button" id="hextory-backup" class="hextory-backup">
+              BACKUP LIST
+            </button>
+            <button
+              type="button"
+              id="hextory-reg"
+              class="hextory-backup"
+              aria-controls="hextory-reg-dialog"
+            >
+              SEARCH REGISTRATION
+            </button>
+          </div>
+          <button
+            type="button"
+            id="hextory-info"
+            class="cdm-reset cdm-help home-support"
+            aria-label="Hextory help"
+            aria-controls="hextory-help-dialog"
+          >
+            i
+          </button>
+        </div>
+      </div>
+    </div>
+    <div id="hextory-help-dialog" class="cdm-help-dialog" hidden>
+      <div
+        class="cdm-help-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="hextory-help-title"
+      >
+        <h2 id="hextory-help-title">Hextory</h2>
+        <div class="cdm-help-body">
+          <p>
+            Select an aircraft on the map. ADD to HEXTORY reads ICAO hex,
+            registration, type, and airline from the details card and adds it
+            here, newest on top (12 aircraft plus the airport cards). Older cards drop off the bottom.
+            SEARCH REGISTRATION adds a tail that is not live and looks up its
+            Mode S hex. BACKUP LIST / RESTORE LIST brings a saved set back.
+            Tap a card to find that aircraft on the map.
+          </p>
+          <p>Pin a Schiphol flight — it lands here and the map link is copied.</p>
+          <p>
+            The top-right cards are the most recently viewed airport and the
+            one before it. Tap either to return there. They cannot be deleted
+            or moved.
+          </p>
+          <p>
+            <svg
+              class="hextory-help-icon"
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              aria-hidden="true"
+            >
+              <path
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linejoin="round"
+                d="M6.5 3.6h11M6.5 20.4h11M8 3.6v2.1c0 3.1 2.2 4.2 4 6.3 1.8-2.1 4-3.2 4-6.3V3.6M8 20.4v-2.1c0-3.1 2.2-4.2 4-6.3 1.8 2.1 4 3.2 4 6.3v2.1"
+              />
+              <circle
+                cx="17.6"
+                cy="17.5"
+                r="5.15"
+                fill="var(--panel)"
+                stroke="currentColor"
+                stroke-width="1.35"
+              />
+              <ellipse
+                cx="17.6"
+                cy="17.5"
+                rx="2.55"
+                ry="1.55"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.2"
+              />
+              <circle cx="17.6" cy="17.5" r="0.7" fill="currentColor" />
+            </svg>
+            The hourglass-eye on a card opens that registration’s Flightradar24
+            history in a new tab.
+          </p>
+          <p>
+            <svg
+              class="hextory-help-icon"
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              aria-hidden="true"
+            >
+              <path
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linejoin="round"
+                d="M12 3.4c-3.2 0-5.2 2.4-5.2 5.8v2.4c0 1.5-.7 2.8-1.6 3.8h13.6c-.9-1-1.6-2.3-1.6-3.8V9.2c0-3.4-2-5.8-5.2-5.8z"
+              />
+              <path
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                d="M9.2 18.4c.6 1.3 1.6 2 2.8 2s2.2-.7 2.8-2"
+              />
+              <path
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                d="M12 3.4V2.6"
+              />
+            </svg>
+            FLYtification is on the phone only. Tap the
+            bell to watch one aircraft. GearUp then notifies the next ADS-B
+            events — first seen, takeoff, landing, and when it drops off or
+            looks parked. Only one tail at a time (tapping another bell moves
+            the watch). Tap the same bell again to turn it off. A watch ends
+            after 24 hours. Add GearUp to the Home Screen and allow
+            notifications so the short lock-screen line can appear (for example
+            “PH-CKA is taking off · AMS → JRO”). The Mac does not show the bell
+            or those alerts.
+          </p>
+          <p>
+            <svg
+              class="hextory-help-icon"
+              viewBox="0 0 24 24"
+              width="18"
+              height="18"
+              aria-hidden="true"
+            >
+              <circle
+                cx="12"
+                cy="10.4"
+                r="6.6"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.6"
+              />
+              <ellipse
+                cx="12"
+                cy="10.4"
+                rx="2.7"
+                ry="6.6"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.3"
+              />
+              <path
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.25"
+                d="M5.6 10.4h12.8M6.8 7.1h10.4M6.8 13.7h10.4"
+              />
+              <circle
+                cx="6.4"
+                cy="17.6"
+                r="5.15"
+                fill="var(--panel)"
+                stroke="currentColor"
+                stroke-width="1.35"
+              />
+              <path
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.55"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M8.5 15.6L4.9 17.6l3.6 2"
+              />
+            </svg>
+            The globe on the airport card opens that airport’s Flightradar24
+            page in a new tab.
+          </p>
+          <p>
+            Swipe a card past the left edge of the screen to remove it. Swipe
+            right past the right edge to copy the map link to your clipboard for
+            sharing anywhere. Handy for your friends and family.
+          </p>
+          <p>BACKUP LIST saves this set. RESTORE LIST brings that save back.</p>
+        </div>
+        <button type="button" id="hextory-help-close" class="icon-btn">
+          CLOSE
+        </button>
+      </div>
+    </div>
+    <div id="hextory-reg-dialog" class="hextory-reg-dialog" hidden>
+      <div
+        class="hextory-reg-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="hextory-reg-title"
+      >
+        <h2 id="hextory-reg-title">SEARCH REGISTRATION</h2>
+        <form id="hextory-reg-form" autocomplete="off">
+          <label class="sr-only" for="hextory-reg-input">Aircraft registration</label>
+          <input
+            id="hextory-reg-input"
+            name="reg"
+            type="text"
+            inputmode="text"
+            enterkeyhint="done"
+            autocapitalize="characters"
+            autocorrect="off"
+            autocomplete="off"
+            spellcheck="false"
+            lang="en"
+            placeholder="PH-CKA"
+          />
+          <div class="hextory-reg-actions">
+            <button type="button" id="hextory-reg-cancel" class="hextory-backup">
+              CANCEL
+            </button>
+            <button type="submit" id="hextory-reg-add" class="hextory-backup">
+              ADD
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
     <div id="cdm-toast" class="cdm-toast" hidden role="status"></div>
+    <button
+      type="button"
+      id="select-airport"
+      class="icon-btn back-btn select-airport"
+      hidden
+      aria-label="Select airport"
+    >
+      <span>SELECT</span>
+      <span>AIRPORT</span>
+    </button>
     <script src="/js/sun.js" defer></script>
     <script src="/js/tz.js" defer></script>
     <script src="/js/hl.js?v=219" defer></script>
@@ -943,6 +1303,10 @@
     <script src="/js/cdm.js?v=237" defer></script>
     <script src="/js/board.js?v=225" defer></script>
     <script src="/js/airports.js?v=211" defer></script>
-    <script src="/js/app.js?v=250" defer></script>
+    <script src="/js/fr24card.js?v=5" defer></script>
+    <script src="/js/flytify.js?v=2" defer></script>
+    <script src="/js/hextory.js?v=57" defer></script>
+    <script src="/js/actype.js?v=3" defer></script>
+    <script src="/js/app.js?v=291" defer></script>
   </body>
 </html>

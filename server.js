@@ -11,8 +11,27 @@ const { getAirport } = require("./lib/airport");
 const { getBriefWx } = require("./lib/briefwx");
 const { getDelay } = require("./lib/delay");
 const { proxyCdm, FRAME_CSP } = require("./lib/cdm");
+const {
+  proxyGlobeHtml,
+  proxyGlobeAsset,
+  FRAME_CSP: GLOBE_FRAME_CSP,
+} = require("./lib/globe");
 const { getBoard, peekBoard } = require("./lib/board");
-const { BOARD_CACHE, BOARD_MAX, RATE_LIMIT_MSG, boardClientOk, tooMany } = require("./lib/limit");
+const { lookupByReg, lookupByHex, lookupByHexes } = require("./lib/hex");
+const {
+  lookupByReg: lookupFr24ByReg,
+  lookupByRegs: lookupFr24ByRegs,
+  parseRegs: parseFr24Regs,
+  peekByReg: peekFr24ByReg,
+} = require("./lib/fr24");
+const {
+  BOARD_CACHE,
+  BOARD_MAX,
+  FR24_MAX,
+  RATE_LIMIT_MSG,
+  boardClientOk,
+  tooMany,
+} = require("./lib/limit");
 const { isIcao, jsonHeaders } = require("./lib/icao");
 
 const ROOT = __dirname;
@@ -160,6 +179,18 @@ function readBody(req, maxBytes) {
   });
 }
 
+function sendGlobeHtml(res, html) {
+  res.writeHead(200, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+    "X-Frame-Options": "SAMEORIGIN",
+    "Content-Security-Policy": GLOBE_FRAME_CSP,
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff",
+  });
+  res.end(html);
+}
+
 function sendCdmHtml(res, html) {
   res.writeHead(200, {
     "Content-Type": "text/html; charset=utf-8",
@@ -230,8 +261,85 @@ const server = http.createServer(async (req, res) => {
       }
       return;
     }
+    if (url.pathname === "/api/fr24" || url.pathname === "/api/fr24/") {
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        res.writeHead(405, SECURITY);
+        res.end();
+        return;
+      }
+      if (!boardClientOk(req)) {
+        sendJson(res, 403, { error: "Forbidden" });
+        return;
+      }
+      const rawReg = url.searchParams.get("reg") || "";
+      const ids = parseFr24Regs(rawReg);
+      const peek = peekFr24ByReg(rawReg);
+      if (!peek.skipLimit && tooMany(req, { max: FR24_MAX, bucket: "fr24" })) {
+        sendJson(res, 429, { error: RATE_LIMIT_MSG });
+        return;
+      }
+      try {
+        if (ids.length > 1) {
+          const data = await lookupFr24ByRegs(ids);
+          sendJson(res, 200, { batch: true, data }, "no-store");
+        } else {
+          const data = await lookupFr24ByReg(rawReg);
+          sendJson(res, 200, data, "no-store");
+        }
+      } catch (err) {
+        sendJson(res, err.statusCode || 502, {
+          error: err.message || "Failed to look up flight",
+        });
+      }
+      return;
+    }
     if (tooMany(req)) {
       sendJson(res, 429, { error: RATE_LIMIT_MSG });
+      return;
+    }
+    if (url.pathname === "/api/hex/live" || url.pathname === "/api/hex/live/") {
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        res.writeHead(405, SECURITY);
+        res.end();
+        return;
+      }
+      const fresh = url.searchParams.get("fresh") === "1";
+      const ids = String(url.searchParams.get("hex") || "")
+        .split(",")
+        .map((part) => part.trim())
+        .filter(Boolean);
+      try {
+        const ac = await lookupByHexes(ids, { liveOnly: true, fresh });
+        sendJson(res, 200, { ac }, "no-store");
+      } catch (err) {
+        sendJson(res, err.statusCode || 502, {
+          error: err.message || "Failed to look up aircraft",
+        });
+      }
+      return;
+    }
+    if (url.pathname.startsWith("/api/hex/")) {
+      if (req.method !== "GET" && req.method !== "HEAD") {
+        res.writeHead(405, SECURITY);
+        res.end();
+        return;
+      }
+      const rest = decodeURIComponent(url.pathname.slice("/api/hex/".length));
+      const liveOnly = url.searchParams.get("live") === "1";
+      const fresh = url.searchParams.get("fresh") === "1";
+      try {
+        let data;
+        if (rest.toLowerCase().startsWith("reg/")) {
+          data = await lookupByReg(rest.slice(4), { liveOnly, fresh });
+        } else {
+          data = await lookupByHex(rest.split("/")[0], { liveOnly, fresh });
+        }
+        sendJson(res, 200, data, "no-store");
+      } catch (err) {
+        sendJson(res, err.statusCode || 502, {
+          error: err.message || "Failed to look up aircraft",
+        });
+      }
       return;
     }
     if (url.pathname === "/api/cdm" || url.pathname === "/api/cdm/") {
@@ -285,6 +393,34 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     sendJson(res, 404, { error: "Not found" });
+    return;
+  }
+
+  if (url.pathname === "/globe" || url.pathname === "/globe/") {
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      res.writeHead(405, SECURITY);
+      res.end();
+      return;
+    }
+    proxyGlobeHtml()
+      .then((html) => sendGlobeHtml(res, html))
+      .catch((err) => {
+        res.writeHead(err.statusCode || 502, {
+          "Content-Type": "text/plain; charset=utf-8",
+          ...SECURITY,
+          "X-Frame-Options": "SAMEORIGIN",
+        });
+        res.end("Could not load the ADS-B map.");
+      });
+    return;
+  }
+  if (url.pathname.startsWith("/globe/")) {
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      res.writeHead(405, SECURITY);
+      res.end();
+      return;
+    }
+    proxyGlobeAsset(req, res, url.pathname.slice("/globe/".length), url.search);
     return;
   }
 

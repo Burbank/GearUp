@@ -37,10 +37,11 @@ Schiphol and CDM go through the proxy, not the browser, so keys never sit in cli
 - Board: **10 / 60s / IP** (`BOARD_MAX`), separate bucket. Count only when a **new** Schiphol crawl would start. Cache hits, in-flight fills, and other board polls while a crawl is running do not count, so Arrivals / filters / SHOW MORE / Focus do not 429 on top of an already-running fill.
 - Schiphol: **one request at a time**, no extra pause between pages. The 9-hour board window is estimated time from now−20 min. The 24-hour cargo/focus crawl uses schedule time (cargo often has no public EOBT). On HTTP 429, wait `Retry-After` (Schiphol API usage guidelines). Cache 60s + coalesce so Arrivals / filters / Focus do not start a second crawl. First `/api/board` waits for a finished snapshot, and returns a partial with rows if that crawl is still running at 18s on Netlify so the client is not left with a blank 502. Empty partials are not shown as “no upcoming.” Reloads keep the on-screen list and swap once. Function `board` timeout is 26s.
 - In-memory map; prune when size > 1500.
-- **`boardClientOk`**: `/api/board` if `Sec-Fetch-Site: same-origin`, Origin host matches Host, **or** the native iOS app sends `X-GearUp-Token` matching Netlify/local `GEARUP_IOS_BOARD_TOKEN` (optional `X-GearUp-Bundle: com.burbank.gearup`). That token is a client gate, not a Schiphol key. Agent `curl` without it gets **403**.
+- **`boardClientOk`**: `/api/board` and `/api/fr24` if `Sec-Fetch-Site: same-origin`, Origin host matches Host, **or** the native iOS app sends `X-GearUp-Token` matching Netlify/local `GEARUP_IOS_BOARD_TOKEN` (optional `X-GearUp-Bundle: com.burbank.gearup`). That token is a client gate, not a Schiphol or Flightradar key. Agent `curl` without it gets **403**.
+- Flightradar: **15 new lookups / 60s / IP** (`FR24_MAX`), own bucket. Cache hits (90s) and in-flight coalesces do not count. `fresh=1` is ignored so scrapers cannot cache-bust the paid token. Key stays in `.env` / Netlify env only.
 - Board HTTP cache: `public, s-maxage=60, stale-while-revalidate=30` (function + `netlify.toml`).
 
-Client (v1.4) holds ATIS 90s, TAF 90s, board 60s so tab switches do not multiply those budgets. Refresh and pull-to-refresh pass `{ force: true }` and `fresh=1`, which skip those holds and the in-process overheard / NAS / board caches. Tab return still uses the holds.
+Client (v1.6) holds ATIS 90s, TAF 90s, board 60s so tab switches do not multiply those budgets. Refresh and pull-to-refresh pass `{ force: true }` and `fresh=1`, which skip those holds and the in-process overheard / NAS / board caches. Tab return still uses the holds.
 
 ---
 
@@ -69,6 +70,7 @@ img-src 'self'
 connect-src 'self'
 media-src 'none'
 frame-src 'self' https://mobile.ehamcdm.nl https://globe.airplanes.live
+(in-app map loads `/globe/` on this origin; globe assets are proxied. Copy Link is hooked in-page so Hextory does not read the clipboard.)
 frame-ancestors 'none'
 ```
 
@@ -117,7 +119,7 @@ No inline scripts. Theme is a file. Do not add `unsafe-inline`.
 ## Clocks
 
 - One interval, 1s, **only while visible**.
-- Seconds text updates only on the ATIS detail view.
+- Seconds text updates on the ATIS detail view and the ADS-B cluster clock.
 - Minute work (ages, sun, TAF remain, local HH:MM, zulu colors) once per UTC minute.
 - `setText` no-ops when the string is unchanged.
 

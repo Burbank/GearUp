@@ -52,14 +52,13 @@
       if (schemeMeta) schemeMeta.setAttribute("content", "light dark");
     }
 
-    const group = document.getElementById("theme-toggle");
-    if (group) {
+    document.querySelectorAll(".theme-toggle").forEach((group) => {
       group.querySelectorAll("[data-theme]").forEach((btn) => {
         const on = btn.getAttribute("data-theme") === mode;
         btn.classList.toggle("active", on);
         btn.setAttribute("aria-pressed", on ? "true" : "false");
       });
-    }
+    });
 
     const lightIcon = document.getElementById("favicon");
     const darkIcon = document.getElementById("favicon-dark");
@@ -89,8 +88,8 @@
   }
 
   function bind() {
-    const group = document.getElementById("theme-toggle");
-    if (group && !group.dataset.bound) {
+    document.querySelectorAll(".theme-toggle").forEach((group) => {
+      if (group.dataset.bound) return;
       group.dataset.bound = "1";
       group.addEventListener("click", (event) => {
         const btn = event.target.closest("[data-theme]");
@@ -100,7 +99,7 @@
           setThemeMode(mode);
         }
       });
-    }
+    });
 
     let lastSysLight = systemIsLight();
     let mq = null;
