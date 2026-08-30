@@ -2,6 +2,10 @@
 
 Session history for rebuild. Older narrative also lives in `CURSOR_general_logs/ATIS_PWA/LOG.md`.
 
+## 2026-08-30 — ATIS tab from home
+
+Tapping the top-left ATIS tab on the airport selector opens that airport’s ATIS. It used to no-op when the tab was already marked ATIS. SW `gearup-v361`. Same 1.6 ship.
+
 ## 2026-08-30 — version 1.6
 
 Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`. SW `gearup-v360`. Live: https://gearup4u.netlify.app

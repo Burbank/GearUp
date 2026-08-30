@@ -6256,7 +6256,6 @@
   }
 
   document.getElementById("tab-atis").addEventListener("click", () => {
-    if (currentTab === "atis" && !home.hidden) return;
     const icao = currentIcao || loadLastIcao();
     if (icao) openAtis(icao);
     else if (hashKey()) location.hash = "";
