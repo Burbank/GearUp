@@ -6,8 +6,18 @@ const { netlifyLimited } = require("../../lib/limit");
 exports.handler = async (event) => {
   const limited = netlifyLimited(event);
   if (limited) return limited;
-  const q = event.queryStringParameters || {};
-  const parts = String(event.path || "")
+  const q = Object.assign({}, event.queryStringParameters || {});
+  const rawUrl = String((event && event.rawUrl) || "");
+  if (rawUrl) {
+    try {
+      new URL(rawUrl).searchParams.forEach((value, key) => {
+        if (q[key] == null || q[key] === "") q[key] = value;
+      });
+    } catch {
+      /* keep queryStringParameters */
+    }
+  }
+  const parts = String((event && event.path) || rawUrl || "")
     .split("/")
     .filter(Boolean);
   let kind = String(q.kind || "").toLowerCase();
@@ -15,7 +25,9 @@ exports.handler = async (event) => {
   if (!kind || !id) {
     const hexIdx = parts.lastIndexOf("hex");
     const after = hexIdx >= 0 ? parts.slice(hexIdx + 1) : [];
-    if (after[0] === "reg" && after[1]) {
+    if (after[0] === "live") {
+      kind = "live";
+    } else if (after[0] === "reg" && after[1]) {
       kind = "reg";
       id = after.slice(1).join("/");
     } else if (after[0]) {

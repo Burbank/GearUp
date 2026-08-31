@@ -1,4 +1,4 @@
-const CACHE = "gearup-v361";
+const CACHE = "gearup-v362";
 const PRECACHE = [
   "/",
   "/index.html",
@@ -71,6 +71,7 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return;
+  if (url.pathname === "/globe" || url.pathname.startsWith("/globe/")) return;
   const dest = event.request.destination;
   if (dest === "audio" || dest === "video") return;
 

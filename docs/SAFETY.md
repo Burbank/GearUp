@@ -70,7 +70,7 @@ img-src 'self'
 connect-src 'self'
 media-src 'none'
 frame-src 'self' https://mobile.ehamcdm.nl https://globe.airplanes.live
-(in-app map loads `/globe/` on this origin; globe assets are proxied. Copy Link is hooked in-page so Hextory does not read the clipboard.)
+(in-app map loads `/globe/` on this origin. JS/CSS stay a Netlify rewrite to airplanes.live. Live aircraft JSON (`/globe/data/*`, `/globe/re-api`) goes through the globe function with Referer/Origin `https://globe.airplanes.live` — Cloudflare 403s the naked rewrite when Referer is gearup4u. Copy Link is hooked in-page so Hextory does not read the clipboard.)
 frame-ancestors 'none'
 ```
 
@@ -83,7 +83,7 @@ No inline scripts. Theme is a file. Do not add `unsafe-inline`.
 ## Service worker
 
 - Precache the shell and fonts/icons. **Do not** precache `data/airports.json` (too large; cache-first on demand is enough).
-- Skip `/api/`. Skip audio/video destinations (no listen in the live app).
+- Skip `/api/` and `/globe` (live aircraft JSON must not be cached). Skip audio/video destinations (no listen in the live app).
 - Fonts/icons/data: cache-first. HTML/JS/CSS: network, fallback to cache (so deploys show after SW bump).
 - Bump `CACHE` on every ship or phones keep the previous overlay/CSS.
 
