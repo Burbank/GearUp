@@ -141,21 +141,29 @@
 # Live aircraft JSON / tiles: Cloudflare 403s Netlify's naked
 # proxy when Referer is gearup4u. Same-origin function sets
 # Referer/Origin to globe.airplanes.live (local server.js does this).
+# Do not put ?asset= on these — that replaces ?binCraft&zstd&box=
+# and airplanes.live returns 400 for binCraft= (equals-empty flags).
 [[redirects]]
   from = "/globe/data/*"
-  to = "/.netlify/functions/globe?asset=data/:splat"
+  to = "/.netlify/functions/globe/data/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/globe/re-api/"
+  to = "/.netlify/functions/globe/re-api/"
   status = 200
   force = true
 
 [[redirects]]
   from = "/globe/re-api"
-  to = "/.netlify/functions/globe?asset=re-api"
+  to = "/.netlify/functions/globe/re-api/"
   status = 200
   force = true
 
 [[redirects]]
   from = "/globe/re-api/*"
-  to = "/.netlify/functions/globe?asset=re-api/:splat"
+  to = "/.netlify/functions/globe/re-api/:splat"
   status = 200
   force = true
 

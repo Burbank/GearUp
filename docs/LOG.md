@@ -4,6 +4,8 @@ Session history for rebuild. Older narrative also lives in `CURSOR_general_logs/
 
 ## 2026-08-31 — GAL 403 on Netlify
 
+Hotfix: GAL `re-api` was 400 after the 403 proxy. airplanes.live wants `?binCraft&zstd&box=` flags; `binCraft=` is 400. Keep the raw query and stop replacing it with `?asset=`. SW `gearup-v363`.
+
 Airplanes.live Cloudflare returns 403 for `/globe/data/*` when Netlify’s edge rewrite forwards Referer `gearup4u.netlify.app`. Map tiles still load (browser → OSM). iOS and globe.airplanes.live itself are fine. Live JSON/tiles now go through the globe function with Referer/Origin `https://globe.airplanes.live` (same as local `server.js`). SW skips `/globe`. `/api/hex/live` no longer treats `live` as a hex when the query is dropped. SW `gearup-v362`. Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`.
 
 ## 2026-08-30 — ATIS tab from home

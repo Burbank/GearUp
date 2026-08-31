@@ -38,6 +38,24 @@ assert(
   "re-api query"
 );
 assert(
+  globeSearchFromEvent({
+    rawQuery: "binCraft&zstd&box=51,54,3,6",
+    queryStringParameters: { binCraft: "", zstd: "", box: "51,54,3,6" },
+  }) === "?binCraft&zstd&box=51,54,3,6",
+  "keep flag query"
+);
+assert(
+  globeSearchFromEvent({
+    queryStringParameters: { binCraft: "", zstd: "", box: "51,54,3,6" },
+  }) === "?binCraft&zstd&box=51%2C54%2C3%2C6",
+  "empty values stay flags"
+);
+assert(
+  globeRelFromEvent({ path: "/.netlify/functions/globe/re-api/" }) === "re-api/",
+  "re-api slash"
+);
+assert(globeRelFromEvent({ queryStringParameters: { asset: "re-api" } }) === "re-api/", "re-api asset");
+assert(
   globeRelFromEvent({
     queryStringParameters: { asset: "data/receiver.json" },
     path: "/.netlify/functions/globe",

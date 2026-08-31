@@ -70,7 +70,7 @@ img-src 'self'
 connect-src 'self'
 media-src 'none'
 frame-src 'self' https://mobile.ehamcdm.nl https://globe.airplanes.live
-(in-app map loads `/globe/` on this origin. JS/CSS stay a Netlify rewrite to airplanes.live. Live aircraft JSON (`/globe/data/*`, `/globe/re-api`) goes through the globe function with Referer/Origin `https://globe.airplanes.live` — Cloudflare 403s the naked rewrite when Referer is gearup4u. Copy Link is hooked in-page so Hextory does not read the clipboard.)
+(in-app map loads `/globe/` on this origin. JS/CSS stay a Netlify rewrite to airplanes.live. Live aircraft JSON (`/globe/data/*`, `/globe/re-api`) goes through the globe function with Referer/Origin `https://globe.airplanes.live` — Cloudflare 403s the naked rewrite when Referer is gearup4u. Pass `?binCraft&zstd&box=` as flags; `binCraft=` is HTTP 400. Copy Link is hooked in-page so Hextory does not read the clipboard.)
 frame-ancestors 'none'
 ```
 
