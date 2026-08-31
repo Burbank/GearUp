@@ -55,9 +55,10 @@ When bumping later: change the footer, UA, SW cache string, CSS query, and mask 
 | `js/airports.js` | Load/search `data/airports.json` |
 | `js/hextory.js` | ADS-B follow list (clipboard + board pins) |
 | `lib/hex.js` | Registration / hex lookup via airplanes.live |
+| `lib/globe.js` | Same-origin `/globe` HTML + data proxy. Netlify function, not the edge rewrite, for `/data/*` and `re-api`. Keep `?binCraft&zstd&box=` flags. |
 | `js/board.js` | Client board helpers (match, compact flight) |
 | `js/cdm.js` | Parse EHAM CDM HTML (TOBT, runway) |
-| `sw.js` | Precache shell; **never** intercept `/api/` |
+| `sw.js` | Precache shell; **never** intercept `/api/` or `/globe` |
 | `server.js` | Local HTTPS-only proxy + static allowlist |
 | `lib/present.js` | Attach formatted ATIS, runways, worst-wind lines for PWA + iOS |
 | `netlify/functions/*` | Thin wrappers around `lib/` |

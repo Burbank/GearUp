@@ -2,11 +2,14 @@
 
 Session history for rebuild. Older narrative also lives in `CURSOR_general_logs/ATIS_PWA/LOG.md`.
 
-## 2026-08-31 — GAL 403 on Netlify
+## 2026-08-31 — GAL 403 then 400 on Netlify
 
-Hotfix: GAL `re-api` was 400 after the 403 proxy. airplanes.live wants `?binCraft&zstd&box=` flags; `binCraft=` is 400. Keep the raw query and stop replacing it with `?asset=`. SW `gearup-v363`.
+Live PWA planes work again. Confirmed on device. GitHub `40ba5fc`. SW `gearup-v363`. Netlify deploy `6a95e1d9f63f3727580a3309`.
 
-Airplanes.live Cloudflare returns 403 for `/globe/data/*` when Netlify’s edge rewrite forwards Referer `gearup4u.netlify.app`. Map tiles still load (browser → OSM). iOS and globe.airplanes.live itself are fine. Live JSON/tiles now go through the globe function with Referer/Origin `https://globe.airplanes.live` (same as local `server.js`). SW skips `/globe`. `/api/hex/live` no longer treats `live` as a hex when the query is dropped. SW `gearup-v362`. Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`.
+1. **403** — Cloudflare blocked Netlify’s `/globe/data/*` rewrite when Referer was `gearup4u.netlify.app`. Map tiles still loaded. iOS and globe.airplanes.live were fine. Live JSON now goes through the globe function with Referer/Origin `https://globe.airplanes.live` (same as local `server.js`). `1067562`. SW `gearup-v362`.
+2. **400** — After that, `re-api` dropped or rewrote `?binCraft&zstd&box=` into `binCraft=`. airplanes.live returns 400 for equals-empty flags. Keep the raw query. `40ba5fc`. SW `gearup-v363`.
+
+FR24 same-origin lookups were already 200. SW skips `/globe`. `/api/hex/live` no longer treats `live` as a hex when the query is dropped.
 
 ## 2026-08-30 — ATIS tab from home
 
