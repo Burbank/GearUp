@@ -38,4 +38,10 @@ assert.strictEqual(
   true
 );
 
+const cyqx =
+  "CYQX 031740Z 0318/0418 22005KT P6SM BKN060 FM040200 22008KT P6SM SCT050 RMK NXT FCST BY 040000Z";
+assert.strictEqual(Hl.tafIssueZuluIndex(cyqx), cyqx.indexOf("031740Z"));
+assert.notStrictEqual(Hl.tafIssueZuluIndex(cyqx), cyqx.indexOf("040000Z"));
+assert.strictEqual(Hl.tafIssueZuluIndex(taf), taf.indexOf("261700Z"));
+
 console.log("taf-temp-zulu ok");

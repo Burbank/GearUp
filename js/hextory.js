@@ -2541,6 +2541,14 @@
         else if (addBtn) addBtn.hidden = true;
         return;
       }
+      if (data.reason === "find-hits") {
+        const line =
+          Find && Find.formatFindHits
+            ? Find.formatFindHits(data.count)
+            : "Matches found: " + String(data.count) + "\nZoom out for more.";
+        if (line) hooks.toast("FIND", line);
+        return;
+      }
       if (data.reason === "live") {
         if (Fr24Card && Fr24Card.rememberContacts) {
           Fr24Card.rememberContacts(data.contacts);

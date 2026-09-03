@@ -13,7 +13,7 @@ Times in the UI are UTC unless a local clock is shown next to them.
 - Token `(\d{1,2})([LCR])?` with 1–36.
 - Ident is zero-padded: `6` → `06`, `25L` stays `25L`.
 - **Heading = n × 10**, except **36 → 360**. That is the magnetic QFU (runway numbers are magnetic).
-- TAF header runway line (`js/runways.js`) is a static OurAirports plot, not the in-use ATIS set. Parallel numbers collapse (`18L/36R` + `18C/36C` + `18R/36L` → `18/36LCR`); remaining pairs stay `06/24`. Jet strips only: paved (or long coral/laterite), **≥ 4000 ft**, not closed / water / grass / helipad. Longest family first. Not used for T/H/X.
+- TAF header runway line (`js/runways.js`) is a static OurAirports plot, not the in-use ATIS set. Parallel numbers collapse (`18L/36R` + `18C/36C` + `18R/36L` → `18/36LCR`); remaining pairs stay `06/24`. After the list: ` · 18R/36L 3800 m` names the longest jet strip and its length in metres (`round(ft × 0.3048)`). A one-strip field omits the repeated ident (`09/27 · 2500 m`). Jet strips only: paved (or long coral/laterite), **≥ 4000 ft**, not closed / water / grass / helipad. Longest family first. Not used for T/H/X.
 - Spoken ATIS wind is also **magnetic** (ICAO Annex 11 §4.3.7). Same frame as the ident, so ATIS T/H/X need **no mag-var conversion**. METAR/SPECI/TAF winds are **true** (ICAO Annex 3).
 - Displayed METAR and TAF wind groups get `dddT` plus `[dddM]` from the yearly ICAO table (`data/magvar.json`, east-positive). Magnetic = true − east variation (east is least). EDDF ~+3.7° → `240T/07KT [236M]`. No table row → no estimate, and no METAR worst-wind fallback.
 - Stale-ATIS METAR fallback (`chooseWindSource`) uses those **magnetic** degrees when `varEast` is known, then existing `W.lines`. Runways stay from the ATIS (or inferred EHAM DEPT). `/api/atis` `worstWind.*` stays ATIS-only.
@@ -278,6 +278,7 @@ Polar day/night (`cosH` out of [−1, 1]) → hide the chip.
 - ATIS / METAR stale: **1 hour** (`STALE_MS`).
 - TAF issued / TAF body Zulu: **6 hours** (`TAF_STALE_MS`).
 - Token forms: `25 20:25Z`, `20:25Z`, `2025Z`, `252025Z`.
+- **TAF body: only the issue stamp can go red.** First clock Zulu (`031740Z`), not later remarks (`NXT FCST BY 040000Z`) or FM/TEMPO groups. Those later `Z` groups may stay `.zulu-time` but must not get `.zulu-old` or `data-ms`.
 - **TAF max/min temps are not clock times.** `TX31/2706Z` / `TN27/2622Z` / `TNM02/0615Z` use **date + hour** (`DDHHZ`), never HHMM. Do not paint them as `.zulu-time` / `.zulu-old`. Hour 24–31 in a 4-digit `Z` group is also rejected.
 - A stamp **later than now + 1 minute** is rolled to **yesterday** (EGLL 1350Z read at 11:44Z is last night). `ZULU_FUTURE_MS = 60s`.
 - The ATIS header reads **Arrival ATIS is N minutes old, displayed METAR is older.** (or **more recent** / **the same age**). Age is publication Zulu vs now, not fetch time. METAR compare uses the displayed METAR observation minute vs the ATIS publication minute. No METAR on screen → age only, no compare clause.

@@ -1837,12 +1837,16 @@
     return Number.isFinite(ms) && Date.now() - ms > limit;
   }
 
-  function zuluRanges(text, staleMs, referenceIso) {
+  function zuluRanges(text, staleMs, referenceIso, issueOnly) {
     const raw = String(text || "");
     const limit = Number.isFinite(staleMs) ? staleMs : STALE_MS;
     const out = [];
     const re = /\b(?:\d{2}\s\d{2}:\d{2}Z|\d{2}:\d{2}Z|\d{4}(?:\d{2})?Z)\b/g;
     const Hl = typeof GearUpHl !== "undefined" ? GearUpHl : null;
+    const issueAt =
+      issueOnly && Hl && Hl.tafIssueZuluIndex
+        ? Hl.tafIssueZuluIndex(raw)
+        : -1;
     let m = re.exec(raw);
     while (m) {
       const skipTemp =
@@ -1851,13 +1855,14 @@
           : /T[XN]\s*M?\d{2}\s*\/\s*$/i.test(raw.slice(Math.max(0, m.index - 12), m.index));
       if (!skipTemp) {
         const ms = zuluTokenToMs(m[0], referenceIso);
+        const ageable = !issueOnly || m.index === issueAt;
         out.push({
           start: m.index,
           end: m.index + m[0].length,
           cls: "zulu-time",
-          ms: Number.isFinite(ms) ? ms : undefined,
-          staleMs: limit,
-          old: Number.isFinite(ms) && isZuluOld(ms, limit),
+          ms: ageable && Number.isFinite(ms) ? ms : undefined,
+          staleMs: ageable ? limit : undefined,
+          old: ageable && Number.isFinite(ms) && isZuluOld(ms, limit),
         });
       }
       m = re.exec(raw);
@@ -1884,6 +1889,7 @@
     const o = opts || {};
     const staleMs = o.zuluStaleMs;
     const zuluRef = o.zuluRef;
+    const issueOnly = Boolean(o.zuluIssueOnly);
     const varEast = o.annotateWx
       ? currentVarEast(o.icao || currentIcao)
       : null;
@@ -1898,7 +1904,7 @@
         Hl.ranges(
           display,
           Object.assign({ icao: currentIcao, varEast }, o)
-        ).concat(zuluRanges(display, staleMs, zuluRef))
+        ).concat(zuluRanges(display, staleMs, zuluRef, issueOnly))
       );
       return;
     }
@@ -1908,6 +1914,7 @@
     let m = re.exec(raw);
     const skipTempAt = (index) =>
       /T[XN]\s*M?\d{2}\s*\/\s*$/i.test(raw.slice(Math.max(0, index - 12), index));
+    let sawIssue = !issueOnly;
     while (m) {
       if (skipTempAt(m.index)) {
         m = re.exec(raw);
@@ -1917,10 +1924,12 @@
         el.appendChild(document.createTextNode(raw.slice(last, m.index)));
       }
       const ms = zuluTokenToMs(m[0], zuluRef);
+      const ageable = !issueOnly || !sawIssue;
+      sawIssue = true;
       const mark = document.createElement("span");
       mark.className = "zulu-time";
       mark.textContent = m[0];
-      if (Number.isFinite(ms)) {
+      if (ageable && Number.isFinite(ms)) {
         mark.dataset.ms = String(ms);
         mark.dataset.staleMs = String(Number.isFinite(staleMs) ? staleMs : STALE_MS);
         if (isZuluOld(ms, staleMs)) mark.classList.add("zulu-old");
@@ -2298,6 +2307,7 @@
       paintOpsInto(tafBody, lastTafRaw, {
         runways: lastDepRunways,
         zuluStaleMs: TAF_STALE_MS,
+        zuluIssueOnly: true,
         annotateWx: true,
       });
     }
@@ -3081,6 +3091,7 @@
     paintOpsInto(tafBody, lastTafRaw, {
       runways: runwaysForPaint(),
       zuluStaleMs: TAF_STALE_MS,
+      zuluIssueOnly: true,
       annotateWx: true,
     });
     tickTafIssuedAge();
@@ -5305,9 +5316,16 @@
     cdmToast.replaceChildren();
     const ident = document.createElement("strong");
     ident.textContent = title;
-    const line = document.createElement("span");
-    line.textContent = body;
-    cdmToast.append(ident, line);
+    cdmToast.appendChild(ident);
+    String(body || "")
+      .split("\n")
+      .forEach((part, i) => {
+        if (!part) return;
+        const line = document.createElement("span");
+        if (i) line.className = "cdm-toast-note";
+        line.textContent = part;
+        cdmToast.appendChild(line);
+      });
     if (action && action.label && typeof action.onClick === "function") {
       const btn = document.createElement("button");
       btn.type = "button";
@@ -7009,6 +7027,7 @@
         paintOpsInto(tafBody, lastTafRaw, {
           runways: lastDepRunways,
           zuluStaleMs: TAF_STALE_MS,
+          zuluIssueOnly: true,
           annotateWx: true,
         });
       }

@@ -281,6 +281,12 @@
     return applyFindChips(classifyByMode(raw, mode), chips);
   }
 
+  function formatFindHits(count) {
+    const n = Number(count);
+    if (!Number.isFinite(n) || n < 0) return "";
+    return "Matches found: " + String(Math.round(n)) + "\nZoom out for more.";
+  }
+
   function buildFindGlobeUrl(found, airport) {
     const icao = String(airport || "")
       .trim()
@@ -360,6 +366,7 @@
     classifyFindQuery,
     applyFindChips,
     resolveFind,
+    formatFindHits,
     buildFindGlobeUrl,
     normalizeMode,
     readLastFind,

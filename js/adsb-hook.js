@@ -608,7 +608,7 @@
     try {
       q = new URLSearchParams(window.location.search || "");
     } catch {
-      return { reg: "", icao: "" };
+      return { reg: "", icao: "", type: "", callsign: "", squawk: "" };
     }
     return {
       reg: String(q.get("filterReg") || "")
@@ -617,6 +617,9 @@
       icao: String(q.get("filterIcao") || "")
         .replace(/[\s-]+/g, "")
         .toLowerCase(),
+      type: String(q.get("filterType") || "").trim(),
+      callsign: String(q.get("filterCallSign") || "").trim(),
+      squawk: String(q.get("filterSquawk") || "").trim(),
     };
   }
 
@@ -624,6 +627,18 @@
     return String(value || "")
       .replace(/[\s-]+/g, "")
       .toUpperCase();
+  }
+
+  function fieldMatches(value, pattern) {
+    const raw = String(value || "");
+    const pat = String(pattern || "");
+    if (!pat) return true;
+    if (!raw) return false;
+    try {
+      return raw.toUpperCase().match(pat) != null;
+    } catch {
+      return raw.toUpperCase().indexOf(pat.toUpperCase()) !== -1;
+    }
   }
 
   function planeMatchesFind(p, filters) {
@@ -637,6 +652,21 @@
         .replace(/^~/, "")
         .toLowerCase();
       if (!hex || hex.indexOf(filters.icao) < 0) return false;
+    }
+    if (
+      filters.type &&
+      !fieldMatches(p.icaotype || p.icaoType || p.type, filters.type)
+    ) {
+      return false;
+    }
+    if (
+      filters.callsign &&
+      !fieldMatches(p.flight || p.callsign, filters.callsign)
+    ) {
+      return false;
+    }
+    if (filters.squawk && !fieldMatches(p.squawk, filters.squawk)) {
+      return false;
     }
     return true;
   }
@@ -656,8 +686,22 @@
     return out;
   }
 
+  function collectAllPlanes() {
+    const out = [];
+    try {
+      if (typeof g !== "undefined" && g && g.planes) {
+        Object.keys(g.planes).forEach((k) => {
+          if (g.planes[k]) out.push(g.planes[k]);
+        });
+      }
+    } catch {
+      /* map not ready */
+    }
+    return out.length ? out : collectPlanes();
+  }
+
   function wrapFindFilter(filters) {
-    if (!filters.reg && !filters.icao) return;
+    if (!filters || (!filters.reg && !filters.icao)) return;
     if (
       !window.PlaneObject ||
       !PlaneObject.prototype ||
@@ -711,6 +755,45 @@
     }
   }
 
+  function hasFindQuery() {
+    const filters = readFindFilters();
+    return Boolean(
+      filters.type ||
+        filters.callsign ||
+        filters.squawk ||
+        filters.reg ||
+        filters.icao
+    );
+  }
+
+  function countFindHits() {
+    const filters = readFindFilters();
+    return collectAllPlanes().filter((p) => {
+      if (!p || !(p.icao || p.hex)) return false;
+      return planeMatchesFind(p, filters);
+    }).length;
+  }
+
+  function mapZoom() {
+    try {
+      if (window.OLMap && OLMap.getView) {
+        const z = Number(OLMap.getView().getZoom());
+        if (Number.isFinite(z)) return z;
+      }
+    } catch {
+      /* map not ready */
+    }
+    return 0;
+  }
+
+  function typesReady(planes) {
+    let typed = 0;
+    planes.forEach((p) => {
+      if (p && (p.icaotype || p.icaoType || p.type)) typed += 1;
+    });
+    return planes.length >= 8 && typed / planes.length >= 0.4;
+  }
+
   function scheduleFindFit() {
     const filters = readFindFilters();
     if (!filters.reg && !filters.icao) return;
@@ -726,10 +809,51 @@
     tick();
   }
 
+  function scheduleFindCount() {
+    if (!hasFindQuery()) return;
+    const filters = readFindFilters();
+    let ticks = 0;
+    let lastPosted = -1;
+    let pending = -1;
+    let flushTimer = 0;
+    const flush = (hits) => {
+      if (hits === lastPosted) return;
+      lastPosted = hits;
+      post({ reason: "find-hits", count: hits });
+    };
+    const tick = () => {
+      wrapFindFilter(filters);
+      const hits = countFindHits();
+      const zoom = mapZoom();
+      const wide = zoom > 0 && zoom <= 6;
+      const canZero =
+        (wide && typesReady(collectAllPlanes()) && ticks >= 8) || ticks >= 90;
+      if (hits > 0) {
+        if (lastPosted < 0) flush(hits);
+        else if (hits !== lastPosted) {
+          pending = hits;
+          if (!flushTimer) {
+            flushTimer = window.setTimeout(() => {
+              flushTimer = 0;
+              if (pending >= 0) flush(pending);
+              pending = -1;
+            }, 1200);
+          }
+        }
+      } else if (canZero && lastPosted !== 0) {
+        flush(0);
+      }
+      ticks += 1;
+      window.setTimeout(tick, ticks < 40 ? 400 : 1200);
+    };
+    tick();
+  }
+
   foldStyle();
   foldOpen();
   watch();
   scheduleFindFit();
+  scheduleFindCount();
   window.setInterval(watch, 400);
   window.addEventListener("resize", () => {
     if (overlayOpen()) postChrome();

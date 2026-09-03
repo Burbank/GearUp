@@ -455,6 +455,19 @@
     );
   }
 
+  const ZULU_TOKEN_RE = /\b(?:\d{2}\s\d{2}:\d{2}Z|\d{2}:\d{2}Z|\d{4}(?:\d{2})?Z)\b/g;
+
+  function tafIssueZuluIndex(text) {
+    const raw = String(text || "");
+    const re = new RegExp(ZULU_TOKEN_RE.source, "g");
+    let m = re.exec(raw);
+    while (m) {
+      if (!isTafForecastTempTime(raw, m.index)) return m.index;
+      m = re.exec(raw);
+    }
+    return -1;
+  }
+
   function tafTempRanges(text) {
     const raw = String(text || "");
     const out = [];
@@ -1332,6 +1345,7 @@
     formatMetar,
     formatAtis,
     isTafForecastTempTime,
+    tafIssueZuluIndex,
     stripAdviseInfo,
     wxRanges,
   };

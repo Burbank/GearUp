@@ -25,7 +25,10 @@ const eham = R.formatAirport([
   { le: "04", he: "22", len: 6617 },
   { le: "H1", he: "", len: 80 },
 ]);
-assert.strictEqual(eham, "18/36LCR, 06/24 09/27 04/22");
+assert.strictEqual(
+  eham,
+  "18/36LCR, 06/24 09/27 04/22 · 18R/36L 3800 m"
+);
 
 const eddf = R.formatAirport([
   { le: "07L", he: "25R", len: 13123 },
@@ -33,7 +36,7 @@ const eddf = R.formatAirport([
   { le: "07R", he: "25L", len: 13123 },
   { le: "18", he: "", len: 13123 },
 ]);
-assert.strictEqual(eddf, "07/25LCR, 18");
+assert.strictEqual(eddf, "07/25LCR, 18 · 07L/25R 4000 m");
 
 const kmia = R.formatAirport([
   { le: "08L", he: "26R", len: 10501 },
@@ -41,12 +44,15 @@ const kmia = R.formatAirport([
   { le: "09", he: "27", len: 13016 },
   { le: "12", he: "30", len: 9354 },
 ]);
-assert.strictEqual(kmia, "08/26LR, 09/27 12/30");
+assert.strictEqual(kmia, "08/26LR, 09/27 12/30 · 09/27 3967 m");
 
-assert.strictEqual(R.formatAirport([{ le: "09", he: "27", len: 8000 }]), "09/27");
+assert.strictEqual(
+  R.formatAirport([{ le: "09", he: "27", len: 8000 }]),
+  "09/27 · 2438 m"
+);
 assert.strictEqual(
   R.formatAirport([{ le: "08L", he: "26R", len: 8000 }]),
-  "08L/26R"
+  "08L/26R · 2438 m"
 );
 assert.strictEqual(R.formatAirport([{ le: "H1", he: "H2", len: 60 }]), "");
 
@@ -59,6 +65,8 @@ if (fs.existsSync(built)) {
   assert.ok(line.includes("09/27"), line);
   assert.ok(line.includes("06/24"), line);
   assert.ok(line.includes("04/22"), line);
+  assert.ok(line.includes("18R/36L"), line);
+  assert.ok(line.includes("3800 m"), line);
   assert.ok(!R.line("ZZZZ"));
 }
 

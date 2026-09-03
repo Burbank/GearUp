@@ -44,13 +44,49 @@
       .join("");
   }
 
+  function identLabel(part) {
+    return part ? part.n + (part.s || "") : "";
+  }
+
+  function pairLabel(a, b) {
+    if (a && b) {
+      const lo = Number(a.n) <= Number(b.n) ? a : b;
+      const hi = Number(a.n) <= Number(b.n) ? b : a;
+      return identLabel(lo) + "/" + identLabel(hi);
+    }
+    return identLabel(a || b);
+  }
+
+  function ftToM(ft) {
+    const n = Number(ft);
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return Math.round(n * 0.3048);
+  }
+
+  function withLongest(ids, pair, ft, strips) {
+    const m = ftToM(ft);
+    if (!ids || !m) return ids;
+    if (strips <= 1 || ids === pair) return ids + " · " + m + " m";
+    if (!pair) return ids + " · " + m + " m";
+    return ids + " · " + pair + " " + m + " m";
+  }
+
   function formatAirport(rows) {
     const groups = new Map();
+    let bestLen = 0;
+    let bestPair = "";
+    let strips = 0;
     for (const row of rows || []) {
       const a = parseIdent(row.le);
       const b = parseIdent(row.he);
       if (!a && !b) continue;
       const len = Number(row.len) || 0;
+      const pair = pairLabel(a, b);
+      strips += 1;
+      if (len > bestLen) {
+        bestLen = len;
+        bestPair = pair;
+      }
       if (a && b) {
         const lo = a.n <= b.n ? a : b;
         const hi = a.n <= b.n ? b : a;
@@ -111,9 +147,12 @@
       }
     }
     if (!families.length && !simples.length) return "";
-    if (!families.length) return simples.join(" ");
-    if (!simples.length) return families.join(", ");
-    return families.join(", ") + ", " + simples.join(" ");
+    const ids = !families.length
+      ? simples.join(" ")
+      : !simples.length
+        ? families.join(", ")
+        : families.join(", ") + ", " + simples.join(" ");
+    return withLongest(ids, bestPair, bestLen, strips);
   }
 
   function indexTable(data) {
@@ -125,7 +164,7 @@
     if (loading) return loading;
     const fetchFn = typeof fetch === "function" ? fetch : null;
     if (!fetchFn) return Promise.resolve(null);
-    loading = fetchFn("/data/runways.json?v=2", { cache: "force-cache" })
+    loading = fetchFn("/data/runways.json?v=3", { cache: "force-cache" })
       .then((res) => {
         if (!res.ok) throw new Error("runways");
         return res.json();
