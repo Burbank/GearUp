@@ -2,6 +2,15 @@
 
 Session history for rebuild. Older narrative also lives in `CURSOR_general_logs/ATIS_PWA/LOG.md`.
 
+## 2026-09-04 — FIND, FR24 next-sector, identity card
+
+Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp` `6beb48d`. Still **1.6**. SW `gearup-v381`. Netlify `6a99f99700799f6598b8a2cd`. Live: https://gearup4u.netlify.app
+
+- **FIND** — REGISTRATION / AIRLINE / AIRCRAFT. Hex inside registration. Parked full reg/hex toasts last seen + Add / Already in Hextory.
+- **FR24 flip** — On the ground we were painting the last landed inbound. Prefer an open next sector from that dest; ignore older unended ghosts; do not overwrite a live outbound with an ended inbound.
+- **No-route card** — Identity (airline, callsign, type, GND · kt · hdg). Parked-then-taxi → `AMS →`. Airborne-then-ground → `→ AMS`. No invented destination. Real FR24 route still wins.
+- Factory pins unchanged. Hard refresh / kill the home-screen PWA once for `gearup-v381`.
+
 ## 2026-08-31 — GAL 403 then 400 on Netlify
 
 Live PWA planes work again. Confirmed on device. GitHub `40ba5fc`. SW `gearup-v363`. Netlify deploy `6a95e1d9f63f3727580a3309`.
