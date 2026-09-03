@@ -2,6 +2,15 @@
 
 Session history for rebuild. Older narrative also lives in `CURSOR_general_logs/ATIS_PWA/LOG.md`.
 
+## 2026-09-04 — version 1.8
+
+Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp` `8c3c55f`. Home **1.8**. SW `gearup-v387`. Netlify `6a9a04d21432b0a5308725e9`. Live: https://gearup4u.netlify.app
+
+- **FIND toast** — After a filter search, `Matches found: N` plus `Zoom out for more.` Counts loaded matches as the globe fills; does not toast a premature 0 at airport zoom.
+- **TAF longest runway** — Header names the longest jet strip and metres, e.g. EHAM `18/36LCR, 09/27 06/24 04/22 · 18R/36L 3800 m`.
+- **TAF issue red** — Only the issue stamp (`031740Z`) can go stale-red. `NXT FCST BY 040000Z` stays normal.
+- Factory pins unchanged. Hard refresh / kill the home-screen PWA once for `gearup-v387`.
+
 ## 2026-09-04 — version 1.7
 
 Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp` `5c1891f`. Home **1.7**. SW `gearup-v382`. Netlify `6a99fbd14276232e6bc107b9`. Live: https://gearup4u.netlify.app
