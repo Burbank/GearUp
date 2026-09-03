@@ -4,7 +4,9 @@ Session history for rebuild. Older narrative also lives in `CURSOR_general_logs/
 
 ## 2026-09-04 — version 1.7
 
-Worldwide airline FIND names. Home **1.7**. SW `gearup-v382`. `Southwest`, `Delta`, `Turkish`, and ~800 active IATA/ICAO carriers. Common shorts plus WN/SWA-style aliases. OpenFlights dump is not in git.
+Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp` `5c1891f`. Home **1.7**. SW `gearup-v382`. Netlify `6a99fbd14276232e6bc107b9`. Live: https://gearup4u.netlify.app
+
+Worldwide airline FIND names. `Southwest`, `Delta`, `Turkish`, and ~800 active IATA/ICAO carriers. Common shorts plus WN/SWA-style aliases. OpenFlights dump is not in git. Hard refresh / kill the home-screen PWA once.
 
 ## 2026-09-04 — FIND, FR24 next-sector, identity card
 
