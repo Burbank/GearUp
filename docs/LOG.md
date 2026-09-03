@@ -4,7 +4,9 @@ Session history for rebuild. Older narrative also lives in `CURSOR_general_logs/
 
 ## 2026-09-04 — version 1.8 (CYYZ ARR ATIS)
 
-Same **1.8** home. SW `gearup-v389`. NavCanada `ARR ATIS` that lists `DEP RWY` stays arrival, not Combined. Wind strip uses `DEP` / `LDG` tags: **06L DEPARTURE** plus **05 / 06R LANDING**. Factory pins unchanged. Hard refresh / kill the home-screen PWA once for `gearup-v389`.
+Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp` `81b8b89`. Home **1.8**. SW `gearup-v389`. Netlify `6a9a08811dd11f355cfff7e2`. Live: https://gearup4u.netlify.app
+
+NavCanada `ARR ATIS` that lists `DEP RWY` stays arrival, not Combined. Wind strip uses `DEP` / `LDG` tags: **06L DEPARTURE** plus **05 / 06R LANDING**. Factory pins unchanged. Hard refresh / kill the home-screen PWA once for `gearup-v389`.
 
 ## 2026-09-04 — version 1.8
 
