@@ -95,6 +95,12 @@ function opsCovered(text, needle, opts) {
 }
 
 const rwy24 = [{ id: "24", n: 24, side: "", hdg: 240, role: "main" }];
+const faorAtis = "MAIN DEPARTURE RWY 24\nWIND 075 DEG, 10 KT.";
+assert.ok(opsCovered(faorAtis, "075", { runways: rwy24 }));
+assert.ok(
+  opsCovered(faorAtis, "075", { runways: rwy24, varEast: -20.8 }),
+  "spoken ATIS degrees are already magnetic"
+);
 assert.ok(opsCovered("LANDING RWY 24\n24030KT", "24030KT", { runways: rwy24 }));
 assert.ok(opsCovered("LANDING RWY 24\n24025G35KT", "24025G35KT", { runways: rwy24 }));
 assert.ok(!opsCovered("LANDING RWY 24\n24029KT", "24029KT", { runways: rwy24 }));

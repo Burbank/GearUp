@@ -369,11 +369,11 @@ html.pin-scroll-lock body {
   z-index: 0;
   height: 2.07rem;
   width: auto;
-  aspect-ratio: 213 / 175;
+  aspect-ratio: 595 / 485;
   pointer-events: none;
   background-color: var(--fg);
-  -webkit-mask-image: url("/icons/four-u.png?v=262");
-  mask-image: url("/icons/four-u.png?v=262");
+  -webkit-mask-image: url("/icons/four-u.png?v=263");
+  mask-image: url("/icons/four-u.png?v=263");
   -webkit-mask-size: 100% 100%;
   mask-size: 100% 100%;
   -webkit-mask-repeat: no-repeat;
@@ -828,6 +828,21 @@ html.theme-bright .home-script {
   display: none !important;
 }
 
+.brief-runways {
+  flex-basis: 100%;
+  margin: 0.08rem 0 0;
+  font-family: var(--sans);
+  font-size: calc(1.22rem - 3pt);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  line-height: 1.2;
+}
+
+.brief-runways[hidden] {
+  display: none !important;
+}
+
 .ident-meta {
   margin-left: auto;
   display: flex;
@@ -1074,6 +1089,12 @@ html.theme-bright .home-script {
 .hl-ops {
   font-weight: 700;
   font-size: calc(1em + 2pt);
+}
+
+.metar-mag {
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: 0.82em;
 }
 
 .atis-body.empty,
@@ -1344,6 +1365,14 @@ html.theme-bright .home-script {
 
 .worstwind-note {
   text-transform: uppercase;
+}
+
+.worstwind-src {
+  font-family: var(--sans);
+  font-size: calc(1.12rem - 2pt);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  color: var(--muted);
 }
 
 .worstwind-line .hl-ops {
@@ -2116,6 +2145,13 @@ html.theme-dim .adsb-help.cdm-reset {
   display: none;
 }
 
+.adsb-fr24.is-inferred .adsb-fr24-from,
+.adsb-fr24.is-inferred .adsb-fr24-to,
+.adsb-fr24.is-inferred .adsb-fr24-arrow {
+  font-weight: 500;
+  opacity: 0.82;
+}
+
 html.theme-bright .adsb-fr24 {
   background: color-mix(in srgb, var(--panel) 90%, transparent);
   border-color: color-mix(in srgb, var(--accent) 38%, transparent);
@@ -2191,7 +2227,7 @@ html.theme-dim .adsb-fr24 {
 }
 
 .hextory-head .hextory-brand .home-script {
-  height: 1.54rem;
+  height: 1.77rem;
   left: -0.22rem;
   top: 0;
   transform: none;
@@ -2566,6 +2602,29 @@ html.theme-dim .adsb-fr24 {
   font-weight: 600;
 }
 
+.hextory-card.is-fr24.is-inferred .adsb-fr24-from,
+.hextory-card.is-fr24.is-inferred .adsb-fr24-to,
+.hextory-card.is-fr24.is-inferred .adsb-fr24-arrow {
+  font-weight: 500;
+  opacity: 0.82;
+}
+
+.hextory-guess {
+  color: var(--muted);
+  font-weight: 400;
+  margin-left: 0.05em;
+}
+
+.hextory-homebound {
+  color: var(--muted);
+  font-size: 0.676rem;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  margin-left: 0.4em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
 .hextory-card.is-fr24 .adsb-fr24-airline {
   font-size: 0.92em;
 }
@@ -2682,13 +2741,19 @@ html.theme-dim .adsb-fr24 {
 }
 
 .hextory-reg-card h2 {
-  margin: 0 0 0.7rem;
+  margin: 0 0 0.55rem;
   font-size: 1.12rem;
   font-weight: 700;
   letter-spacing: 0.04em;
 }
 
-.hextory-reg-card input {
+.hextory-find-modes .board-focus-tick {
+  font-size: 0.62rem;
+  letter-spacing: 0.03em;
+  padding: 0.12rem 0.2rem;
+}
+
+.hextory-reg-card #hextory-reg-input {
   box-sizing: border-box;
   width: 100%;
   min-height: 44px;
@@ -2705,9 +2770,23 @@ html.theme-dim .adsb-fr24 {
 }
 
 .hextory-reg-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.45rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.4rem;
+}
+
+.hextory-reg-actions .hextory-backup {
+  width: 100%;
+}
+
+.hextory-reg-card .board-focus-ticks {
+  margin: 0 0 0.75rem;
+}
+
+.adsb-find-btn {
+  display: block;
+  width: 100%;
+  margin: 0 0 0.75rem;
 }
 
 .cdm-help-terms {
@@ -2872,9 +2951,9 @@ html.adsb-fr24-dock .select-airport.icon-btn {
 
 .cdm-toast {
   position: fixed;
-  top: max(0.7rem, env(safe-area-inset-top, 0px));
+  top: calc(env(safe-area-inset-top, 0px) + 0.7rem);
   left: 50%;
-  z-index: 80;
+  z-index: 110;
   display: flex;
   flex-direction: column;
   gap: 0.21rem;
@@ -2889,6 +2968,26 @@ html.adsb-fr24-dock .select-airport.icon-btn {
   font-family: var(--sans);
   transform: translateX(-50%);
   pointer-events: none;
+}
+
+.cdm-toast:has(.cdm-toast-btn) {
+  pointer-events: auto;
+}
+
+.cdm-toast-btn {
+  margin-top: 0.35rem;
+  min-height: 40px;
+  padding: 0 0.7rem;
+  border: 2px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--btn-text);
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
 }
 
 .cdm-toast[hidden] {
@@ -3495,6 +3594,11 @@ html.adsb-fr24-dock .select-airport.icon-btn {
   grid-template-columns: 1fr 1fr;
   gap: 0.4rem;
   margin: 0.75rem 0 0;
+}
+
+.board-focus-ticks.hextory-find-modes {
+  grid-template-columns: 1fr 1fr 1fr;
+  margin: 0 0 0.7rem;
 }
 
 .board-focus-tick {

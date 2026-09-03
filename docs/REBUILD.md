@@ -53,6 +53,7 @@ When bumping later: change the footer, UA, SW cache string, CSS query, and mask 
 | `js/tz.js` | ICAO → IANA local clock |
 | `js/theme.js` | SYSTEM / BRIGHT / DIM |
 | `js/airports.js` | Load/search `data/airports.json` |
+| `js/runways.js` | TAF header runway line from `data/runways.json` |
 | `js/hextory.js` | ADS-B follow list (clipboard + board pins) |
 | `lib/hex.js` | Registration / hex lookup via airplanes.live |
 | `lib/globe.js` | Same-origin `/globe` HTML + data proxy. Netlify function, not the edge rewrite, for `/data/*` and `re-api`. Keep `?binCraft&zstd&box=` flags. |
@@ -63,6 +64,7 @@ When bumping later: change the footer, UA, SW cache string, CSS query, and mask 
 | `lib/present.js` | Attach formatted ATIS, runways, worst-wind lines for PWA + iOS |
 | `netlify/functions/*` | Thin wrappers around `lib/` |
 | `data/airports.json` | OurAirports index (ICAO, IATA, name, city, lat/lon, elev, tz) |
+| `data/runways.json` | Compact ICAO → `18/36LCR, 06/24` (OurAirports) |
 | `icons/four-u.png` | Home 4U mask (ink in alpha, paper clear) |
 | `docs/CALCULATIONS.md` | Every formula |
 | `archive/liveatc-listen/` | Parked LiveATC listen (not in the live app) |
@@ -108,6 +110,8 @@ Do not re-host a webfont. The script is a **CSS mask** after **GearUp**:
 ```
 node scripts/test-hl.js
 node scripts/test-worstwind.js
+node scripts/test-magvar.js
+node scripts/test-runways.js
 node scripts/test-ehamrwy.js
 node scripts/test-rwycond.js
 node scripts/test-board.js
@@ -122,6 +126,10 @@ node scripts/test-hextory.js
 ```
 
 Airport rebuild (large download): `node scripts/build-airports.js` → `data/airports.json`. Common city/name overrides: `CITY_COMMON` / `NAME_COMMON` in that script. Re-apply without download: `node scripts/build-airports.js --apply-only`.
+
+Magnetic variation table (yearly): `node scripts/build-magvar.js` → `data/magvar.json`. Uses OurAirports coordinates and WMM-2025 in the script only.
+
+Runway header line: `node scripts/build-runways.js` → `data/runways.json`. OurAirports `runways.csv` (same source as the airport-index length rank). Jet strips only (paved, ≥ 4000 ft). Display only on the TAF tab; not used for worst-wind.
 
 ## Deploy
 

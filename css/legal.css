@@ -133,10 +133,10 @@ h1 {
   flex: 0 0 auto;
   height: 1.73rem;
   width: auto;
-  aspect-ratio: 213 / 175;
+  aspect-ratio: 595 / 485;
   background-color: var(--text-color);
-  -webkit-mask-image: url("/icons/four-u.png?v=262");
-  mask-image: url("/icons/four-u.png?v=262");
+  -webkit-mask-image: url("/icons/four-u.png?v=263");
+  mask-image: url("/icons/four-u.png?v=263");
   -webkit-mask-size: 100% 100%;
   mask-size: 100% 100%;
   -webkit-mask-repeat: no-repeat;

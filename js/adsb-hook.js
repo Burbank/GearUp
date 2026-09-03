@@ -110,9 +110,11 @@
       String((p && (p.flight || p.callsign)) || "").trim();
     let alt = null;
     let gs = null;
+    let track = null;
     if (p) {
       alt = numOrNull(p.alt_baro != null ? p.alt_baro : p.altitude);
       gs = numOrNull(p.gs);
+      track = numOrNull(p.track != null ? p.track : p.true_heading);
     }
     if (!clean && !reg) return null;
     return {
@@ -123,6 +125,7 @@
       flight,
       alt,
       gs,
+      track,
       live: Boolean(p || clean || alt != null || gs != null),
     };
   }
@@ -504,6 +507,7 @@
       flight: String(p.flight || "").trim(),
       alt: numOrNull(p.alt_baro != null ? p.alt_baro : p.altitude),
       gs: numOrNull(p.gs),
+      track: numOrNull(p.track != null ? p.track : p.true_heading),
       live: true,
     };
   }
@@ -599,9 +603,133 @@
     }
   }
 
+  function readFindFilters() {
+    let q = null;
+    try {
+      q = new URLSearchParams(window.location.search || "");
+    } catch {
+      return { reg: "", icao: "" };
+    }
+    return {
+      reg: String(q.get("filterReg") || "")
+        .replace(/[\s-]+/g, "")
+        .toUpperCase(),
+      icao: String(q.get("filterIcao") || "")
+        .replace(/[\s-]+/g, "")
+        .toLowerCase(),
+    };
+  }
+
+  function compactReg(value) {
+    return String(value || "")
+      .replace(/[\s-]+/g, "")
+      .toUpperCase();
+  }
+
+  function planeMatchesFind(p, filters) {
+    if (!p || !filters) return false;
+    if (filters.reg) {
+      const reg = compactReg(p.registration || p.reg);
+      if (!reg || reg.indexOf(filters.reg) < 0) return false;
+    }
+    if (filters.icao) {
+      const hex = String(p.icao || p.hex || "")
+        .replace(/^~/, "")
+        .toLowerCase();
+      if (!hex || hex.indexOf(filters.icao) < 0) return false;
+    }
+    return true;
+  }
+
+  function collectPlanes() {
+    const out = [];
+    try {
+      if (typeof g !== "undefined" && g) {
+        if (Array.isArray(g.planesOrdered)) return g.planesOrdered.slice();
+        if (g.planes) {
+          Object.keys(g.planes).forEach((k) => out.push(g.planes[k]));
+        }
+      }
+    } catch {
+      /* map not ready */
+    }
+    return out;
+  }
+
+  function wrapFindFilter(filters) {
+    if (!filters.reg && !filters.icao) return;
+    if (
+      !window.PlaneObject ||
+      !PlaneObject.prototype ||
+      typeof PlaneObject.prototype.isFiltered !== "function" ||
+      PlaneObject.prototype.isFiltered._gearupFind
+    ) {
+      return;
+    }
+    const orig = PlaneObject.prototype.isFiltered;
+    PlaneObject.prototype.isFiltered = function () {
+      if (orig.apply(this, arguments)) return true;
+      return !planeMatchesFind(this, filters);
+    };
+    PlaneObject.prototype.isFiltered._gearupFind = true;
+  }
+
+  function fitFindHits(hits) {
+    if (!hits || !hits.length || !window.OLMap || !window.ol || !ol.proj) {
+      return false;
+    }
+    const coords = [];
+    hits.forEach((p) => {
+      const pos = p && p.position;
+      if (Array.isArray(pos) && pos.length >= 2) {
+        coords.push(ol.proj.fromLonLat(pos));
+      }
+    });
+    if (!coords.length) return false;
+    try {
+      const view = OLMap.getView();
+      if (!view) return false;
+      if (coords.length === 1) {
+        view.setCenter(coords[0]);
+        const z = Number(view.getZoom());
+        if (!Number.isFinite(z) || z < 9) view.setZoom(9);
+        return true;
+      }
+      const extent =
+        ol.extent && typeof ol.extent.boundingExtent === "function"
+          ? ol.extent.boundingExtent(coords)
+          : null;
+      if (!extent || !view.fit) return false;
+      view.fit(extent, {
+        padding: [72, 72, 72, 72],
+        maxZoom: 11,
+        duration: 280,
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  function scheduleFindFit() {
+    const filters = readFindFilters();
+    if (!filters.reg && !filters.icao) return;
+    let tries = 0;
+    const tick = () => {
+      wrapFindFilter(filters);
+      const hits = collectPlanes().filter(
+        (p) => planeSeen(p) && planeMatchesFind(p, filters)
+      );
+      if (fitFindHits(hits) || tries++ >= 20) return;
+      window.setTimeout(tick, 400);
+    };
+    tick();
+  }
+
   foldStyle();
   foldOpen();
   watch();
+  scheduleFindFit();
   window.setInterval(watch, 400);
   window.addEventListener("resize", () => {
     if (overlayOpen()) postChrome();

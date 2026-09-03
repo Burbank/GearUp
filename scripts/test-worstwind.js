@@ -259,4 +259,139 @@ assert.deepStrictEqual(Hl.arrRunways(kdenArrWx).map((r) => r.id), [
   "35R",
 ]);
 
+const staleAtis = "EHAM DEP ATIS S\nMAIN DEPARTURE RWY 24\nWIND 220 DEG, 9 KT.";
+const newerMetar = "EHAM 032025Z 24011KT 9999 FEW010";
+const olderMetar = "EHAM 031800Z 01004KT CAVOK";
+assert.strictEqual(
+  W.chooseWindSource({
+    atisText: staleAtis,
+    atisIssued: "2026-09-03T19:00:00Z",
+    atisStale: true,
+    metarText: newerMetar,
+    metarObserved: "2026-09-03T20:25:00Z",
+    varEast: 2.7,
+  }).from,
+  "metar"
+);
+assert.strictEqual(
+  W.chooseWindSource({
+    atisText: staleAtis,
+    atisIssued: "2026-09-03T19:00:00Z",
+    atisStale: true,
+    metarText: newerMetar,
+    metarObserved: "2026-09-03T20:25:00Z",
+  }).from,
+  "atis"
+);
+assert.strictEqual(
+  W.chooseWindSource({
+    atisText: staleAtis,
+    atisIssued: "2026-09-03T20:20:00Z",
+    atisStale: false,
+    metarText: newerMetar,
+    metarObserved: "2026-09-03T20:25:00Z",
+  }).from,
+  "atis"
+);
+assert.strictEqual(
+  W.chooseWindSource({
+    atisText: staleAtis,
+    atisIssued: "2026-09-03T19:30:00Z",
+    atisStale: true,
+    metarText: olderMetar,
+    metarObserved: "2026-09-03T18:00:00Z",
+  }).from,
+  "atis"
+);
+assert.strictEqual(
+  W.chooseWindSource({
+    atisText: staleAtis,
+    atisIssued: "2026-09-03T19:00:00Z",
+    atisStale: true,
+    metarText: "EHAM 032025Z CAVOK",
+    metarObserved: "2026-09-03T20:25:00Z",
+  }).from,
+  "atis"
+);
+
+assert.deepStrictEqual(
+  W.lines(
+    "LANDING RWY 06\nWIND 290 DEG, 10 KT, VRB BTN 250 AND 340 DEG",
+    { kind: "arrival", runways: [rwy("06")] }
+  ),
+  ["WORST 06 LANDING WIND 250/10 T10 X2"]
+);
+assert.deepStrictEqual(
+  W.lines(
+    "LANDING RWY 06\nWIND 060 DEG, 10 KT, VRB BTN 010 AND 100 DEG",
+    { kind: "arrival", runways: [rwy("06")] }
+  ),
+  ["WORST 06 LANDING WIND 010/10 H6 X8"]
+);
+assert.deepStrictEqual(
+  W.lines(
+    "DEP RWY 18\nWIND 010 DEG, 12 KT, VRB BTN 350 AND 020 DEG",
+    { kind: "departure", runways: [rwy("18")] }
+  ),
+  ["WORST 18 DEPARTURE WIND 360/12 T12 X0"]
+);
+assert.deepStrictEqual(
+  W.lines(
+    "DEP RWY 36\nWIND 030 DEG, 8 KT, VRB BTN 010 AND 050 DEG",
+    { kind: "departure", runways: [rwy("36")] }
+  ),
+  ["WORST 36 DEPARTURE WIND 050/08 H5 X6"]
+);
+
+function sectorWalk(from, to, mean) {
+  const walk = (start, end, step) => {
+    const a = ((Number(start) % 360) + 360) % 360;
+    const b = ((Number(end) % 360) + 360) % 360;
+    const out = [];
+    let d = a;
+    for (let i = 0; i <= 360; i += 1) {
+      out.push(d === 0 ? 360 : d);
+      if (d === b) break;
+      d = (d + step + 360) % 360;
+    }
+    return out;
+  };
+  const cw = walk(from, to, 1);
+  const ccw = walk(from, to, -1);
+  const has = (list, h) => {
+    const x = ((Number(h) % 360) + 360) % 360;
+    return list.includes(x === 0 ? 360 : x);
+  };
+  if (Number.isFinite(mean)) return has(cw, mean) ? cw : ccw;
+  return cw.length <= ccw.length ? cw : ccw;
+}
+
+function bruteTail(dir, spd, hdg) {
+  return spd * -Math.cos(((dir - hdg) * Math.PI) / 180);
+}
+
+for (const id of ["06", "18", "25L", "36"]) {
+  const hdg = rwy(id).hdg;
+  for (const [from, to, mean] of [
+    [240, 340, 290],
+    [10, 100, 60],
+    [360, 140, 80],
+    [350, 20, 10],
+    [250, 340, 290],
+  ]) {
+    const text = `DEP RWY ${id}\nWIND ${String(mean).padStart(3, "0")} DEG, 12 KT, VRB BTN ${String(from).padStart(3, "0")} AND ${String(to).padStart(3, "0")} DEG`;
+    const line = W.lines(text, { kind: "departure", runways: [rwy(id)] })[0];
+    const got = Number(String(line).match(/WIND (\d{3})\//)[1]);
+    let best = -Infinity;
+    for (const dir of sectorWalk(from, to, mean)) {
+      const t = bruteTail(dir, 12, hdg);
+      if (t > best) best = t;
+    }
+    assert.ok(
+      bruteTail(got, 12, hdg) + 1e-6 >= best,
+      `${id} ${from}-${to}@${mean}: ${line} not max tail in sector`
+    );
+  }
+}
+
 console.log("worstwind ok");

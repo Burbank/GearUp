@@ -83,7 +83,7 @@
       media="(prefers-color-scheme: dark)"
     />
     <script src="/js/theme.js"></script>
-    <link rel="stylesheet" href="/css/app.css?v=333" />
+    <link rel="stylesheet" href="/css/app.css?v=345" />
   </head>
   <body>
     <div id="app">
@@ -315,6 +315,7 @@
                 <span id="brief-local-time">--:--</span>
                 <span id="brief-local-tz" class="local-clock-tz"></span>
               </time>
+              <p id="brief-runways" class="brief-runways" hidden></p>
             </div>
             <div class="brief-clockwrap">
               <time id="brief-utc" class="utc-clock brief-utc">
@@ -819,6 +820,14 @@
         aria-labelledby="adsb-help-title"
       >
         <h2 id="adsb-help-title">ADS-B map</h2>
+        <button
+          type="button"
+          id="adsb-find"
+          class="hextory-backup adsb-find-btn"
+          aria-controls="hextory-reg-dialog"
+        >
+          FIND
+        </button>
         <div class="cdm-help-body">
           <p>
             Open map layers
@@ -843,10 +852,14 @@
             overflights stay hidden.
           </p>
           <p>
-            Search finds ICAO, registration, or type. Zoom in if a plane is
-            missing from the list. Selecting a plane also opens a small
-            FlightRadar24 card at the bottom right with the live route and
-            ETA when that registration is airborne.
+            FIND picks Registration, Airline, or Aircraft. Hex lives in
+            Registration (PH-CKA, CKA, or 484BD0). Airline and aircraft
+            filter live traffic only. A full registration or hex that is not
+            transmitting shows last seen — add it to Hextory from the toast.
+            HEAVY JETS, CARGO, and EMERGENCY filter this airport’s map (no
+            10,000 ft cap). ↺ or FIND → CANCEL clears the filter. Selecting a
+            plane also opens a small FlightRadar24 card at the bottom right
+            with the live route and ETA when that registration is airborne.
           </p>
           <p>
             <a
@@ -940,6 +953,12 @@
           <p>
             T = tailwind, H = headwind, X = crosswind, in knots. The direction
             shown is that WORST heading, not necessarily the mean on the ATIS.
+          </p>
+          <p>
+            When the displayed ATIS is stale, the strip uses the on-screen METAR
+            if that report has wind. METAR and TAF degrees are true; GearUp
+            shows an estimated magnetic heading from a dated variation table and
+            uses that magnetic value for the stale strip.
           </p>
         </div>
         <button type="button" id="worstwind-dialog-close" class="icon-btn">
@@ -1071,7 +1090,7 @@
               class="hextory-backup"
               aria-controls="hextory-reg-dialog"
             >
-              SEARCH REGISTRATION
+              FIND
             </button>
           </div>
           <button
@@ -1099,9 +1118,13 @@
             Select an aircraft on the map. ADD to HEXTORY reads ICAO hex,
             registration, type, and airline from the details card and adds it
             here, newest on top (12 aircraft plus the airport cards). Older cards drop off the bottom.
-            SEARCH REGISTRATION adds a tail that is not live and looks up its
-            Mode S hex. BACKUP LIST / RESTORE LIST brings a saved set back.
-            Tap a card to find that aircraft on the map.
+            FIND picks Registration, Airline, or Aircraft. Hex is typed in
+            Registration. A full registration or hex adds a tail and isolates
+            it when it is known; a parked tail still gets a Hextory card.
+            Airline, aircraft, and the chips filter live traffic at the
+            current airport. ↺ or FIND → CANCEL clears that filter. BACKUP
+            LIST / RESTORE LIST brings a saved set back. Tap a card to find
+            that aircraft on the map.
           </p>
           <p>Pin a Schiphol flight — it lands here and the map link is copied.</p>
           <p>
@@ -1256,28 +1279,71 @@
         aria-modal="true"
         aria-labelledby="hextory-reg-title"
       >
-        <h2 id="hextory-reg-title">SEARCH REGISTRATION</h2>
+        <h2 id="hextory-reg-title">FIND</h2>
         <form id="hextory-reg-form" autocomplete="off">
-          <label class="sr-only" for="hextory-reg-input">Aircraft registration</label>
+          <div
+            class="board-focus-ticks hextory-find-modes"
+            id="hextory-find-modes"
+            role="radiogroup"
+            aria-label="Find by"
+          >
+            <label class="board-focus-tick">
+              <input
+                type="radio"
+                name="hextory-find-mode"
+                value="registration"
+                checked
+              />
+              <span>REGISTRATION</span>
+            </label>
+            <label class="board-focus-tick">
+              <input type="radio" name="hextory-find-mode" value="airline" />
+              <span>AIRLINE</span>
+            </label>
+            <label class="board-focus-tick">
+              <input type="radio" name="hextory-find-mode" value="aircraft" />
+              <span>AIRCRAFT</span>
+            </label>
+          </div>
+          <label class="sr-only" for="hextory-reg-input">Registration, airline, or type</label>
           <input
             id="hextory-reg-input"
             name="reg"
             type="text"
             inputmode="text"
-            enterkeyhint="done"
+            enterkeyhint="go"
             autocapitalize="characters"
             autocorrect="off"
             autocomplete="off"
             spellcheck="false"
             lang="en"
-            placeholder="PH-CKA"
+            placeholder="PH-CKA · CKA · 484BD0 · blank"
           />
+          <p id="hextory-find-err" class="board-focus-err" hidden></p>
+          <div class="board-focus-ticks" id="hextory-find-ticks">
+            <label class="board-focus-tick">
+              <input type="checkbox" id="hextory-find-last" disabled />
+              <span id="hextory-find-last-label">LAST</span>
+            </label>
+            <label class="board-focus-tick">
+              <input type="checkbox" id="hextory-find-heavy" />
+              <span>HEAVY JETS</span>
+            </label>
+            <label class="board-focus-tick">
+              <input type="checkbox" id="hextory-find-cargo" />
+              <span>CARGO</span>
+            </label>
+            <label class="board-focus-tick">
+              <input type="checkbox" id="hextory-find-emergency" />
+              <span>EMERGENCY</span>
+            </label>
+          </div>
           <div class="hextory-reg-actions">
             <button type="button" id="hextory-reg-cancel" class="hextory-backup">
               CANCEL
             </button>
             <button type="submit" id="hextory-reg-add" class="hextory-backup">
-              ADD
+              GO
             </button>
           </div>
         </form>
@@ -1296,17 +1362,21 @@
     </button>
     <script src="/js/sun.js" defer></script>
     <script src="/js/tz.js" defer></script>
-    <script src="/js/hl.js?v=219" defer></script>
-    <script src="/js/worstwind.js?v=214" defer></script>
+    <script src="/js/magvar.js?v=2" defer></script>
+    <script src="/js/runways.js?v=2" defer></script>
+    <script src="/js/hl.js?v=221" defer></script>
+    <script src="/js/worstwind.js?v=216" defer></script>
     <script src="/js/ehamrwy.js" defer></script>
     <script src="/js/rwycond.js" defer></script>
     <script src="/js/cdm.js?v=237" defer></script>
     <script src="/js/board.js?v=225" defer></script>
     <script src="/js/airports.js?v=211" defer></script>
-    <script src="/js/fr24card.js?v=5" defer></script>
+    <script src="/js/fr24card.js?v=6" defer></script>
+    <script src="/js/hubflight.js?v=1" defer></script>
+    <script src="/js/find.js?v=4" defer></script>
     <script src="/js/flytify.js?v=2" defer></script>
-    <script src="/js/hextory.js?v=57" defer></script>
-    <script src="/js/actype.js?v=3" defer></script>
-    <script src="/js/app.js?v=292" defer></script>
+    <script src="/js/hextory.js?v=66" defer></script>
+    <script src="/js/actype.js?v=5" defer></script>
+    <script src="/js/app.js?v=302" defer></script>
   </body>
 </html>

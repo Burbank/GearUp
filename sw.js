@@ -1,4 +1,4 @@
-const CACHE = "gearup-v363";
+const CACHE = "gearup-v381";
 const PRECACHE = [
   "/",
   "/index.html",
@@ -6,6 +6,8 @@ const PRECACHE = [
   "/icons/map-layers.png",
   "/js/theme.js",
   "/js/fr24card.js",
+  "/js/hubflight.js",
+  "/js/find.js",
   "/js/flytify.js",
   "/js/hextory.js",
   "/js/adsb-hook.js",
@@ -14,6 +16,8 @@ const PRECACHE = [
   "/js/sun.js",
   "/js/tz.js",
   "/js/hl.js",
+  "/js/magvar.js",
+  "/js/runways.js",
   "/js/worstwind.js",
   "/js/ehamrwy.js",
   "/js/rwycond.js",

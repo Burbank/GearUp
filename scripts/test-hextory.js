@@ -27,11 +27,16 @@ const {
   identityStrip,
   cardPaintModel,
   cleanAirline,
+  HubFlight,
   canCloseAfterSwipe,
   markSwipeAt,
   swipeAction,
   SWIPE_PX,
 } = require("../js/hextory.js");
+const {
+  inferHubRoute,
+  parseFlight,
+} = require("../js/hubflight.js");
 const {
   formatFr24ClockPair,
   formatFr24Landed,
@@ -257,9 +262,9 @@ const baselineRow = {
 };
 const airlineOnly = cardPaintModel(baselineRow, {
   fetchedAt: 1,
-  payload: { flight: "MP123", airline: "Martinair" },
+  payload: { flight: "DL123", airline: "Delta" },
 });
-assert(airlineOnly.layout === "baseline", "airline/flight keep baseline card");
+assert(airlineOnly.layout === "baseline", "unknown airline keeps baseline card");
 assert(airlineOnly.live.indexOf("FL350") !== -1, "baseline live line");
 assert(
   airlineOnly.strip.reg === "PH-CKA" &&
@@ -434,9 +439,117 @@ assert(swipeAction(-SWIPE_PX) === "remove", "swipe left removes");
 assert(swipeAction(SWIPE_PX) === "copy", "swipe right copies");
 assert(swipeAction(20) === "", "short swipe does nothing");
 assert(swipeAction(-20) === "", "short left swipe does nothing");
+
+assert(parseFlight("KL1366") && parseFlight("KL1366").number === 1366, "parse IATA flight");
+assert(parseFlight("KLM1366") && parseFlight("KLM1366").code === "KLM", "parse ICAO callsign");
+assert(!parseFlight("PH-CKA"), "registration is not a flight");
+assert(!parseFlight("KL1366A"), "extra section is not paired");
+assert(HubFlight && typeof HubFlight.inferHubRoute === "function", "hextory exports HubFlight");
+
+const bud = { icao: "LHBP", iata: "BUD" };
+const ams = { icao: "EHAM", iata: "AMS" };
+const evenAtBud = inferHubRoute({ flight: "KL1366", airline: "KLM", here: bud });
+assert(evenAtBud && evenAtBud.from === "BUD" && evenAtBud.to === "AMS", "even KLM at BUD is BUD→AMS");
+assert(!evenAtBud.homebound, "even KLM at BUD is not homebound");
+const oddAtBud = inferHubRoute({ flight: "KL1365", airline: "KLM", here: bud });
+assert(oddAtBud && oddAtBud.from === "AMS" && oddAtBud.to === "BUD", "odd KLM at BUD is AMS→BUD");
+assert(!oddAtBud.homebound, "odd KLM at BUD is not homebound");
+const evenAtAms = inferHubRoute({ flight: "KL1366", airline: "KLM", here: ams });
+assert(evenAtAms && evenAtAms.from === "" && evenAtAms.to === "AMS", "even KLM at AMS dest only");
+assert(evenAtAms.homebound, "even KLM at AMS is homebound");
+const oddAtAms = inferHubRoute({ flight: "KL1365", airline: "KLM", here: ams });
+assert(oddAtAms && oddAtAms.from === "AMS" && oddAtAms.to === "", "odd KLM at AMS origin only");
+assert(!oddAtAms.homebound, "odd KLM at AMS is not homebound");
+assert(!inferHubRoute({ flight: "PH-CKA", airline: "KLM Cargo (Martinair)" }), "reg is not inferred");
+assert(!inferHubRoute({ airline: "KLM" }), "no flight is not inferred");
+assert(!inferHubRoute({ flight: "DL123", airline: "Delta" }), "unknown airline is not inferred");
+
+const klmRow = { hex: "484b10", reg: "PH-BHA", type: "B772", airline: "KLM", flight: "KL1366" };
+const evenCard = cardPaintModel(klmRow, null, bud);
+assert(evenCard.layout === "fr24", "inferred route uses overlay layout");
+assert(evenCard.from === "BUD" && evenCard.to === "AMS", "card shows BUD→AMS guess");
+assert(evenCard.inferred === true && evenCard.homebound === false, "BUD guess is not homebound");
+assert(evenCard.flight === "KL1366", "inferred card keeps flight number");
+const homeCard = cardPaintModel(klmRow, null, ams);
+assert(homeCard.to === "AMS" && homeCard.homebound === true, "card at AMS is homebound");
+const oddCard = cardPaintModel(
+  { hex: "484b10", reg: "PH-BHA", type: "B772", airline: "KLM", flight: "KL1365" },
+  null,
+  ams
+);
+assert(oddCard.from === "AMS" && !oddCard.to && !oddCard.homebound, "odd card at AMS is outbound guess");
+const fr24Wins = cardPaintModel(
+  klmRow,
+  { fetchedAt: 4, payload: { from: "BUD", to: "AMS", flight: "KL1366" } },
+  bud
+);
+assert(fr24Wins.from === "BUD" && fr24Wins.to === "AMS" && !fr24Wins.inferred, "FR24 route is not guessed");
+const noFlight = cardPaintModel({ hex: "484bd0", reg: "PH-CKA", type: "B744" }, null, bud);
+assert(noFlight.layout === "baseline" && !noFlight.inferred, "no flight stays baseline");
+const unknownCard = cardPaintModel(
+  { hex: "a12345", reg: "N12345", type: "B738", airline: "Delta", flight: "DL123" },
+  null,
+  bud
+);
+assert(unknownCard.layout === "baseline" && !unknownCard.inferred, "unknown airline stays baseline");
+
 assert(atFlightLevel({ alt: 35000 }), "FL350 is flight level");
 assert(atFlightLevel({ lastAlt: 33000 }), "last FL is flight level");
 assert(!atFlightLevel({ alt: 12000 }), "12000 ft is not flight level");
 assert(!atFlightLevel({ alt: 0, gs: 0 }), "ground is not flight level");
+
+const {
+  classifyFindQuery,
+  applyFindChips,
+  resolveFind,
+  buildFindGlobeUrl,
+  FIND_ZOOM,
+  HEAVY_TYPE,
+  EMERGENCY_SQUAWK,
+} = require("../js/find.js");
+
+assert(classifyFindQuery("484BD0", "registration").kind === "hex", "hex is hex");
+assert(classifyFindQuery("ph-cka", "registration").kind === "reg", "PH-CKA is a registration");
+assert(classifyFindQuery("N12345", "registration").kind === "reg", "N-number is a registration");
+assert(classifyFindQuery("cka", "registration").filterReg === "CKA", "cka is a reg filter");
+assert(!classifyFindQuery("cka", "registration").add, "partial reg does not add");
+assert(classifyFindQuery("484", "registration").filterIcao === "484", "short hex is filterIcao");
+assert(classifyFindQuery("KL", "airline").kind === "airline", "KL is an airline");
+assert(classifyFindQuery("kl", "airline").callsign.indexOf("KLM") !== -1, "kl aliases include KLM");
+assert(classifyFindQuery("KLM", "airline").callsign.indexOf("KLM") !== -1, "KLM aliases include ICAO");
+assert(classifyFindQuery("KL1366", "airline").kind === "flight", "KL1366 is a flight");
+assert(classifyFindQuery("B77W", "aircraft").kind === "type", "B77W is a type");
+assert(classifyFindQuery("B744", "aircraft").kind === "type", "B744 is a type not a flight");
+assert(classifyFindQuery("777", "aircraft").typeFilter.indexOf("B77W") !== -1, "777 expands B77W");
+assert(classifyFindQuery("xyz", "registration").filterReg === "XYZ", "xyz is a reg filter");
+
+const klHeavy = resolveFind("KL", { heavy: true }, "airline");
+assert(klHeavy.callsign.indexOf("KL") !== -1, "KL+heavy keeps callsign");
+assert(klHeavy.typeFilter === HEAVY_TYPE, "KL+heavy adds heavy types");
+assert(!klHeavy.follow && !klHeavy.add, "airline find does not add a card");
+
+const emergency = resolveFind("", { emergency: true });
+assert(emergency.kind === "chip" && emergency.squawk === EMERGENCY_SQUAWK, "emergency chip");
+
+const cargo = resolveFind("", { cargo: true });
+assert(cargo.kind === "chip" && cargo.typeFilter, "cargo chip uses freighter types");
+assert(!cargo.add && !cargo.follow, "cargo chip does not add a card");
+
+const fleet = buildFindGlobeUrl(klHeavy, "EHAM");
+assert(fleet.indexOf("/globe/?") === 0, "fleet url is local globe");
+assert(fleet.indexOf("airport=EHAM") !== -1, "fleet stays at current airport");
+assert(fleet.indexOf("zoom=" + FIND_ZOOM) !== -1, "fleet zoom is 9");
+assert(fleet.indexOf("filterAltMax") === -1, "fleet lifts the 10k cap");
+assert(fleet.indexOf("filterCallSign=") !== -1, "fleet has callsign filter");
+assert(fleet.indexOf("filterType=") !== -1, "fleet has type filter");
+assert(
+  !buildFindGlobeUrl(classifyFindQuery("PH-CKA", "registration"), "EHAM"),
+  "full reg does not build a fleet url"
+);
+const ckaUrl = buildFindGlobeUrl(classifyFindQuery("cka", "registration"), "EHAM");
+assert(ckaUrl.indexOf("filterReg=CKA") !== -1, "partial reg builds filterReg url");
+
+const squawkUrl = buildFindGlobeUrl(emergency, "LHBP");
+assert(squawkUrl.indexOf("filterSquawk=") !== -1, "emergency url filters squawk");
 
 console.log("test-hextory ok");

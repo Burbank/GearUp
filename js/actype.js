@@ -47,6 +47,7 @@
     B742: "747-200",
     B743: "747-300",
     B744: "747-400",
+    B74F: "747F",
     B748: "747-8",
     B752: "757-200",
     B753: "757-300",
@@ -65,6 +66,8 @@
     B78X: "787-10",
     E170: "E170",
     E175: "E175",
+    E75L: "E175",
+    E75S: "E175",
     E190: "E190",
     E195: "E195",
     E290: "E190-E2",
@@ -134,6 +137,118 @@
     332: "A332",
     343: "A343",
     388: "A388",
+    330: "A330",
+    350: "A350",
+    380: "A380",
+    777: "B777",
+    737: "B737",
+    747: "B747",
+    757: "B757",
+    767: "B767",
+    787: "B787",
+    220: "A220",
+  };
+
+  const B777 = ["B772", "B77L", "B773", "B77W", "B77F", "B778", "B779"];
+  const B737 = [
+    "B731",
+    "B732",
+    "B733",
+    "B734",
+    "B735",
+    "B736",
+    "B737",
+    "B738",
+    "B739",
+    "B37M",
+    "B38M",
+    "B39M",
+    "B3XM",
+  ];
+  const B747 = ["B741", "B742", "B743", "B744", "B748", "B74F"];
+  const B757 = ["B75."];
+  const B767 = ["B76."];
+  const B787 = ["B788", "B789", "B78X"];
+  const A330 = ["A332", "A333", "A338", "A339"];
+  const A320 = ["A320", "A20N"];
+  const A321 = ["A321", "A21N"];
+  const A319 = ["A319", "A19N"];
+  const A318 = ["A318"];
+  const A350 = ["A359", "A35K"];
+  const A380 = ["A388"];
+  const A340 = ["A342", "A343", "A345", "A346"];
+  const A220 = ["BCS1", "BCS3"];
+  const A300 = ["A306", "A30B", "A3ST"];
+  const E170 = ["E17."];
+  const E175 = ["E175", "E75L", "E75S"];
+  const E190 = ["E19."];
+  const E195 = ["E195", "E295"];
+  const E29 = ["E29."];
+  const CRJ = ["CRJ."];
+  const AT4 = ["AT4."];
+  const AT7 = ["AT7."];
+  const ATR = ["AT4.", "AT7."];
+  const DH8 = ["DH8."];
+
+  const FAMILIES = {
+    B777,
+    B77: B777,
+    777: B777,
+    B737,
+    B73: B737,
+    737: B737,
+    B747,
+    B74: B747,
+    747: B747,
+    B757,
+    B75: B757,
+    757: B757,
+    B767,
+    B76: B767,
+    767: B767,
+    B787,
+    B78: B787,
+    787: B787,
+    A330,
+    A33: A330,
+    330: A330,
+    A320,
+    320: A320,
+    A321,
+    321: A321,
+    A319,
+    319: A319,
+    A318,
+    318: A318,
+    A350,
+    A35: A350,
+    350: A350,
+    A380,
+    A38: A380,
+    380: A380,
+    A340,
+    A34: A340,
+    340: A340,
+    A220,
+    BCS: A220,
+    220: A220,
+    A300,
+    A30: A300,
+    E170,
+    E175,
+    E190,
+    E195,
+    E17: E170,
+    E19: E190,
+    E29,
+    EJET: ["E17.", "E19.", "E29."],
+    CRJ,
+    ATR,
+    AT4,
+    AT7,
+    DH8,
+    DASH8: DH8,
+    Q400: ["DH8D"],
   };
 
   function clean(code) {
@@ -168,5 +283,29 @@
     return MAP[key] || key;
   }
 
-  return { commercial, prefer, resolve, known, MAP, ALIAS };
+  function escapeType(token) {
+    return String(token || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function typeFilterFromQuery(raw) {
+    const key = String(raw || "")
+      .replace(/[\s-]+/g, "")
+      .toUpperCase();
+    if (!key) return "";
+    if (FAMILIES[key]) return FAMILIES[key].join("|");
+    const resolved = resolve(key);
+    if (FAMILIES[resolved]) return FAMILIES[resolved].join("|");
+    if (MAP[resolved]) return resolved;
+    return escapeType(key);
+  }
+
+  return {
+    commercial,
+    prefer,
+    resolve,
+    known,
+    typeFilterFromQuery,
+    MAP,
+    ALIAS,
+  };
 });

@@ -1,6 +1,6 @@
 # GearUp calculations
 
-All of these are **unofficial estimates**. Rebuild the same way; do not invent a second formula. Implementation lives in the files named. Unit tests: `scripts/test-worstwind.js`, `scripts/test-rwycond.js`, `scripts/test-zulu.js`, `scripts/test-ehamrwy.js`, `scripts/test-czech-atis.js`, `scripts/test-present.js`.
+All of these are **unofficial estimates**. Rebuild the same way; do not invent a second formula. Implementation lives in the files named. Unit tests: `scripts/test-worstwind.js`, `scripts/test-magvar.js`, `scripts/test-runways.js`, `scripts/test-rwycond.js`, `scripts/test-zulu.js`, `scripts/test-ehamrwy.js`, `scripts/test-czech-atis.js`, `scripts/test-present.js`.
 
 Times in the UI are UTC unless a local clock is shown next to them.
 
@@ -13,7 +13,10 @@ Times in the UI are UTC unless a local clock is shown next to them.
 - Token `(\d{1,2})([LCR])?` with 1–36.
 - Ident is zero-padded: `6` → `06`, `25L` stays `25L`.
 - **Heading = n × 10**, except **36 → 360**. That is the magnetic QFU (runway numbers are magnetic).
-- Spoken ATIS wind is also **magnetic** (ICAO Annex 11 §4.3.7). Same frame as the ident, so **no mag-var conversion**. METAR/SPECI winds are **true** (ICAO Annex 3); `pickWinds` prefers spoken ATIS when both exist, so T/H/X stay magnetic vs magnetic.
+- TAF header runway line (`js/runways.js`) is a static OurAirports plot, not the in-use ATIS set. Parallel numbers collapse (`18L/36R` + `18C/36C` + `18R/36L` → `18/36LCR`); remaining pairs stay `06/24`. Jet strips only: paved (or long coral/laterite), **≥ 4000 ft**, not closed / water / grass / helipad. Longest family first. Not used for T/H/X.
+- Spoken ATIS wind is also **magnetic** (ICAO Annex 11 §4.3.7). Same frame as the ident, so ATIS T/H/X need **no mag-var conversion**. METAR/SPECI/TAF winds are **true** (ICAO Annex 3).
+- Displayed METAR and TAF wind groups get `dddT` plus `[dddM]` from the yearly ICAO table (`data/magvar.json`, east-positive). Magnetic = true − east variation (east is least). EDDF ~+3.7° → `240T/07KT [236M]`. No table row → no estimate, and no METAR worst-wind fallback.
+- Stale-ATIS METAR fallback (`chooseWindSource`) uses those **magnetic** degrees when `varEast` is known, then existing `W.lines`. Runways stay from the ATIS (or inferred EHAM DEPT). `/api/atis` `worstWind.*` stays ATIS-only.
 
 The strip is still labeled UNOFFICIAL ESTIMATE because it is a worst-heading / gust pick, not the official ATIS figure.
 
@@ -141,10 +144,28 @@ WORST {rwy} {DEPARTURE|LANDING} WIND {ddd/ss|CALM}[ T#|H# X#]
 - If the copy has both a departure block and an arrival block, parse the wind from that block (fall back to the whole copy if that block has no wind).
 - Exception (EHAM only): when the DEPT tab is showing an arrival copy (`SHOWN DUE NO RECENT DEPT ATIS AVAIL.`), the strip uses **inferred takeoff** runways and **DEPARTURE**. See §17.
 - `ddd` is three digits; speed is two+ digits.
-- Aside, far right of the cell: `UNOFFICIAL ESTIMATE` and `| STALE` when the ATIS is stale.
+- Aside, far right of the cell: `UNOFFICIAL ESTIMATE`. If the strip used the on-screen METAR, `| BASED ON METAR`. If it still used stale ATIS wind, `| STALE`. When the wind is from ATIS, a dim `ATIS` sits after the X value.
 - Layout: flex `.worstwind-line` → `.worstwind-main` + `.worstwind-aside`. Never put the stamp/aside inside CSS multi-column article flow (this app has no newspaper columns, but do not inject into `#flow` if that layout is added later).
 
 Primary + secondary runways → two lines; secondary wind pairs to secondary runway.
+
+### Stale ATIS → displayed METAR
+
+`js/worstwind.js` `chooseWindSource` (PWA paint only; `/api/atis` `worstWind.*` stays ATIS-only).
+
+Use METAR wind **only** when all of these are true:
+
+1. The displayed ATIS is already **stale** (same 1-hour `isStaleAtis` flag as “Stale ATIS below”).
+2. A METAR is **on screen** (`lastMetarRaw`, box not hidden). Official US/Canada/HK/Czech D-ATIS has no METAR strip, so those stay ATIS-only.
+3. That METAR has a parseable live wind (`parseWinds` + `pickWinds`).
+4. The METAR observation is **not older than the ATIS** when both times exist. An older METAR is not an upgrade.
+5. A **variation** exists for that ICAO. Directional METAR without a table row stays on stale ATIS wind. `VRB` (no sector) does not need variation.
+
+Fresh ATIS always wins, even if the header says the displayed METAR is more recent. Spoken ATIS wind is magnetic; runway QFU is magnetic.
+
+When METAR arrives after a stale ATIS is already on screen, `showMetar` refills the strip so it can switch without a manual refresh.
+
+Rebuild the table once a year: `node scripts/build-magvar.js` (OurAirports coords + WMM-2025 at generate time; the PWA only loads `data/magvar.json`).
 
 ---
 

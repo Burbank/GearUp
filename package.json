@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "icons": "node scripts/generate-icons.js",
-    "airports": "node scripts/build-airports.js"
+    "airports": "node scripts/build-airports.js",
+    "magvar": "node scripts/build-magvar.js",
+    "runways": "node scripts/build-runways.js"
   }
 }

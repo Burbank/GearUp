@@ -189,11 +189,117 @@ const newest = pickLastRow({
     },
   ],
 });
-assert(newest && newest.destination_icao === "HTKJ", "picks latest landing");
+assert(newest && newest.destination_icao === "EHAM", "picks open next sector over last landing");
+
+const onlyLanded = pickLastRow({
+  data: [
+    {
+      origin_icao: "HTKJ",
+      destination_icao: "FAOR",
+      datetime_landed: "2026-08-20T10:00:00",
+      flight_ended: true,
+    },
+    {
+      origin_icao: "EHAM",
+      destination_icao: "HTKJ",
+      datetime_landed: "2026-08-28T14:32:00",
+      flight_ended: true,
+    },
+  ],
+});
+assert(onlyLanded && onlyLanded.destination_icao === "HTKJ", "parked with no next keeps last landing");
+
+const ghost = pickLastRow({
+  data: [
+    {
+      origin_icao: "FAOR",
+      destination_icao: "EHAM",
+      datetime_takeoff: "2026-08-20T08:00:00",
+      flight_ended: false,
+    },
+    {
+      origin_icao: "EHAM",
+      destination_icao: "HTKJ",
+      datetime_landed: "2026-08-28T14:32:00",
+      flight_ended: true,
+    },
+  ],
+});
+assert(ghost && ghost.destination_icao === "HTKJ", "ignores older unended ghost");
+
+const turnaround = pickLastRow({
+  data: [
+    {
+      origin_icao: "LTFM",
+      destination_icao: "EHAM",
+      datetime_takeoff: "2026-09-03T21:03:00",
+      datetime_landed: "2026-09-04T00:40:00",
+      flight_ended: true,
+      flight: "TK1956",
+    },
+    {
+      origin_icao: "EHAM",
+      destination_icao: "LTFM",
+      flight_ended: false,
+      flight: "TK1957",
+    },
+  ],
+});
+assert(turnaround && turnaround.flight === "TK1957", "turnaround prefers next from dest");
 
 const lastApplied = applyLast(empty("PH-CKA"), last);
 assert(lastApplied.live === false, "applied last stays parked");
 assert(lastApplied.from === "EHAM" && lastApplied.landed === last.landed, "applied last route");
+
+const liveKept = applyLast(
+  Object.assign(empty("TC-JIO"), {
+    from: "AMS",
+    to: "IST",
+    fromIcao: "EHAM",
+    toIcao: "LTFM",
+    flight: "TK1957",
+    dep: "2026-09-04T10:00:00Z",
+  }),
+  last
+);
+assert(liveKept.from === "AMS" && liveKept.to === "IST", "ended last does not overwrite live route");
+assert(liveKept.flight === "TK1957", "ended last does not overwrite live flight");
+
+const inbound = fromLast(
+  {
+    origin_icao: "LTFM",
+    destination_icao: "EHAM",
+    datetime_takeoff: "2026-09-03T21:03:00",
+    datetime_landed: "2026-09-04T00:40:00",
+    flight_ended: true,
+    flight: "TK1956",
+  },
+  "TC-JIO"
+);
+const nextOpen = fromLast(
+  {
+    origin_icao: "EHAM",
+    destination_icao: "LTFM",
+    flight_ended: false,
+    flight: "TK1957",
+  },
+  "TC-JIO"
+);
+const swapped = applyLast(
+  Object.assign(empty("TC-JIO"), {
+    from: inbound.from,
+    to: inbound.to,
+    fromIcao: inbound.fromIcao,
+    toIcao: inbound.toIcao,
+    flight: inbound.flight,
+    dep: inbound.dep,
+  }),
+  nextOpen
+);
+assert(swapped.from === "EHAM" && swapped.to === "LTFM", "open next replaces leftover inbound");
+assert(swapped.flight === "TK1957", "open next replaces inbound flight");
+assert(!swapped.dep, "open next clears inbound dep clock");
+
 assert(!isAirborne({ live: true, alt: 0 }), "ground live row still gets last flight");
 assert(isAirborne({ live: true, alt: 35000 }), "airborne skips last flight");
 assert(!isAirborne({ live: false }), "empty live row gets last flight");

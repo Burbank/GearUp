@@ -344,6 +344,12 @@
   const Fr24Card =
     (typeof window !== "undefined" && window.Fr24Card) ||
     (typeof require === "function" ? require("./fr24card.js") : null);
+  const HubFlight =
+    (typeof window !== "undefined" && window.HubFlight) ||
+    (typeof require === "function" ? require("./hubflight.js") : null);
+  const Find =
+    (typeof window !== "undefined" && window.GearUpFind) ||
+    (typeof require === "function" ? require("./find.js") : null);
   const Flytify =
     (typeof window !== "undefined" && window.GearUpFlytify) ||
     (typeof require === "function" ? require("./flytify.js") : null);
@@ -456,13 +462,58 @@
     return key ? fr24ByKey.get(key) || null : null;
   }
 
-  function cardPaintModel(row, fr24Hit) {
+  function flightIdFor(row, info) {
+    const F = Fr24Card || {};
+    const raw = (info && info.flight) || (row && row.flight) || "";
+    return F.cleanFlightId ? F.cleanFlightId(raw) : String(raw || "").trim();
+  }
+
+  function inferredPaintModel(row, info, home, strip) {
+    const F = Fr24Card || {};
+    const Hub = HubFlight || {};
+    if (!Hub.inferHubRoute) return null;
+    const flight = flightIdFor(row, info);
+    const airline = cleanAirline(row && row.airline, row && row.type);
+    const guess = Hub.inferHubRoute({
+      flight,
+      airline,
+      here: home,
+    });
+    if (!guess || (!guess.from && !guess.to)) return null;
+    const fromRaw = String(guess.from || "").trim();
+    const toRaw = String(guess.to || "").trim();
+    const from = F.displayFr24Code ? F.displayFr24Code(fromRaw) : fromRaw;
+    const to = F.displayFr24Code ? F.displayFr24Code(toRaw) : toRaw;
+    const fromPlaceRaw = F.formatFr24Place ? F.formatFr24Place(from || fromRaw) : "";
+    const toPlaceRaw = F.formatFr24Place ? F.formatFr24Place(to || toRaw) : "";
+    return {
+      layout: "fr24",
+      parked: !contactIsLive(row),
+      from,
+      to,
+      depClock: "",
+      arrClock: "",
+      fromPlace: fromPlaceRaw && fromPlaceRaw !== from ? fromPlaceRaw : "",
+      toPlace: toPlaceRaw && toPlaceRaw !== to ? toPlaceRaw : "",
+      airline,
+      flight,
+      ete: "",
+      motion: formatLiveLine(row),
+      strip,
+      inferred: true,
+      homebound: Boolean(guess.homebound),
+    };
+  }
+
+  function cardPaintModel(row, fr24Hit, home) {
     const F = Fr24Card || {};
     const hit = fr24Hit || fr24HitFor(row);
     const info = hit && hit.payload;
     const useful = F.fr24HasRouteOrTimes && F.fr24HasRouteOrTimes(info);
     const strip = identityStrip(row);
     if (!useful) {
+      const inferred = inferredPaintModel(row, info, home, strip);
+      if (inferred) return inferred;
       return {
         layout: "baseline",
         airline: cleanAirline(row && row.airline, row && row.type),
@@ -629,6 +680,8 @@
     identityStrip,
     cardPaintModel,
     cleanAirline,
+    HubFlight,
+    Find,
     canCloseAfterSwipe,
     markSwipeAt,
     swipeAction,
@@ -661,6 +714,14 @@
   const helpClose = document.getElementById("hextory-help-close");
   const hexBtn = document.getElementById("adsb-hextory");
   const addBtn = document.getElementById("adsb-hextory-add");
+  const findErr = document.getElementById("hextory-find-err");
+  const findLast = document.getElementById("hextory-find-last");
+  const findLastLabel = document.getElementById("hextory-find-last-label");
+  const findHeavy = document.getElementById("hextory-find-heavy");
+  const findCargo = document.getElementById("hextory-find-cargo");
+  const findEmergency = document.getElementById("hextory-find-emergency");
+  const findModes = document.getElementById("hextory-find-modes");
+  let findReturn = "";
 
   let list = [];
   let lastClip = "";
@@ -676,6 +737,10 @@
     homeAirports() {
       return [];
     },
+    findOnMap() {},
+    clearFindOnMap() {},
+    openAdsbHelp() {},
+    closeAdsbHelp() {},
   };
   let lastFocus = null;
   let cardDrag = null;
@@ -966,13 +1031,106 @@
     parent.appendChild(btn);
   }
 
-  function closeRegDialog() {
-    if (regDialog) regDialog.hidden = true;
+  function lastFindLabel(last) {
+    if (!last) return "LAST";
+    const q = String(last.q || "")
+      .trim()
+      .toUpperCase();
+    if (q) return "LAST: " + q;
+    if (last.heavy) return "LAST: HEAVY";
+    if (last.cargo) return "LAST: CARGO";
+    if (last.emergency) return "LAST: EMERG";
+    return "LAST";
   }
 
-  function openRegDialog() {
-    if (!regDialog) return;
+  function findModeInputs() {
+    return findModes
+      ? Array.prototype.slice.call(
+          findModes.querySelectorAll('input[name="hextory-find-mode"]')
+        )
+      : [];
+  }
+
+  function readFindMode() {
+    const hit = findModeInputs().find((el) => el.checked);
+    return Find && Find.normalizeMode
+      ? Find.normalizeMode(hit && hit.value)
+      : "registration";
+  }
+
+  function setFindMode(mode) {
+    const key =
+      Find && Find.normalizeMode ? Find.normalizeMode(mode) : "registration";
+    const radios = findModeInputs();
+    let matched = false;
+    radios.forEach((el) => {
+      el.checked = el.value === key;
+      if (el.checked) matched = true;
+    });
+    if (!matched && radios[0]) radios[0].checked = true;
+    applyFindPlaceholder();
+  }
+
+  function applyFindPlaceholder() {
+    if (!regInput) return;
+    const mode = readFindMode();
+    const map = (Find && Find.PLACEHOLDERS) || {};
+    regInput.placeholder =
+      map[mode] || "PH-CKA · CKA · 484BD0 · blank";
+  }
+
+  function resetFindForm() {
     if (regInput) regInput.value = "";
+    if (findLast) findLast.checked = false;
+    if (findHeavy) findHeavy.checked = false;
+    if (findCargo) findCargo.checked = false;
+    if (findEmergency) findEmergency.checked = false;
+    if (findErr) {
+      findErr.hidden = true;
+      findErr.textContent = "";
+    }
+    const last = Find && Find.readLastFind ? Find.readLastFind() : null;
+    setFindMode(last && last.mode);
+    if (findLast) findLast.disabled = !last;
+    if (findLastLabel) findLastLabel.textContent = lastFindLabel(last);
+  }
+
+  function hideFindDialog() {
+    if (regDialog) regDialog.hidden = true;
+    findReturn = "";
+  }
+
+  function hideHextorySheet() {
+    if (overlay) overlay.hidden = true;
+    stopAgeTick();
+    closeHelp();
+  }
+
+  function closeRegDialog() {
+    hideFindDialog();
+  }
+
+  function cancelFindDialog() {
+    const parent = findReturn;
+    if (regDialog) regDialog.hidden = true;
+    findReturn = "";
+    if (hooks.clearFindOnMap) hooks.clearFindOnMap();
+    if (parent === "hextory") openOverlay();
+    else if (parent === "adsb-help" && hooks.openAdsbHelp) hooks.openAdsbHelp();
+  }
+
+  function openFind(from) {
+    if (!regDialog) return;
+    resetFindForm();
+    if (from === "hextory") {
+      hideHextorySheet();
+      findReturn = "hextory";
+    } else if (from === "adsb-help") {
+      if (hooks.closeAdsbHelp) hooks.closeAdsbHelp();
+      findReturn = "adsb-help";
+    } else {
+      findReturn = "";
+    }
     regDialog.hidden = false;
     if (regInput) {
       try {
@@ -981,6 +1139,177 @@
         regInput.focus();
       }
     }
+  }
+
+  function sendFindToMap(url, row) {
+    if (!url) return;
+    if (hooks.findOnMap) hooks.findOnMap(url, row || null);
+    else hooks.follow(url, row || null);
+  }
+
+  function readFindChips() {
+    if (findLast && findLast.checked && Find && Find.readLastFind) {
+      const last = Find.readLastFind();
+      if (last) return last;
+    }
+    return {
+      q: regInput ? regInput.value : "",
+      mode: readFindMode(),
+      heavy: Boolean(findHeavy && findHeavy.checked),
+      cargo: Boolean(findCargo && findCargo.checked),
+      emergency: Boolean(findEmergency && findEmergency.checked),
+    };
+  }
+
+  function parkedToastBody(data) {
+    const parts = [
+      data && data.reg,
+      data && data.type,
+      data && data.airline,
+    ]
+      .map((part) => String(part || "").trim())
+      .filter(Boolean);
+    const line = parts.join(" · ");
+    if (data && data.live === false) {
+      return line ? line + ". Not live." : "Not live.";
+    }
+    return line || "Not live.";
+  }
+
+  async function lookupFindIdentity(found) {
+    const hex = found && found.hex ? cleanHex(found.hex) : "";
+    const letters = found && found.reg ? keyReg(found.reg) : "";
+    const q = isHex(hex)
+      ? "/api/hex/" + hex
+      : letters
+        ? "/api/hex/reg/" +
+          encodeURIComponent(prettyReg(found.reg) || displayReg(found.reg))
+        : "";
+    if (!q) return null;
+    try {
+      const res = await fetch(q, { cache: "no-store" });
+      if (!res.ok) return null;
+      return await res.json();
+    } catch {
+      return null;
+    }
+  }
+
+  function addFromLookup(data) {
+    if (!data || (!data.hex && !data.reg)) return null;
+    return addFromMap({
+      hex: data.hex || "",
+      reg: data.reg || "",
+      type: data.type || "",
+      airline: data.airline || "",
+      flight: data.flight || "",
+      live: Boolean(data.live),
+      alt: data.alt,
+      gs: data.gs,
+    });
+  }
+
+  function inHextory(data) {
+    return Boolean(data && list.some((row) => sameCard(row, data)));
+  }
+
+  function toastParkedFind(data) {
+    const title =
+      (data && (data.reg || String(data.hex || "").toUpperCase())) || "FIND";
+    const already = inHextory(data);
+    hooks.toast(title, parkedToastBody(data), {
+      label: already ? "ALREADY IN HEXTORY" : "ADD TO HEXTORY",
+      onClick: () => {
+        if (already) {
+          hooks.toast(title, "Already in Hextory.");
+          return;
+        }
+        addFromLookup(data);
+      },
+    });
+  }
+
+  async function submitFind() {
+    if (!Find || !Find.resolveFind) {
+      return addByRegistration(regInput && regInput.value);
+    }
+    const from = findReturn;
+    const chips = readFindChips();
+    const found = Find.resolveFind(chips.q, chips, chips.mode);
+    if (
+      found.error ||
+      (!found.kind &&
+        !found.callsign &&
+        !found.typeFilter &&
+        !found.squawk &&
+        !found.filterReg &&
+        !found.filterIcao)
+    ) {
+      const msg = found.error || "Type a registration, airline, or type.";
+      if (findErr) {
+        findErr.hidden = false;
+        findErr.textContent = msg;
+      } else {
+        hooks.toast("FIND", msg);
+      }
+      return false;
+    }
+    if (Find.writeLastFind) {
+      Find.writeLastFind({
+        q: String(chips.q || "").trim(),
+        mode: chips.mode,
+        heavy: Boolean(chips.heavy),
+        cargo: Boolean(chips.cargo),
+        emergency: Boolean(chips.emergency),
+      });
+    }
+    hideFindDialog();
+    if (found.follow || found.add) {
+      if (from === "hextory" && found.add && found.reg) {
+        addByRegistration(found.reg);
+      }
+      const letters = found.reg ? keyReg(found.reg) : "";
+      const row =
+        (found.hex && list.find((item) => item.hex === found.hex)) ||
+        (letters && list.find((item) => keyReg(item.reg) === letters)) ||
+        null;
+      sendFindToMap(
+        followUrl(
+          row || {
+            hex: found.hex || "",
+            reg: found.reg || "",
+          }
+        ),
+        row
+      );
+      const data = await lookupFindIdentity(found);
+      if (from === "adsb-help") {
+        if (data && data.live === false) toastParkedFind(data);
+        else if (!data) {
+          hooks.toast(
+            found.reg || String(found.hex || "").toUpperCase() || "FIND",
+            "Not live."
+          );
+        }
+      } else if (
+        from === "hextory" &&
+        data &&
+        data.live === false &&
+        found.hex &&
+        !found.reg
+      ) {
+        addFromLookup(data);
+      }
+      return true;
+    }
+    const home = hooks.homeAirport && hooks.homeAirport();
+    const url = Find.buildFindGlobeUrl(found, (home && home.icao) || "EHAM");
+    if (!url) {
+      hooks.toast("FIND", "Type a registration, airline, or type.");
+      return false;
+    }
+    sendFindToMap(url);
+    return true;
   }
 
   function addByRegistration(raw) {
@@ -1138,15 +1467,32 @@
   function paintFr24Card(btn, model) {
     btn.classList.add("is-fr24");
     btn.classList.toggle("is-parked", Boolean(model && model.parked));
+    btn.classList.toggle("is-inferred", Boolean(model && model.inferred));
+    btn.classList.toggle("is-homebound", Boolean(model && model.homebound));
     const route = span("adsb-fr24-route");
     const fromLeg = span("adsb-fr24-leg adsb-fr24-leg-from");
+    const hasFrom = Boolean(model && model.from);
+    const hasTo = Boolean(model && model.to);
     fromLeg.append(
       span("adsb-fr24-dep", model.depClock),
       span("adsb-fr24-from", model.from),
-      span("adsb-fr24-arrow", model.from && model.to ? "→" : "")
+      span(
+        "adsb-fr24-arrow",
+        hasFrom && (hasTo || (model && model.inferred)) ? "→" : ""
+      )
     );
     const toLeg = span("adsb-fr24-leg adsb-fr24-leg-to");
-    toLeg.append(span("adsb-fr24-to", model.to), span("adsb-fr24-arr", model.arrClock));
+    if (model && model.inferred && !hasFrom && hasTo) {
+      toLeg.appendChild(span("adsb-fr24-arrow", "→"));
+    }
+    const dest = span("adsb-fr24-to", model.to);
+    if (model && model.inferred && hasTo) {
+      dest.appendChild(span("hextory-guess", "?"));
+    }
+    toLeg.append(dest, span("adsb-fr24-arr", model.arrClock));
+    if (model && model.homebound) {
+      toLeg.appendChild(span("hextory-homebound", "HOMEBOUND"));
+    }
     route.append(fromLeg, toLeg);
     const places = span("adsb-fr24-places");
     if (model.fromPlace) {
@@ -1178,7 +1524,11 @@
       btn.type = "button";
       btn.className = "pin hextory-card";
       btn.dataset.key = cardKey(row);
-      const model = cardPaintModel(row);
+      const model = cardPaintModel(
+        row,
+        null,
+        hooks.homeAirport && hooks.homeAirport()
+      );
       if (model.layout === "fr24") paintFr24Card(btn, model);
       else paintBaselineCard(btn, row, model);
       const side = document.createElement("div");
@@ -2096,17 +2446,47 @@
       window.visualViewport.addEventListener("scroll", fitOverlayToChrome);
     }
     if (backupBtn) backupBtn.addEventListener("click", toggleBackup);
-    if (regBtn) regBtn.addEventListener("click", openRegDialog);
-    if (regCancel) regCancel.addEventListener("click", closeRegDialog);
+    if (regBtn) regBtn.addEventListener("click", () => openFind("hextory"));
+    if (regCancel) regCancel.addEventListener("click", cancelFindDialog);
+    if (findLast) {
+      findLast.addEventListener("change", () => {
+        if (!findLast.checked || !Find || !Find.readLastFind) return;
+        const last = Find.readLastFind();
+        if (!last) return;
+        if (regInput) regInput.value = last.q || "";
+        setFindMode(last.mode);
+        if (findHeavy) findHeavy.checked = last.heavy;
+        if (findCargo) findCargo.checked = last.cargo;
+        if (findEmergency) findEmergency.checked = last.emergency;
+      });
+    }
+    findModeInputs().forEach((el) => {
+      el.addEventListener("change", () => {
+        if (findLast) findLast.checked = false;
+        applyFindPlaceholder();
+        if (findErr) {
+          findErr.hidden = true;
+          findErr.textContent = "";
+        }
+      });
+    });
     if (regDialog) {
       regDialog.addEventListener("click", (event) => {
-        if (event.target === regDialog) closeRegDialog();
+        if (event.target === regDialog) cancelFindDialog();
       });
     }
     if (regForm) {
       regForm.addEventListener("submit", (event) => {
         event.preventDefault();
-        if (addByRegistration(regInput && regInput.value)) closeRegDialog();
+        submitFind();
+      });
+    }
+    if (regInput) {
+      regInput.addEventListener("input", () => {
+        if (findErr) {
+          findErr.hidden = true;
+          findErr.textContent = "";
+        }
       });
     }
     if (infoBtn) infoBtn.addEventListener("click", openHelp);
@@ -2162,10 +2542,16 @@
         return;
       }
       if (data.reason === "live") {
+        if (Fr24Card && Fr24Card.rememberContacts) {
+          Fr24Card.rememberContacts(data.contacts);
+        }
         applyGlobeContacts(data.contacts);
         return;
       }
       if (data.reason === "select") {
+        if (Fr24Card && Fr24Card.rememberContact) {
+          Fr24Card.rememberContact(data);
+        }
         lastFocus = data;
         revealAddBtn();
         if (hooks.planeOverlay) {
@@ -2183,6 +2569,7 @@
     init,
     openOverlay,
     closeOverlay,
+    openFind,
     openHelp,
     closeHelp,
     addFromBoard,

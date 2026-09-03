@@ -167,13 +167,21 @@
     return [runways[0]];
   }
 
-  function windFlags(w, runways, spokenCount) {
+  function magDir(dir, varEast) {
+    if (!Number.isFinite(dir) || !Number.isFinite(varEast)) return dir;
+    const M = typeof GearUpMagvar !== "undefined" ? GearUpMagvar : null;
+    if (M && M.trueToMag) return M.trueToMag(dir, varEast);
+    const d = ((dir - varEast) % 360 + 360) % 360;
+    return d === 0 ? 360 : d;
+  }
+
+  function windFlags(w, runways, spokenCount, varEast) {
     const rwys = runwaysForWind(w, runways, spokenCount);
     const spd = Math.max(
       Number.isFinite(w.spd) ? w.spd : 0,
       Number.isFinite(w.gust) ? w.gust : 0
     );
-    return windThreat(w.dir, spd, rwys);
+    return windThreat(magDir(w.dir, varEast), spd, rwys);
   }
 
   function ktFrom(spd, unit) {
@@ -269,15 +277,28 @@
     return out;
   }
 
+  function maskEst(text) {
+    const M = typeof GearUpMagvar !== "undefined" ? GearUpMagvar : null;
+    if (M && M.maskEst) return M.maskEst(text);
+    return String(text || "").replace(/\[\d{3}M(?:V\d{3}M)?\]/g, (m) =>
+      " ".repeat(m.length)
+    );
+  }
+
+  function windDirTok(token) {
+    const t = String(token || "").replace("/", "").replace(/T/i, "");
+    return t.slice(0, 3);
+  }
+
   function windGroups(text) {
-    const raw = String(text || "");
+    const raw = maskEst(text);
     const groups = [];
-    const metar = /\b((?:VRB|[0-3]\d{2})\/?(\d{2,3})(?:G(\d{2,3}))?(KT|MPS|KMH))\b/gi;
+    const metar = /\b((?:VRB|[0-3]\d{2})T?\/?(\d{2,3})(?:G(\d{2,3}))?(KT|MPS|KMH))\b/gi;
     let m;
     while ((m = metar.exec(raw))) {
       const token = m[1];
       const vrb = /^VRB/i.test(token);
-      const dirTok = token.slice(0, 3);
+      const dirTok = windDirTok(token);
       const dir = vrb || !/^\d{3}$/.test(dirTok) ? null : Number(dirTok);
       groups.push({
         start: m.index,
@@ -379,8 +400,8 @@
     return starts;
   }
 
-  function tailDirRanges(text, runways, winds) {
-    const raw = String(text || "");
+  function tailDirRanges(text, runways, winds, varEast) {
+    const raw = maskEst(text);
     const out = [];
     const seen = new Set();
     const allWinds = winds || [];
@@ -404,14 +425,14 @@
         Number.isFinite(owner.spd) ? owner.spd : 0,
         Number.isFinite(owner.gust) ? owner.gust : 0
       );
-      const threat = windThreat(n, spd, rwys);
+      const threat = windThreat(magDir(n, varEast), spd, rwys);
       if (!threat.tail && !threat.cross) return;
       seen.add(key);
       out.push({ start, end, cls: "hl-ops" });
     }
     const patterns = [
       /\b(?:VRB|VARIABLE)\b(?:\s+(?:BTN|BETWEEN))?\s*(\d{3})\s*(?:AND|TO|\/|-)\s*(\d{3})/gi,
-      /\b([0-3]\d{2})V([0-3]\d{2})\b/g,
+      /\b([0-3]\d{2})T?V([0-3]\d{2})T?\b/g,
       /\b(\d{3})\s*DEG(?:REES)?\b/gi,
     ];
     for (const re of patterns) {
@@ -926,10 +947,11 @@
 
     const winds = windGroups(raw);
     const spokenCount = winds.filter((w) => w.role != null).length;
+    const varEast = o.varEast;
     let minSpd = Infinity;
     for (const w of winds) {
       if (Number.isFinite(w.spd) && w.spd < minSpd) minSpd = w.spd;
-      const flags = windFlags(w, runways, spokenCount);
+      const flags = windFlags(w, runways, spokenCount, varEast);
       const gusty =
         Number.isFinite(w.gust) &&
         Number.isFinite(w.spd) &&
@@ -945,7 +967,12 @@
       }
     }
     out.push(...spokenGustRanges(raw));
-    out.push(...tailDirRanges(raw, runways, winds));
+    out.push(...tailDirRanges(raw, runways, winds, varEast));
+    const est = /\[\d{3}M(?:V\d{3}M)?\]/g;
+    let em;
+    while ((em = est.exec(raw))) {
+      out.push({ start: em.index, end: em.index + em[0].length, cls: "metar-mag" });
+    }
     out.push(...tafTempRanges(raw));
     if (minSpd === Infinity) minSpd = null;
 

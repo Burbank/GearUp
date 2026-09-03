@@ -10,6 +10,7 @@ const {
   parseAirframesMessages,
   calendarDayKnown,
   parseFaaDatisJson,
+  looksCombinedAtis,
 } = require("../lib/parseAtis");
 
 const now = Date.parse("2026-08-26T11:44:00Z");
@@ -242,5 +243,33 @@ const faa = parseFaaDatisJson(
 assert.ok(faa);
 assert.notStrictEqual(faa.issued, faaUpdated);
 assert.strictEqual(faa.issued, issuedFromAtisBody(faaDatis).issued);
+
+const ehamDep = `EHAM DEP ATIS S
+20:22Z EHAM DEPARTURE INFO S.
+MAIN DEPARTURE RWY 24.
+MAIN LANDING RWY 18R.
+WIND 220 DEG 9 KT
+VIS 10KM
+QNH 1013 HPA
+END OF INFO S`;
+assert.strictEqual(looksCombinedAtis(ehamDep), false, "EHAM DEP ATIS is not combined");
+const eham = parseAirframesMessages(
+  [{ label: "A9", text: ehamDep, timestamp: "2026-09-03T20:22:00Z" }],
+  "EHAM"
+);
+assert.strictEqual(eham.kind, "departure", eham.kind);
+assert.strictEqual(eham.label, "Departure ATIS");
+assert.ok(eham.departureAtis && eham.departureAtis.kind === "departure");
+
+assert.strictEqual(
+  looksCombinedAtis("CYVR ARR ATIS D\nLDG RWY 08L\nDEP RWY 08R"),
+  true,
+  "ARR head plus both runways stays combined"
+);
+assert.strictEqual(
+  looksCombinedAtis("EHAM DEP ATIS S\nCYVR ARR ATIS D"),
+  true,
+  "both DEP and ARR heads are combined"
+);
 
 console.log("zuluOnToday ok");

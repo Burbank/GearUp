@@ -92,11 +92,11 @@
     const raw = String(text || "");
     const winds = [];
     const metar =
-      /\b((?:VRB|[0-3]\d{2})\/?(\d{2,3})(?:G(\d{2,3}))?(KT|MPS|KMH))(?:\s+(\d{3})V(\d{3}))?/gi;
+      /\b((?:VRB|[0-3]\d{2})T?\/?(\d{2,3})(?:G(\d{2,3}))?(KT|MPS|KMH))(?:\s+(\d{3})T?V(\d{3})T?)?/gi;
     let m;
     while ((m = metar.exec(raw))) {
       const vrb = /^VRB/i.test(m[1]);
-      const dirTok = m[1].replace("/", "").slice(0, 3);
+      const dirTok = m[1].replace("/", "").replace(/T/i, "").slice(0, 3);
       const dir = vrb || !/^\d{3}$/.test(dirTok) ? null : Number(dirTok);
       winds.push({
         dir: Number.isFinite(dir) ? dir : null,
@@ -271,6 +271,56 @@
     return spoken.length ? spoken : all;
   }
 
+  function metarHasLiveWind(text) {
+    const winds = pickWinds(parseWinds(text));
+    return winds.some((w) => speedKt(w) > 0 || w.vrb);
+  }
+
+  function metarNeedsVar(text) {
+    return parseWinds(text).some(
+      (w) =>
+        Number.isFinite(w.dir) ||
+        (Number.isFinite(w.varFrom) && Number.isFinite(w.varTo))
+    );
+  }
+
+  function shiftDir(dir, varEast) {
+    if (!Number.isFinite(dir) || !Number.isFinite(varEast)) return dir;
+    return norm360(dir - varEast);
+  }
+
+  function shiftWind(wind, varEast) {
+    if (!wind || !Number.isFinite(varEast)) return wind;
+    const next = Object.assign({}, wind);
+    if (Number.isFinite(next.dir)) next.dir = shiftDir(next.dir, varEast);
+    if (Number.isFinite(next.varFrom)) {
+      next.varFrom = shiftDir(next.varFrom, varEast);
+    }
+    if (Number.isFinite(next.varTo)) next.varTo = shiftDir(next.varTo, varEast);
+    return next;
+  }
+
+  function chooseWindSource(opts) {
+    const o = opts || {};
+    const atisText = String(o.atisText || "");
+    const metarText = String(o.metarText || "");
+    if (!o.atisStale || !metarText.trim()) {
+      return { text: atisText, from: "atis" };
+    }
+    const atisMs = Date.parse(o.atisIssued);
+    const metarMs = Date.parse(o.metarObserved);
+    if (Number.isFinite(metarMs) && Number.isFinite(atisMs) && metarMs < atisMs) {
+      return { text: atisText, from: "atis" };
+    }
+    if (!metarHasLiveWind(metarText)) {
+      return { text: atisText, from: "atis" };
+    }
+    if (metarNeedsVar(metarText) && !Number.isFinite(o.varEast)) {
+      return { text: atisText, from: "atis" };
+    }
+    return { text: metarText, from: "metar" };
+  }
+
   function textForKind(text, kind) {
     const raw = String(text || "");
     const dep = raw.search(/\b(?:DEP(?:ARTURES?)?|TAKE\s*OFF|TKOF)\b/i);
@@ -294,7 +344,9 @@
     const o = opts || {};
     const runways = o.runways || [];
     const kind = o.kind === "arrival" ? "arrival" : "departure";
-    const winds = windsForKind(text, kind);
+    const winds = windsForKind(text, kind).map((w) =>
+      shiftWind(w, o.varEast)
+    );
     if (!runways.length || !winds.length) return [];
     const mains = runways.filter((r) => r.role !== "sec");
     const secs = runways.filter((r) => r.role === "sec");
@@ -321,5 +373,6 @@
   return {
     parseWinds,
     lines,
+    chooseWindSource,
   };
 });

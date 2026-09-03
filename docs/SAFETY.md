@@ -82,7 +82,7 @@ No inline scripts. Theme is a file. Do not add `unsafe-inline`.
 
 ## Service worker
 
-- Precache the shell and fonts/icons. **Do not** precache `data/airports.json` (too large; cache-first on demand is enough).
+- Precache the shell and fonts/icons. **Do not** precache `data/airports.json`, `data/magvar.json`, or `data/runways.json` (too large; cache-first on demand is enough).
 - Skip `/api/` and `/globe` (live aircraft JSON must not be cached). Skip audio/video destinations (no listen in the live app).
 - Fonts/icons/data: cache-first. HTML/JS/CSS: network, fallback to cache (so deploys show after SW bump).
 - Bump `CACHE` on every ship or phones keep the previous overlay/CSS.

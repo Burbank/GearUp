@@ -1,6 +1,6 @@
 "use strict";
 
-const { commercial, prefer } = require("../js/actype");
+const { commercial, prefer, typeFilterFromQuery } = require("../js/actype");
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -24,5 +24,17 @@ assert(commercial("32n") === "A320neo", "32n case");
 assert(prefer("32N", "A20N") === "A20N", "proper ICAO beats 32N");
 assert(prefer("A359", "32N") === "A359", "keep proper over obscure");
 assert(prefer("", "32N") === "A20N", "first type still resolves");
+assert(typeFilterFromQuery("777") === "B772|B77L|B773|B77W|B77F|B778|B779", "777 family");
+assert(typeFilterFromQuery("B77W") === "B77W", "exact 77W");
+assert(typeFilterFromQuery("738") === "B738", "738 is only B738");
+assert(typeFilterFromQuery("32n") === "A20N", "32n is A20N");
+assert(typeFilterFromQuery("32N") === "A20N", "32N is A20N");
+assert(typeFilterFromQuery("A-320") === "A320|A20N", "A-320 family");
+assert(typeFilterFromQuery("a320") === "A320|A20N", "a320 family");
+assert(typeFilterFromQuery("330") === "A332|A333|A338|A339", "330 family");
+assert(typeFilterFromQuery("767").indexOf("B76.") !== -1, "767 is B76.");
+assert(typeFilterFromQuery("CRJ") === "CRJ.", "CRJ family");
+assert(commercial("B74F") === "747F", "B74F");
+assert(commercial("E75L") === "E175", "E75L");
 
 console.log("test-actype ok");

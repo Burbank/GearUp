@@ -91,6 +91,7 @@
   const briefLocal = document.getElementById("brief-local");
   const briefLocalTime = document.getElementById("brief-local-time");
   const briefLocalTz = document.getElementById("brief-local-tz");
+  const briefRunways = document.getElementById("brief-runways");
   const briefSun = document.getElementById("brief-sun");
   const briefSunKind = document.getElementById("brief-sun-kind");
   const briefSunText = document.getElementById("brief-sun-text");
@@ -139,6 +140,7 @@
   const boardPinAdsb = document.getElementById("board-pin-adsb");
   const adsbHelpDialog = document.getElementById("adsb-help-dialog");
   const adsbHelpClose = document.getElementById("adsb-help-close");
+  const adsbFindBtn = document.getElementById("adsb-find");
   const adsbExternal = document.getElementById("adsb-external");
   const adsbReturnBtn = document.getElementById("adsb-return");
   const adsbUtcEl = document.getElementById("adsb-utc");
@@ -1614,6 +1616,7 @@
     metarAgeEl.hidden = true;
     metarAgeEl.textContent = "";
     tickAges();
+    refreshWorstWind();
   }
 
   function parseObservedAt(m) {
@@ -1635,14 +1638,19 @@
       metarAgeEl.hidden = true;
       metarAgeEl.textContent = "";
       tickAges();
+      refreshWorstWind();
       return;
     }
     lastMetarObserved = parseObservedAt(m);
     const Hl = typeof GearUpHl !== "undefined" ? GearUpHl : null;
     lastMetarRaw = Hl && Hl.formatMetar ? Hl.formatMetar(m.text) : m.text;
-    paintOpsInto(metarText, lastMetarRaw, { runways: lastDepRunways });
+    paintOpsInto(metarText, lastMetarRaw, {
+      runways: lastDepRunways,
+      annotateWx: true,
+    });
     metarBox.hidden = false;
     tickAges();
+    refreshWorstWind();
   }
 
   async function fetchMetar(icao) {
@@ -1705,6 +1713,14 @@
     }
   }
 
+  function paintBriefRunways(icao) {
+    if (!briefRunways) return;
+    const R = typeof GearUpRunways !== "undefined" ? GearUpRunways : null;
+    const line = R && R.line ? R.line(icao) : "";
+    briefRunways.textContent = line;
+    briefRunways.hidden = !line;
+  }
+
   function setBriefIdent(icao, iata) {
     briefIdent.textContent = icao || "TAF";
     const code = String(iata || "").trim().toUpperCase();
@@ -1715,6 +1731,7 @@
       briefIata.textContent = "";
       briefIata.hidden = true;
     }
+    paintBriefRunways(icao);
   }
 
   function rememberAirport(icao, data) {
@@ -1848,19 +1865,40 @@
     return out;
   }
 
+  function currentVarEast(icao) {
+    const M = typeof GearUpMagvar !== "undefined" ? GearUpMagvar : null;
+    if (!M || !M.varEast) return null;
+    return M.varEast(icao || currentIcao);
+  }
+
+  function annotateWxText(text, icao) {
+    const raw = String(text || "");
+    const M = typeof GearUpMagvar !== "undefined" ? GearUpMagvar : null;
+    const varEast = currentVarEast(icao);
+    if (!M || !M.annotateWx || !Number.isFinite(varEast)) return raw;
+    return M.annotateWx(raw, varEast);
+  }
+
   function paintOpsInto(el, text, opts) {
     const raw = String(text || "");
     const o = opts || {};
     const staleMs = o.zuluStaleMs;
     const zuluRef = o.zuluRef;
+    const varEast = o.annotateWx
+      ? currentVarEast(o.icao || currentIcao)
+      : null;
+    const display = o.annotateWx
+      ? annotateWxText(raw, o.icao || currentIcao)
+      : raw;
     const Hl = typeof GearUpHl !== "undefined" ? GearUpHl : null;
     if (Hl) {
       Hl.paint(
         el,
-        raw,
-        Hl.ranges(raw, Object.assign({ icao: currentIcao }, o)).concat(
-          zuluRanges(raw, staleMs, zuluRef)
-        )
+        display,
+        Hl.ranges(
+          display,
+          Object.assign({ icao: currentIcao, varEast }, o)
+        ).concat(zuluRanges(display, staleMs, zuluRef))
       );
       return;
     }
@@ -2251,12 +2289,16 @@
     fillRwycond(atisRwycond, atisRwycondBody, R ? R.parse(atisText) : null);
     maybeLoadDelay(icao, { force: forceDelay });
     if (lastMetarRaw && !metarBox.hidden) {
-      paintOpsInto(metarText, lastMetarRaw, { runways: lastDepRunways });
+      paintOpsInto(metarText, lastMetarRaw, {
+        runways: lastDepRunways,
+        annotateWx: true,
+      });
     }
     if (lastTafRaw) {
       paintOpsInto(tafBody, lastTafRaw, {
         runways: lastDepRunways,
         zuluStaleMs: TAF_STALE_MS,
+        annotateWx: true,
       });
     }
   }
@@ -2521,7 +2563,10 @@
     return rwys;
   }
 
+  let lastWorstFill = null;
+
   function hideWorstWind() {
+    lastWorstFill = null;
     if (!atisWorstwind) return;
     atisWorstwind.hidden = true;
     if (atisWorstwindBody) clearNode(atisWorstwindBody);
@@ -2540,7 +2585,7 @@
     if (atisWorstwind && !atisWorstwind.hidden) atisWorstwind.focus();
   }
 
-  function paintWorstWindBody(container, rows, stale) {
+  function paintWorstWindBody(container, rows, stale, fromMetar) {
     if (!container) return;
     clearNode(container);
     for (const line of rows) {
@@ -2592,8 +2637,22 @@
           el.textContent = tok;
           main.appendChild(el);
         }
+        if (!fromMetar) {
+          main.appendChild(document.createTextNode(" "));
+          const src = document.createElement("span");
+          src.className = "worstwind-src";
+          src.textContent = "ATIS";
+          main.appendChild(src);
+        }
       } else {
         main.textContent = line;
+        if (!fromMetar) {
+          main.appendChild(document.createTextNode(" "));
+          const src = document.createElement("span");
+          src.className = "worstwind-src";
+          src.textContent = "ATIS";
+          main.appendChild(src);
+        }
       }
       p.appendChild(main);
       const aside = document.createElement("span");
@@ -2602,7 +2661,13 @@
       note.className = "worstwind-note";
       note.textContent = "UNOFFICIAL ESTIMATE";
       aside.appendChild(note);
-      if (stale) {
+      if (fromMetar) {
+        aside.appendChild(document.createTextNode(" | "));
+        const metarNote = document.createElement("span");
+        metarNote.className = "worstwind-note";
+        metarNote.textContent = "BASED ON METAR";
+        aside.appendChild(metarNote);
+      } else if (stale) {
         aside.appendChild(document.createTextNode(" | "));
         const staleNote = document.createElement("span");
         staleNote.className = "worstwind-note zulu-old";
@@ -2661,13 +2726,32 @@
   }
 
   function fillWorstWind(text, kind, runways, stale) {
+    lastWorstFill = {
+      text,
+      kind,
+      runways: runways || [],
+      stale: !!stale,
+    };
     if (!atisWorstwind || !atisWorstwindBody) return;
     const W = typeof GearUpWorstWind !== "undefined" ? GearUpWorstWind : null;
+    const source =
+      W && W.chooseWindSource
+        ? W.chooseWindSource({
+            atisText: text,
+            atisIssued: lastAtisIssued,
+            atisStale: !!stale,
+            metarText: lastMetarRaw && metarBox && !metarBox.hidden ? lastMetarRaw : "",
+            metarObserved: lastMetarObserved,
+            varEast: currentVarEast(),
+          })
+        : { text, from: "atis" };
+    const fromMetar = source.from === "metar";
     const rows =
       W && W.lines
-        ? W.lines(text, {
+        ? W.lines(source.text, {
             kind: kind === "arrival" ? "arrival" : "departure",
             runways: runways || [],
+            varEast: fromMetar ? currentVarEast() : null,
           })
         : [];
     if (!rows.length) {
@@ -2675,8 +2759,18 @@
       closeWorstwindDialog();
       return;
     }
-    paintWorstWindBody(atisWorstwindBody, rows, stale);
+    paintWorstWindBody(atisWorstwindBody, rows, stale && !fromMetar, fromMetar);
     atisWorstwind.hidden = false;
+  }
+
+  function refreshWorstWind() {
+    if (!lastWorstFill) return;
+    fillWorstWind(
+      lastWorstFill.text,
+      lastWorstFill.kind,
+      lastWorstFill.runways,
+      lastWorstFill.stale
+    );
   }
 
   function hideAtisRwycond() {
@@ -2987,6 +3081,7 @@
     paintOpsInto(tafBody, lastTafRaw, {
       runways: runwaysForPaint(),
       zuluStaleMs: TAF_STALE_MS,
+      annotateWx: true,
     });
     tickTafIssuedAge();
     tickTafRemain();
@@ -5104,8 +5199,8 @@
     } catch {
       /* use what we have */
     }
-    if (metar) parts.push("METAR " + code + "\n" + metar);
-    if (taf) parts.push("TAF " + code + "\n" + taf);
+    if (metar) parts.push("METAR " + code + "\n" + annotateWxText(metar, code));
+    if (taf) parts.push("TAF " + code + "\n" + annotateWxText(taf, code));
     if (!parts.length) {
       showCdmToast(code, "No ATIS, METAR, or TAF to copy.");
       return;
@@ -5192,7 +5287,20 @@
     return n >= TOAST_TRAIN_N ? TOAST_SHORT_MS : TOAST_LONG_MS;
   }
 
-  function showCdmToast(title, body) {
+  function placeCdmToast() {
+    if (!cdmToast) return;
+    const tabs = document.querySelector(".tabs");
+    const tabBox =
+      tabs && !tabs.hidden && getComputedStyle(tabs).display !== "none"
+        ? tabs.getBoundingClientRect()
+        : null;
+    const gap = 14;
+    const top = tabBox && tabBox.height ? tabBox.bottom + gap : 0;
+    if (top > 0) cdmToast.style.top = Math.round(top) + "px";
+    else cdmToast.style.top = "";
+  }
+
+  function showCdmToast(title, body, action) {
     if (!cdmToast) return;
     cdmToast.replaceChildren();
     const ident = document.createElement("strong");
@@ -5200,11 +5308,24 @@
     const line = document.createElement("span");
     line.textContent = body;
     cdmToast.append(ident, line);
+    if (action && action.label && typeof action.onClick === "function") {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "cdm-toast-btn";
+      btn.textContent = action.label;
+      btn.addEventListener("click", () => {
+        cdmToast.hidden = true;
+        clearTimeout(cdmToastTimer);
+        action.onClick();
+      });
+      cdmToast.appendChild(btn);
+    }
+    placeCdmToast();
     cdmToast.hidden = false;
     clearTimeout(cdmToastTimer);
     cdmToastTimer = setTimeout(() => {
       cdmToast.hidden = true;
-    }, toastDuration(body));
+    }, action && action.label ? TOAST_LONG_MS : toastDuration(body));
   }
 
   async function closeCdmSystemNotes() {
@@ -5541,7 +5662,10 @@
     paintFr24City(adsbFr24CityFrom, "", "");
     paintFr24City(adsbFr24CityTo, "", "");
     if (adsbFr24Motion) adsbFr24Motion.textContent = "";
-    if (adsbFr24) adsbFr24.classList.remove("is-dock");
+    if (adsbFr24) {
+      adsbFr24.classList.remove("is-dock");
+      adsbFr24.classList.remove("is-inferred");
+    }
     document.documentElement.classList.remove("adsb-fr24-dock");
     paintAdsbReturnBtn();
   }
@@ -5603,6 +5727,16 @@
   function fr24HasUseful(info) {
     const fn = fr24Card().fr24HasUseful;
     return fn ? fn(info) : false;
+  }
+
+  function fr24HasRouteOrTimes(info) {
+    const fn = fr24Card().fr24HasRouteOrTimes;
+    return fn ? fn(info) : false;
+  }
+
+  function fr24HasCard(info) {
+    const fn = fr24Card().fr24HasCard;
+    return fn ? fn(info) : fr24HasUseful(info);
   }
 
   function cleanFlightId(value) {
@@ -5676,17 +5810,18 @@
     const ident = [reg && reg !== flight ? reg : "", type].filter(Boolean).join(" · ");
     const motion = formatFr24Motion(info, dock);
     const href = String((info && (info.liveUrl || info.historyUrl)) || "").trim();
-    if (!fr24HasUseful(Object.assign({}, info, { flight }))) {
+    if (!fr24HasCard(Object.assign({}, info, { flight }))) {
       adsbFr24.hidden = true;
       return;
     }
+    if (adsbFr24) adsbFr24.classList.toggle("is-inferred", Boolean(info && info.inferred));
     if (adsbFr24Airline) adsbFr24Airline.textContent = airline;
     if (adsbFr24Num) adsbFr24Num.textContent = flight || (!airline ? reg : "");
     if (adsbFr24Ete) adsbFr24Ete.textContent = formatFr24EteRem(info);
     if (adsbFr24Ident) adsbFr24Ident.textContent = ident;
     if (adsbFr24Dep) adsbFr24Dep.textContent = depClock;
     if (adsbFr24From) adsbFr24From.textContent = from;
-    if (adsbFr24Arrow) adsbFr24Arrow.textContent = from && to ? "→" : "";
+    if (adsbFr24Arrow) adsbFr24Arrow.textContent = from || to ? "→" : "";
     if (adsbFr24To) adsbFr24To.textContent = to;
     if (adsbFr24Arr) adsbFr24Arr.textContent = arrClock;
     paintFr24City(
@@ -5714,16 +5849,58 @@
     adsbFr24.hidden = false;
   }
 
+  function mergeSelectMotion(info, select) {
+    const out = Object.assign({}, info || {});
+    if (select) {
+      if (out.alt == null && select.alt != null) out.alt = select.alt;
+      if (out.gs == null && select.gs != null) out.gs = select.gs;
+      if (out.track == null && select.track != null) out.track = select.track;
+      if (!out.reg && select.reg) out.reg = select.reg;
+      if (!out.type && select.type) out.type = select.type;
+      if (!out.airline && select.airline) out.airline = select.airline;
+      if (!out.flight && select.flight) out.flight = select.flight;
+    }
+    return out;
+  }
+
+  function identityAdsbFr24(select, history) {
+    const F = fr24Card();
+    if (F.rememberContact) F.rememberContact(select);
+    const prior = F.motionPrior ? F.motionPrior(select) : null;
+    const info = mergeSelectMotion(
+      {
+        reg: String((select && select.reg) || "").trim(),
+        flight: (select && select.flight) || "",
+        callsign: (select && select.flight) || "",
+        type: (select && select.type) || "",
+        airline: (select && select.airline) || "",
+        alt: select && select.alt,
+        gs: select && select.gs,
+        track: select && select.track,
+        historyUrl: history,
+        live: true,
+      },
+      select
+    );
+    return F.applyInferredRoute
+      ? F.applyInferredRoute(info, selectedIcao(), prior)
+      : info;
+  }
+
   function showAdsbFr24(select) {
     const reg = String((select && select.reg) || "")
       .trim()
       .toUpperCase()
       .replace(/\s+/g, "");
-    if (!reg) {
+    const hex = String((select && select.hex) || "")
+      .trim()
+      .toLowerCase()
+      .replace(/^~/, "");
+    if (!reg && !hex && !(select && (select.flight || select.type))) {
       hideAdsbFr24();
       return;
     }
-    adsbFr24Reg = reg;
+    adsbFr24Reg = reg || hex;
     adsbPlaneSelected = true;
     paintAdsbReturnBtn();
     const token = ++adsbFr24Token;
@@ -5736,12 +5913,19 @@
       window.Hextory && window.Hextory.peekFr24
         ? window.Hextory.peekFr24({ reg })
         : null;
-    if (peek && peek.payload && fr24HasUseful(peek.payload)) {
+    const identity = identityAdsbFr24(select, history);
+    if (peek && peek.payload && fr24HasRouteOrTimes(peek.payload)) {
       paintAdsbFr24(
-        Object.assign({}, peek.payload, { historyUrl: history })
+        mergeSelectMotion(
+          Object.assign({}, peek.payload, { historyUrl: history }),
+          select
+        )
       );
       if (!peek.stale) return;
+    } else if (fr24HasCard(identity)) {
+      paintAdsbFr24(identity);
     }
+    if (!reg) return;
     const airportsReady =
       window.GearUpAirports && window.GearUpAirports.load
         ? window.GearUpAirports.load()
@@ -5749,32 +5933,46 @@
     fetch("/api/fr24?reg=" + encodeURIComponent(reg), { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (token !== adsbFr24Token || adsbFr24Reg !== reg || !data) return;
+        if (token !== adsbFr24Token || adsbFr24Reg !== (reg || hex)) return;
         return airportsReady.then(() => {
-          if (token !== adsbFr24Token || adsbFr24Reg !== reg) return;
-          const info = {
-            reg: data.reg || reg,
-            flight: data.flight || (select && select.flight) || "",
-            callsign: data.callsign || (select && select.flight) || "",
-            from: data.from || "",
-            to: data.to || "",
-            eta: data.eta || "",
-            dep: data.dep || "",
-            fromIcao: data.fromIcao || "",
-            toIcao: data.toIcao || "",
-            liveUrl: data.liveUrl || "",
-            historyUrl: history,
-            type: data.type || (select && select.type) || "",
-            airline: data.airline || (select && select.airline) || "",
-            category: data.category || "",
-            squawk: data.squawk || "",
-            flightTime: data.flightTime,
-            alt: data.alt != null ? data.alt : select && select.alt,
-            gs: data.gs != null ? data.gs : select && select.gs,
-            track: data.track,
-          };
-          if (!fr24HasUseful(info)) return;
-          paintAdsbFr24(info);
+          if (token !== adsbFr24Token || adsbFr24Reg !== (reg || hex)) return;
+          if (data && (data.from || data.to)) {
+            const info = mergeSelectMotion(
+              {
+                reg: data.reg || reg,
+                flight: data.flight || (select && select.flight) || "",
+                callsign: data.callsign || (select && select.flight) || "",
+                from: data.from || "",
+                to: data.to || "",
+                eta: data.eta || "",
+                dep: data.dep || "",
+                fromIcao: data.fromIcao || "",
+                toIcao: data.toIcao || "",
+                liveUrl: data.liveUrl || "",
+                historyUrl: history,
+                type: data.type || (select && select.type) || "",
+                airline: data.airline || (select && select.airline) || "",
+                category: data.category || "",
+                squawk: data.squawk || "",
+                flightTime: data.flightTime,
+                alt: data.alt != null ? data.alt : select && select.alt,
+                gs: data.gs != null ? data.gs : select && select.gs,
+                track: data.track != null ? data.track : select && select.track,
+              },
+              select
+            );
+            if (!fr24HasCard(info)) return;
+            paintAdsbFr24(info);
+            return;
+          }
+          const fallback = Object.assign({}, identity);
+          if (data) {
+            if (data.airline && !fallback.airline) fallback.airline = data.airline;
+            if (data.flight && !fallback.flight) fallback.flight = data.flight;
+            if (data.type && !fallback.type) fallback.type = data.type;
+            if (data.liveUrl) fallback.liveUrl = data.liveUrl;
+          }
+          if (fr24HasCard(fallback)) paintAdsbFr24(fallback);
         });
       })
       .catch(() => {});
@@ -6415,6 +6613,21 @@
       },
       homeAirport: hextoryHomeAirport,
       homeAirports: hextoryHomeAirports,
+      findOnMap: (url, row) => {
+        closeAdsbHelpDialog();
+        if (window.Hextory && window.Hextory.closeOverlay) {
+          window.Hextory.closeOverlay({ force: true });
+        }
+        openAdsbFollow(url, row);
+        if (row) showAdsbFr24(row);
+      },
+      clearFindOnMap: () => {
+        if (!adsbFollowUrl) return;
+        hideAdsbFr24();
+        returnAdsbToAirport();
+      },
+      openAdsbHelp: openAdsbHelpDialog,
+      closeAdsbHelp: closeAdsbHelpDialog,
       home: (ap) => {
         const code = ap && ap.icao;
         if (code && code !== selectedIcao()) jumpAdsbToCity(code);
@@ -6540,6 +6753,13 @@
   }
   if (adsbHelpBtn) {
     adsbHelpBtn.addEventListener("click", openAdsbHelpDialog);
+  }
+  if (adsbFindBtn) {
+    adsbFindBtn.addEventListener("click", () => {
+      if (window.Hextory && window.Hextory.openFind) {
+        window.Hextory.openFind("adsb-help");
+      }
+    });
   }
   if (adsbReturnBtn) {
     adsbReturnBtn.addEventListener("click", () => returnAdsbSmart());
@@ -6770,6 +6990,29 @@
       renderPins();
       updateTabLabels();
       if (icaoInput.value.trim().length >= 2) renderAirportSuggest(icaoInput.value);
+    });
+  }
+  if (window.GearUpRunways && window.GearUpRunways.load) {
+    window.GearUpRunways.load().then(() => {
+      if (currentIcao) paintBriefRunways(currentIcao);
+    });
+  }
+  if (window.GearUpMagvar && window.GearUpMagvar.load) {
+    window.GearUpMagvar.load().then(() => {
+      if (lastMetarRaw && metarBox && !metarBox.hidden) {
+        paintOpsInto(metarText, lastMetarRaw, {
+          runways: lastDepRunways,
+          annotateWx: true,
+        });
+      }
+      if (lastTafRaw && tafBody) {
+        paintOpsInto(tafBody, lastTafRaw, {
+          runways: lastDepRunways,
+          zuluStaleMs: TAF_STALE_MS,
+          annotateWx: true,
+        });
+      }
+      refreshWorstWind();
     });
   }
   route();

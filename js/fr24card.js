@@ -302,6 +302,151 @@
     return null;
   }
 
+  const TAXI_KT = 3;
+  const PARKED_MS = 10 * 60 * 1000;
+  const RECENT_ARRIVAL_MS = 45 * 60 * 1000;
+  const motionByKey = new Map();
+
+  function contactKey(row) {
+    const hex = String((row && row.hex) || "")
+      .trim()
+      .toLowerCase()
+      .replace(/^~/, "");
+    if (/^[0-9a-f]{6}$/.test(hex)) return "h:" + hex;
+    const reg = String((row && row.reg) || "")
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, "");
+    return reg ? "r:" + reg : "";
+  }
+
+  function motionPrior(row) {
+    const key = contactKey(row);
+    return key ? motionByKey.get(key) || null : null;
+  }
+
+  function resetMotion() {
+    motionByKey.clear();
+  }
+
+  function rememberContact(row, at) {
+    const key = contactKey(row);
+    if (!key) return null;
+    const now = Number.isFinite(Number(at)) ? Number(at) : Date.now();
+    const prev = motionByKey.get(key) || {
+      wasAirborne: false,
+      wasParked: false,
+      airborneAt: 0,
+      parkedAt: 0,
+      seenLive: false,
+    };
+    const altN = Number(row && row.alt);
+    const gsN = Number(row && row.gs);
+    const airborne = Number.isFinite(altN) && altN > 0;
+    const ground = Number.isFinite(altN) && altN <= 0;
+    const parked = ground && (!Number.isFinite(gsN) || gsN < TAXI_KT);
+    const next = {
+      alt: row && row.alt,
+      gs: row && row.gs,
+      track: row && row.track,
+      at: now,
+      seenLive: true,
+      wasAirborne: Boolean(prev.wasAirborne || airborne),
+      wasParked: Boolean(prev.wasParked || parked),
+      airborneAt: airborne ? now : prev.airborneAt || 0,
+      parkedAt: parked ? prev.parkedAt || now : prev.parkedAt || 0,
+    };
+    if (airborne) {
+      next.wasParked = false;
+      next.parkedAt = 0;
+    }
+    motionByKey.set(key, next);
+    return next;
+  }
+
+  function rememberContacts(rows, at) {
+    if (!Array.isArray(rows)) return;
+    for (const row of rows) rememberContact(row, at);
+  }
+
+  function inferGroundLeg(input) {
+    const here = String((input && input.here) || "")
+      .trim()
+      .toUpperCase();
+    if (!/^[A-Z]{4}$/.test(here)) return null;
+    const alt = Number(input && input.alt);
+    if (!Number.isFinite(alt) || alt > 0) return null;
+    const gs = Number(input && input.gs);
+    const taxiing = Number.isFinite(gs) && gs >= TAXI_KT;
+    const now = Number.isFinite(Number(input && input.now))
+      ? Number(input.now)
+      : Date.now();
+    const prior = (input && input.prior) || {};
+    const airborneAt = Number(prior.airborneAt) || 0;
+    const parkedAt = Number(prior.parkedAt) || 0;
+    const lastSeenAt = Number(input && input.lastSeenAt) || 0;
+    const recentAirborne =
+      airborneAt > 0 && now - airborneAt < RECENT_ARRIVAL_MS;
+    const parkedAWhile = parkedAt > 0 && now - parkedAt >= PARKED_MS;
+    const unseen =
+      input && input.lastLive === false
+        ? true
+        : lastSeenAt > 0 && now - lastSeenAt >= PARKED_MS && !prior.seenLive;
+    const code = displayFr24Code(here);
+    const dep = {
+      from: code,
+      to: "",
+      fromIcao: here,
+      toIcao: "",
+      kind: "dep",
+    };
+    const arr = {
+      from: "",
+      to: code,
+      fromIcao: "",
+      toIcao: here,
+      kind: "arr",
+    };
+    if (taxiing && (parkedAWhile || (prior.wasParked && !recentAirborne))) {
+      return dep;
+    }
+    if (recentAirborne && !parkedAWhile) return arr;
+    if (taxiing && unseen && !recentAirborne) return dep;
+    return null;
+  }
+
+  function applyInferredRoute(info, here, prior, now) {
+    const out = info && typeof info === "object" ? info : {};
+    if (out.from || out.to) return out;
+    const guess = inferGroundLeg({
+      here,
+      alt: out.alt,
+      gs: out.gs,
+      prior: prior || motionPrior(out),
+      lastSeenAt: out.lastSeenAt,
+      lastLive: out.lastLive,
+      now,
+    });
+    if (!guess) return out;
+    out.from = guess.from;
+    out.to = guess.to;
+    out.fromIcao = guess.fromIcao;
+    out.toIcao = guess.toIcao;
+    out.inferred = guess.kind;
+    return out;
+  }
+
+  function fr24HasCard(info) {
+    if (fr24HasUseful(info)) return true;
+    return Boolean(
+      (info && info.reg) ||
+        (info && info.type) ||
+        (info && info.from) ||
+        (info && info.to) ||
+        formatFr24Motion(info)
+    );
+  }
+
   function mergeFr24Motion(hexRow, fr24Hit) {
     const hexTs = Number(hexRow && hexRow.seenAt) || 0;
     const frTs = Number(fr24Hit && fr24Hit.fetchedAt) || 0;
@@ -339,8 +484,19 @@
     formatFr24Place,
     fr24HasUseful,
     fr24HasRouteOrTimes,
+    fr24HasCard,
     isAirborne,
     mergeFr24Motion,
+    TAXI_KT,
+    PARKED_MS,
+    RECENT_ARRIVAL_MS,
+    contactKey,
+    motionPrior,
+    resetMotion,
+    rememberContact,
+    rememberContacts,
+    inferGroundLeg,
+    applyInferredRoute,
   };
 
   if (typeof window !== "undefined") window.Fr24Card = api;
