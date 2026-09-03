@@ -32,9 +32,9 @@ Bundle is a static PWA. Weather and Schiphol traffic go through the same-origin 
 
 ## Version
 
-Footer and `aria-label` on home: **1.6** (`index.html` `.home-version`).  
-User-Agent: `GearUp/1.6` in `lib/http.js`.  
-Service worker cache at 1.6 ship: `gearup-v360`. GAL 403/400 hotfix: `gearup-v363`.
+Footer and `aria-label` on home: **1.7** (`index.html` `.home-version`).
+User-Agent: `GearUp/1.7` in `lib/http.js`.
+Service worker cache at 1.7 ship: `gearup-v382`.
 
 When bumping later: change the footer, UA, SW cache string, CSS query, and mask query together.
 
@@ -130,6 +130,8 @@ Airport rebuild (large download): `node scripts/build-airports.js` → `data/air
 Magnetic variation table (yearly): `node scripts/build-magvar.js` → `data/magvar.json`. Uses OurAirports coordinates and WMM-2025 in the script only.
 
 Runway header line: `node scripts/build-runways.js` → `data/runways.json`. OurAirports `runways.csv` (same source as the airport-index length rank). Jet strips only (paved, ≥ 4000 ft). Display only on the TAF tab; not used for worst-wind.
+
+Airline FIND names: `node scripts/build-airline-names.js airlines.dat` → `js/airline-names.js`. OpenFlights dump is build-time only; do not commit `airlines.dat`. Overrides in that script win common shorts (Southwest, Delta, United, Turkish).
 
 ## Deploy
 

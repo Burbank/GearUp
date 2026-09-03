@@ -7,7 +7,7 @@
   const MODES = ["registration", "airline", "aircraft"];
   const PLACEHOLDERS = {
     registration: "PH-CKA · CKA · 484BD0 · blank",
-    airline: "KL · KLM · blank",
+    airline: "WN · Southwest · blank",
     aircraft: "777 · 738 · A-320 · blank",
   };
 
@@ -83,9 +83,34 @@
     return null;
   }
 
+  function airlinePack() {
+    if (typeof window !== "undefined" && window.GearUpAirlines) {
+      return window.GearUpAirlines;
+    }
+    if (typeof require === "function") {
+      try {
+        return require("./airline-names.js");
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  function nameTable() {
+    const pack = airlinePack();
+    return (pack && pack.NAMES) || AIRLINE_NAMES;
+  }
+
+  function aliasTable() {
+    const pack = airlinePack();
+    return (pack && pack.ALIASES) || AIRLINE_ALIASES;
+  }
+
   function aliasesFor(code) {
     const key = String(code || "").toUpperCase();
-    return AIRLINE_ALIASES[key] || (key ? [key] : []);
+    const table = aliasTable();
+    return table[key] || (key ? [key] : []);
   }
 
   function callsignRegex(parts) {
@@ -105,15 +130,22 @@
       .trim()
       .replace(/\s+/g, " ")
       .toUpperCase();
-    if (AIRLINE_ALIASES[compact]) {
+    const aliases = aliasTable();
+    const names = nameTable();
+    if (aliases[compact]) {
       return {
         name: compact,
-        callsign: callsignRegex(AIRLINE_ALIASES[compact]),
+        callsign: callsignRegex(aliases[compact]),
       };
     }
-    if (AIRLINE_NAMES[folded]) {
-      const code = AIRLINE_NAMES[folded];
+    if (names[folded]) {
+      const code = names[folded];
       return { name: folded, callsign: callsignRegex(aliasesFor(code)) };
+    }
+    const squeezed = folded.replace(/\s+/g, "");
+    if (squeezed !== folded && names[squeezed]) {
+      const code = names[squeezed];
+      return { name: squeezed, callsign: callsignRegex(aliasesFor(code)) };
     }
     return null;
   }

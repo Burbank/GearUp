@@ -1,4 +1,4 @@
-const CACHE = "gearup-v381";
+const CACHE = "gearup-v382";
 const PRECACHE = [
   "/",
   "/index.html",
@@ -7,6 +7,7 @@ const PRECACHE = [
   "/js/theme.js",
   "/js/fr24card.js",
   "/js/hubflight.js",
+  "/js/airline-names.js",
   "/js/find.js",
   "/js/flytify.js",
   "/js/hextory.js",

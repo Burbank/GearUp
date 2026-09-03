@@ -1,13 +1,14 @@
 {
   "name": "gearup",
   "private": true,
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "GearUp — departure D-ATIS, TAF, and briefing PWA",
   "scripts": {
     "start": "node server.js",
     "icons": "node scripts/generate-icons.js",
     "airports": "node scripts/build-airports.js",
     "magvar": "node scripts/build-magvar.js",
-    "runways": "node scripts/build-runways.js"
+    "runways": "node scripts/build-runways.js",
+    "airlines": "node scripts/build-airline-names.js"
   }
 }
