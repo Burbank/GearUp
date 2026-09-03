@@ -13,16 +13,34 @@ const cyvr = {
 };
 
 const parsed = parseNavCanadaAtis(cyvr, "CYVR");
-assert.equal(parsed.kind, "combined");
+assert.equal(parsed.kind, "arrival");
 assert.equal(parsed.letter, "D");
 assert.ok(parsed.text.startsWith("CYVR ARR ATIS D 1700Z"), parsed.text);
 assert.ok(!parsed.text.includes("CYVR DEP ATIS"), parsed.text);
 
-const bundle = mergeAcars(parsed);
-assert.equal(bundle.kind, "combined");
-assert.ok(usableAtis(bundle.departureAtis));
-assert.equal(bundle.departureAtis.kind, "combined");
-assert.equal(bundle.departureAtis.text, parsed.text);
+const freshCyvr = parseNavCanadaAtis(
+  Object.assign({}, cyvr, { publish_time: new Date().toISOString() }),
+  "CYVR"
+);
+const bundle = mergeAcars(freshCyvr);
+assert.equal(bundle.kind, "arrival");
+assert.ok(!bundle.departureAtis);
+assert.ok(usableAtis(bundle.arrivalAtis));
+assert.equal(bundle.arrivalAtis.kind, "arrival");
+assert.equal(bundle.arrivalAtis.text, freshCyvr.text);
+
+const cyyz = parseNavCanadaAtis(
+  {
+    letter: "A",
+    landingRwy: "05 AND 06R",
+    departureRwy: "06L",
+    datalinkMessage:
+      "CYYZ ARR ATIS A 2300Z\n030/10G15KT 15SM FEW090\nDEP RWY 06L.\nCIG BKN220 23/17 A2991\nAPCH ILS RWY 05, AND ILS RWY 06R, SIMUL PRLL APCH IN EFCT.\nLDG RWY 05 AND 06R",
+  },
+  "CYYZ"
+);
+assert.equal(cyyz.kind, "arrival", cyyz.kind);
+assert.ok(cyyz.text.startsWith("CYYZ ARR ATIS A"), cyyz.text);
 
 const depOnly = parseNavCanadaAtis(
   {

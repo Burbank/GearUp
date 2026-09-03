@@ -8,10 +8,10 @@ const W = require("../js/worstwind.js");
 const html = `
 <HTML>
 <HEAD>
-<TITLE>ATIS LKPR - VLCZ01 LKPR 272100</TITLE>
+<TITLE>ATIS LKPR - VLCZ01 LKPR 042100</TITLE>
 </HEAD>
 <BODY>
-<TD class="met_nadpis1m">  Updated: &nbsp;30.08.2026  21:00:34 &nbsp;UTC</td>
+<TD class="met_nadpis1m">  Updated: &nbsp;04.09.2026  21:00:34 &nbsp;UTC</td>
 <TR><TD class="met1l"> <PRE>
 GOOD EVENING RUZYNE ATIS
 MIKE
@@ -40,7 +40,7 @@ assert.equal(parsed.letter, "M");
 assert.equal(parsed.overheard, undefined);
 assert.equal(parsed.source, "meteo.rlp.cz");
 assert.ok(parsed.text.includes("QNH 1016"), parsed.text);
-assert.equal(parsed.issued, "2026-08-30T21:00:34.000Z");
+assert.equal(parsed.issued, "2026-09-04T21:00:34.000Z");
 assert.ok(parsed.departureAtis && parsed.departureAtis.kind === "combined");
 assert.equal(parsed.departureAtis.letter, "M");
 

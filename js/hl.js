@@ -76,8 +76,8 @@
     return found;
   }
 
-  function depRunways(text) {
-    return collectRwys(text, [
+  function depRunways(text, opts) {
+    const tagged = [
       new RegExp(
         String.raw`\b(MAIN|PRIMARY|SECONDARY|SEC|2ND)?\s*(?:DEP(?:ARTURES?)?|DEPG|TAKE\s*OFF|TKOF)\b` +
           AFTER_RWY_VERB +
@@ -86,17 +86,24 @@
       ),
       /\b(MAIN|PRIMARY|SECONDARY|SEC|2ND)?\s*TL\s+(\d{1,2}\s*[LCR]?)/gi,
       new RegExp(
-        String.raw`\b${RWY_WORD}\s+(${RWY_LIST})\s+(?:IN USE|FOR (?:DEP(?:ARTURE)?|TAKE\s*OFF))`,
+        String.raw`\b${RWY_WORD}\s+(${RWY_LIST})\s+FOR (?:DEP(?:ARTURE)?|TAKE\s*OFF)`,
+        "gi"
+      ),
+    ];
+    if (opts && opts.tagged) return collectRwys(text, tagged);
+    return collectRwys(text, tagged.concat([
+      new RegExp(
+        String.raw`\b${RWY_WORD}\s+(${RWY_LIST})\s+IN USE`,
         "gi"
       ),
       new RegExp(String.raw`\b${RWY_WORD}\s+IN USE\s+(${RWY_LIST})`, "gi"),
       new RegExp(String.raw`\bUSING\s+${RWY_WORD}\s+(${RWY_LIST})`, "gi"),
       new RegExp(String.raw`\b${RWY_WORD}:\s*(${RWY_LIST})`, "gi"),
-    ]);
+    ]));
   }
 
-  function arrRunways(text) {
-    return collectRwys(text, [
+  function arrRunways(text, opts) {
+    const tagged = [
       new RegExp(
         String.raw`\b(MAIN|PRIMARY|SECONDARY|SEC|2ND)?\s*(?:ARR(?:IVALS?)?|LANDING|LNDG|LDG|APP(?:ROACH(?:ES)?)?|APCHS?)\b` +
           AFTER_RWY_VERB +
@@ -104,7 +111,15 @@
         "gi"
       ),
       new RegExp(
-        String.raw`\b${RWY_WORD}\s+(${RWY_LIST})\s+(?:IN USE|FOR (?:ARR(?:IVAL)?|LANDING|LDG|LNDG))`,
+        String.raw`\b${RWY_WORD}\s+(${RWY_LIST})\s+FOR (?:ARR(?:IVAL)?|LANDING|LDG|LNDG)`,
+        "gi"
+      ),
+      new RegExp(String.raw`\bILS(?:\s+[A-Z])?\s+(?:RWYS?|RW)\s*(${RWY_ID})`, "gi"),
+    ];
+    if (opts && opts.tagged) return collectRwys(text, tagged);
+    return collectRwys(text, tagged.concat([
+      new RegExp(
+        String.raw`\b${RWY_WORD}\s+(${RWY_LIST})\s+IN USE`,
         "gi"
       ),
       new RegExp(String.raw`\b${RWY_WORD}\s+IN USE\s+(${RWY_LIST})`, "gi"),
@@ -113,9 +128,8 @@
         "gi"
       ),
       new RegExp(String.raw`\bUSING\s+${RWY_WORD}\s+(${RWY_LIST})`, "gi"),
-      new RegExp(String.raw`\bILS(?:\s+[A-Z])?\s+(?:RWYS?|RW)\s*(${RWY_ID})`, "gi"),
       new RegExp(String.raw`\b${RWY_WORD}:\s*(${RWY_LIST})`, "gi"),
-    ]);
+    ]));
   }
 
   const TAIL_HL_KT = 9;

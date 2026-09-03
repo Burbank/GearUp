@@ -2258,12 +2258,26 @@
       Hl && Hl.formatAtis ? Hl.formatAtis(view.text || "") : view.text || "";
     let arrRwys = [];
     let depRwys = [];
+    let arrTagged = [];
+    let depTagged = [];
     if (Hl) {
-      if (Hl.arrRunways) arrRwys = Hl.arrRunways(atisText);
-      if (Hl.depRunways) depRwys = Hl.depRunways(atisText);
+      if (Hl.arrRunways) {
+        arrRwys = Hl.arrRunways(atisText);
+        arrTagged = Hl.arrRunways(atisText, { tagged: true });
+      }
+      if (Hl.depRunways) {
+        depRwys = Hl.depRunways(atisText);
+        depTagged = Hl.depRunways(atisText, { tagged: true });
+      }
     }
-    const highlightRwys =
-      atisSide === "arrival"
+    const bothOps = arrTagged.length > 0 && depTagged.length > 0;
+    const useArrStrip =
+      !bothOps && (atisSide === "arrival" || view.kind === "arrival");
+    const highlightRwys = bothOps
+      ? atisSide === "arrival"
+        ? mergeRwyLists(arrTagged, depTagged)
+        : mergeRwyLists(depTagged, arrTagged)
+      : useArrStrip
         ? arrRwys.length
           ? arrRwys
           : depRwys
@@ -2283,15 +2297,33 @@
       runways: highlightRwys,
       zuluRef: lastAtisIssued,
     });
+    const windKind = inferred.length
+      ? "departure"
+      : bothOps
+        ? atisSide === "arrival"
+          ? "arrival"
+          : "departure"
+        : useArrStrip
+          ? "arrival"
+          : "departure";
+    const windRwys = inferred.length
+      ? inferred
+      : bothOps
+        ? atisSide === "arrival"
+          ? arrTagged
+          : depTagged
+        : lastDepRunways;
     fillWorstWind(
       atisText,
-      inferred.length
-        ? "departure"
-        : atisSide === "arrival"
-          ? "arrival"
-          : "departure",
-      lastDepRunways,
-      stale
+      windKind,
+      windRwys,
+      stale,
+      inferred.length || !bothOps
+        ? null
+        : {
+            kind: atisSide === "arrival" ? "departure" : "arrival",
+            runways: atisSide === "arrival" ? depTagged : arrTagged,
+          }
     );
     if (!inferred.length) maybeOpenInferPreview(atisText, arrRwys);
     const R = typeof GearUpRwycond !== "undefined" ? GearUpRwycond : null;
@@ -2735,12 +2767,34 @@
     if (inferPreviewClose) inferPreviewClose.focus();
   }
 
-  function fillWorstWind(text, kind, runways, stale) {
+  function mergeRwyLists(a, b) {
+    const out = [];
+    const seen = new Set();
+    for (const row of (a || []).concat(b || [])) {
+      const id = row && row.id;
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      out.push(row);
+    }
+    return out;
+  }
+
+  function worstWindRows(W, source, kind, runways, fromMetar) {
+    if (!W || !W.lines) return [];
+    return W.lines(source.text, {
+      kind: kind === "arrival" ? "arrival" : "departure",
+      runways: runways || [],
+      varEast: fromMetar ? currentVarEast() : null,
+    });
+  }
+
+  function fillWorstWind(text, kind, runways, stale, more) {
     lastWorstFill = {
       text,
       kind,
       runways: runways || [],
       stale: !!stale,
+      more: more || null,
     };
     if (!atisWorstwind || !atisWorstwindBody) return;
     const W = typeof GearUpWorstWind !== "undefined" ? GearUpWorstWind : null;
@@ -2756,14 +2810,12 @@
           })
         : { text, from: "atis" };
     const fromMetar = source.from === "metar";
-    const rows =
-      W && W.lines
-        ? W.lines(source.text, {
-            kind: kind === "arrival" ? "arrival" : "departure",
-            runways: runways || [],
-            varEast: fromMetar ? currentVarEast() : null,
-          })
-        : [];
+    let rows = worstWindRows(W, source, kind, runways, fromMetar);
+    if (more && more.runways && more.runways.length) {
+      rows = rows.concat(
+        worstWindRows(W, source, more.kind, more.runways, fromMetar)
+      );
+    }
     if (!rows.length) {
       atisWorstwind.hidden = true;
       closeWorstwindDialog();
@@ -2779,7 +2831,8 @@
       lastWorstFill.text,
       lastWorstFill.kind,
       lastWorstFill.runways,
-      lastWorstFill.stale
+      lastWorstFill.stale,
+      lastWorstFill.more
     );
   }
 

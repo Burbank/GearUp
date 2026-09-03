@@ -22,9 +22,9 @@ The strip is still labeled UNOFFICIAL ESTIMATE because it is a worst-heading / g
 
 `DEPARTURES` / `ARRIVALS` (plural) plus a comma then `RWY 25L` must match. Old `DEPARTURE\b` missed Hong Kong CAD. Same for `EXP ILS APCH, RWY 25C`.
 
-Departure extract (`depRunways`): DEP/DEPARTURE/DEPARTURES/DEPG/TAKE OFF/TKOF, `TL 22`, `RWY … IN USE / FOR DEP`, `RUNWAY IN USE 06`, `USING RWY 34L/34R`. US D-ATIS may glue `RWY8`, repeat `RWY` after commas (`DEPG RWY8, RWY25`), or speak two digits (`RUNWAY 3 4 LEFT` → 34L). `DEPG RWYS, 26L, 27R` still parses.
+Departure extract (`depRunways`): DEP/DEPARTURE/DEPARTURES/DEPG/TAKE OFF/TKOF, `TL 22`, `RWY … IN USE / FOR DEP`, `RUNWAY IN USE 06`, `USING RWY 34L/34R`. US D-ATIS may glue `RWY8`, repeat `RWY` after commas (`DEPG RWY8, RWY25`), or speak two digits (`RUNWAY 3 4 LEFT` → 34L). `DEPG RWYS, 26L, 27R` still parses. `{ tagged: true }` keeps only DEP/TL/FOR DEP (not bare IN USE).
 
-Arrival extract (`arrRunways`): ARR/ARRIVAL/ARRIVALS/LANDING/LDG/LNDG/APP/APCH, ILS RWY, `RUNWAY IN USE 06`, USING RWY, and `SIMUL APCHS IN USE, RWY 34R, RWY 35L`. Closed-runway NOTAMs (`RWY 26 ILS OTS`) are not in-use runways.
+Arrival extract (`arrRunways`): ARR/ARRIVAL/ARRIVALS/LANDING/LDG/LNDG/APP/APCH, ILS RWY, `RUNWAY IN USE 06`, USING RWY, and `SIMUL APCHS IN USE, RWY 34R, RWY 35L`. Closed-runway NOTAMs (`RWY 26 ILS OTS`) are not in-use runways. `{ tagged: true }` keeps only ARR/LDG/APCH/ILS (not bare IN USE).
 
 MAIN/PRIMARY vs SECONDARY/SEC/2ND prefixes set `role: "main" | "sec"` so a second wind pairs to the second runway.
 
@@ -141,6 +141,8 @@ WORST {rwy} {DEPARTURE|LANDING} WIND {ddd/ss|CALM}[ T#|H# X#]
 
 - DEPT ATIS → DEPARTURE; ARR ATIS → LANDING.
 - Combined ATIS: the DEPT/ARR toggle picks the strip immediately. DEPT uses departure runways and **DEPARTURE**; ARR uses arrival runways and **LANDING**, even when the same combined copy stays on screen. Do not keep `view.kind === "combined"` as a permanent departure strip.
+- An **ARR ATIS** / **ARR INFO** header stays arrival even if the body lists `DEP RWY` (CYYZ) or NavCanada sends both runway fields. Combined only when both ARR and DEP heads exist, or the copy says COMBINED.
+- If the same tape **tags** both a departure runway (`DEP RWY`, DEPARTURES, TAKE OFF) and an arrival runway (`LDG RWY`, ARRIVALS, ILS/APCH), the wind strip is a combined ops message: **DEPARTURE** lines from the DEP tags and **LANDING** lines from the ARR/LDG tags. DEPT lists departure first; ARR lists landing first. Bare `RUNWAY IN USE` does not count as both. EHAM inferred takeoff ids still override on DEPT.
 - If the copy has both a departure block and an arrival block, parse the wind from that block (fall back to the whole copy if that block has no wind).
 - Exception (EHAM only): when the DEPT tab is showing an arrival copy (`SHOWN DUE NO RECENT DEPT ATIS AVAIL.`), the strip uses **inferred takeoff** runways and **DEPARTURE**. See §17.
 - `ddd` is three digits; speed is two+ digits.

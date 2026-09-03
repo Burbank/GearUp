@@ -263,8 +263,15 @@ assert.ok(eham.departureAtis && eham.departureAtis.kind === "departure");
 
 assert.strictEqual(
   looksCombinedAtis("CYVR ARR ATIS D\nLDG RWY 08L\nDEP RWY 08R"),
-  true,
-  "ARR head plus both runways stays combined"
+  false,
+  "ARR ATIS that mentions DEP RWY is still arrival"
+);
+assert.strictEqual(
+  looksCombinedAtis(
+    "CYYZ ARR ATIS A 2300Z\nDEP RWY 06L.\nLDG RWY 05 AND 06R"
+  ),
+  false,
+  "CYYZ ARR ATIS is not combined"
 );
 assert.strictEqual(
   looksCombinedAtis("EHAM DEP ATIS S\nCYVR ARR ATIS D"),

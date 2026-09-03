@@ -199,6 +199,41 @@ const rwy24 = [rwy("24")];
 assert.strictEqual(windHit("LANDING RWY 24\nWIND 240 DEG, 29 KT", rwy24), false);
 assert.strictEqual(windHit("LANDING RWY 24\nWIND 240 DEG, 30 KT", rwy24), true);
 
+const cyyzArr = `
+CYYZ ARR ATIS A 2300Z
+030/10G15KT 15SM FEW090
+DEP RWY 06L.
+CIG BKN220 23/17 A2991
+APCH ILS RWY 05, AND ILS RWY 06R, SIMUL PRLL APCH IN EFCT.
+LDG RWY 05 AND 06R
+`.trim();
+assert.deepStrictEqual(Hl.depRunways(cyyzArr, { tagged: true }).map((r) => r.id), [
+  "06L",
+]);
+assert.deepStrictEqual(Hl.arrRunways(cyyzArr, { tagged: true }).map((r) => r.id), [
+  "05",
+  "06R",
+]);
+assert.deepStrictEqual(
+  W.lines(cyyzArr, {
+    kind: "departure",
+    runways: Hl.depRunways(cyyzArr, { tagged: true }),
+  }),
+  ["WORST 06L DEPARTURE WIND 030/15 H13 X7"]
+);
+assert.deepStrictEqual(
+  W.lines(cyyzArr, {
+    kind: "arrival",
+    runways: Hl.arrRunways(cyyzArr, { tagged: true }),
+  }),
+  [
+    "WORST 05 LANDING WIND 030/15 H14 X5",
+    "WORST 06R LANDING WIND 030/15 H13 X7",
+  ]
+);
+assert.deepStrictEqual(Hl.depRunways("RUNWAY IN USE 06", { tagged: true }), []);
+assert.deepStrictEqual(Hl.arrRunways("RUNWAY IN USE 06", { tagged: true }), []);
+
 const combined = `
 COMBINED ATIS
 DEPARTURES RWY 24L.
