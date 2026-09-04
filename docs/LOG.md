@@ -4,7 +4,7 @@ Session history for rebuild. Older narrative also lives in `CURSOR_general_logs/
 
 ## 2026-09-04 — Privacy and Support footer
 
-Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`. Home still **1.8**. Live: https://gearup4u.netlify.app/privacy-policy.html
+Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp` `ad6aebe`. Home still **1.8**. Netlify `6a9a98e41432b0a0838725e6`. Live: https://gearup4u.netlify.app/privacy-policy.html
 
 Three-column contact card: email, App Store QR, website plus **Download iOS app**. Header uses the current 4U mark and the app icon on the right. Acknowledgement gate stays local.
 
