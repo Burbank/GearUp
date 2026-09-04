@@ -83,9 +83,54 @@
       media="(prefers-color-scheme: dark)"
     />
     <script src="/js/theme.js"></script>
-    <link rel="stylesheet" href="/css/app.css?v=346" />
+    <link rel="stylesheet" href="/css/app.css?v=347" />
+    <link rel="stylesheet" href="/css/ack-gate.css?v=7" />
   </head>
   <body>
+    <div
+      id="ack-gate"
+      class="ack-gate"
+      hidden
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="ack-title"
+      aria-describedby="ack-body ack-hint"
+    >
+      <img
+        class="ack-photo"
+        src="/ack-bg.jpg"
+        alt=""
+        width="1600"
+        height="900"
+        decoding="async"
+      />
+      <div class="ack-panel">
+        <p class="ack-eyebrow" data-ack-eyebrow></p>
+        <h2 id="ack-title" data-ack-title></h2>
+        <p id="ack-body" class="ack-body" data-ack-body></p>
+        <p id="ack-hint" class="ack-hint" data-ack-hint></p>
+        <div class="ack-track" id="ack-track">
+          <div class="ack-bay" data-ack-bay aria-hidden="true"></div>
+          <button
+            type="button"
+            class="ack-strip"
+            id="ack-strip"
+            data-ack-strip
+            aria-describedby="ack-hint"
+          ></button>
+        </div>
+        <button
+          type="button"
+          class="ack-fallback"
+          id="ack-fallback"
+          data-ack-fallback
+          hidden
+        ></button>
+      </div>
+    </div>
+    <script src="/js/ack-copy.js?v=3"></script>
+    <script src="/js/ack-storage.js?v=1"></script>
+    <script src="/js/ack-gate.js?v=3"></script>
     <div id="app">
       <nav class="tabs" role="tablist" aria-label="Sections">
         <button type="button" id="tab-atis" class="tab" data-tab="atis">
@@ -142,6 +187,7 @@
             </button>
           </div>
         </header>
+        <p class="ack-edumark" data-ack-edumark>NOT FOR OPERATIONAL USE · EDU ONLY</p>
         <form id="lookup-form" class="lookup" autocomplete="off">
           <div class="lookup-field">
             <label class="sr-only" for="icao-input">Airport</label>
@@ -192,9 +238,17 @@
           <p>
             The author assumes no liability. EDUCATIONAL USE ONLY
           </p>
+          <p>
+            <a
+              class="home-ios"
+              href="https://apps.apple.com/us/app/gearup4u/id6806373583"
+              target="_blank"
+              rel="noopener noreferrer"
+            >Download iOS app</a>
+          </p>
         </div>
         <div class="home-version">
-          <p aria-label="Version 1.8">1.8</p>
+          <p aria-label="Version 1.9">1.9</p>
           <a
             class="cdm-reset cdm-help home-support"
             href="https://gearup4u.netlify.app/privacy-policy.html"
@@ -1364,7 +1418,7 @@
     <script src="/js/tz.js" defer></script>
     <script src="/js/magvar.js?v=2" defer></script>
     <script src="/js/runways.js?v=3" defer></script>
-    <script src="/js/hl.js?v=223" defer></script>
+    <script src="/js/hl.js?v=224" defer></script>
     <script src="/js/worstwind.js?v=216" defer></script>
     <script src="/js/ehamrwy.js" defer></script>
     <script src="/js/rwycond.js" defer></script>
@@ -1378,6 +1432,6 @@
     <script src="/js/flytify.js?v=2" defer></script>
     <script src="/js/hextory.js?v=68" defer></script>
     <script src="/js/actype.js?v=5" defer></script>
-    <script src="/js/app.js?v=306" defer></script>
+    <script src="/js/app.js?v=307" defer></script>
   </body>
 </html>

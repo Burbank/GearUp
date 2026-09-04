@@ -1844,8 +1844,8 @@
     const re = /\b(?:\d{2}\s\d{2}:\d{2}Z|\d{2}:\d{2}Z|\d{4}(?:\d{2})?Z)\b/g;
     const Hl = typeof GearUpHl !== "undefined" ? GearUpHl : null;
     const issueAt =
-      issueOnly && Hl && Hl.tafIssueZuluIndex
-        ? Hl.tafIssueZuluIndex(raw)
+      issueOnly && Hl && (Hl.issueZuluIndex || Hl.tafIssueZuluIndex)
+        ? (Hl.issueZuluIndex || Hl.tafIssueZuluIndex)(raw)
         : -1;
     let m = re.exec(raw);
     while (m) {
@@ -2296,6 +2296,7 @@
       letter: view.letter,
       runways: highlightRwys,
       zuluRef: lastAtisIssued,
+      zuluIssueOnly: true,
     });
     const windKind = inferred.length
       ? "departure"

@@ -471,7 +471,7 @@
 
   const ZULU_TOKEN_RE = /\b(?:\d{2}\s\d{2}:\d{2}Z|\d{2}:\d{2}Z|\d{4}(?:\d{2})?Z)\b/g;
 
-  function tafIssueZuluIndex(text) {
+  function issueZuluIndex(text) {
     const raw = String(text || "");
     const re = new RegExp(ZULU_TOKEN_RE.source, "g");
     let m = re.exec(raw);
@@ -481,6 +481,8 @@
     }
     return -1;
   }
+
+  const tafIssueZuluIndex = issueZuluIndex;
 
   function tafTempRanges(text) {
     const raw = String(text || "");
@@ -1359,6 +1361,7 @@
     formatMetar,
     formatAtis,
     isTafForecastTempTime,
+    issueZuluIndex,
     tafIssueZuluIndex,
     stripAdviseInfo,
     wxRanges,

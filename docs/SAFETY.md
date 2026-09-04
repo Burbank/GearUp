@@ -41,7 +41,7 @@ Schiphol and CDM go through the proxy, not the browser, so keys never sit in cli
 - Flightradar: **15 new lookups / 60s / IP** (`FR24_MAX`), own bucket. Cache hits (90s) and in-flight coalesces do not count. `fresh=1` is ignored so scrapers cannot cache-bust the paid token. Key stays in `.env` / Netlify env only.
 - Board HTTP cache: `public, s-maxage=60, stale-while-revalidate=30` (function + `netlify.toml`).
 
-Client (v1.8) holds ATIS 90s, TAF 90s, board 60s so tab switches do not multiply those budgets. Refresh and pull-to-refresh pass `{ force: true }` and `fresh=1`, which skip those holds and the in-process overheard / NAS / board caches. Tab return still uses the holds.
+Client (v1.9) holds ATIS 90s, TAF 90s, board 60s so tab switches do not multiply those budgets. Refresh and pull-to-refresh pass `{ force: true }` and `fresh=1`, which skip those holds and the in-process overheard / NAS / board caches. Tab return still uses the holds.
 
 ---
 

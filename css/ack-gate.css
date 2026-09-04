@@ -1,0 +1,219 @@
+/* GearUp4U first-visit acknowledgement. DIM flight-deck overlay. */
+
+.ack-gate {
+  --ack-gold: #d4b06a;
+  --ack-ink: #f3efe4;
+  --ack-mute: #c8bfae;
+  --ack-panel: rgba(18, 22, 28, 0.82);
+  --ack-line: rgba(212, 176, 106, 0.55);
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  overflow-x: hidden;
+  overflow-y: auto;
+  touch-action: pan-y;
+  padding: 0 1rem max(1rem, env(safe-area-inset-bottom));
+  color: var(--ack-ink);
+  background: #12161c;
+}
+
+/* Prefer the card just under the nose wheel; shrink this gap when the slider would fall off-screen. */
+.ack-gate::before {
+  content: "";
+  flex: 0 1 60dvh;
+  min-height: max(0.75rem, env(safe-area-inset-top));
+  width: 0;
+  pointer-events: none;
+}
+
+/* Landscape source; crop to the site viewport and keep the aircraft centered. */
+.ack-photo {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  pointer-events: none;
+  user-select: none;
+}
+
+.ack-gate::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(8, 10, 14, 0.22),
+    rgba(8, 10, 14, 0.34)
+  );
+}
+
+.ack-gate[hidden] {
+  display: none !important;
+}
+
+html.ack-locked,
+html.ack-locked body {
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+.ack-panel {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
+  width: min(34rem, 100%);
+  margin-bottom: max(1rem, env(safe-area-inset-bottom));
+  padding: 1.25rem 1.15rem 1.1rem;
+  border: 1px solid var(--ack-line);
+  border-radius: 12px;
+  background: var(--ack-panel);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(10px);
+}
+
+.ack-eyebrow {
+  margin: 0 0 0.35rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--ack-gold);
+}
+
+.ack-gate h2 {
+  margin: 0 0 0.7rem;
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.15;
+}
+
+.ack-body,
+.ack-hint {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.ack-body {
+  margin-bottom: 1rem;
+  font-size: 0.98rem;
+  color: var(--ack-ink);
+  white-space: pre-line;
+}
+
+.ack-hint {
+  margin-bottom: 0.45rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  color: var(--ack-mute);
+}
+
+.ack-track {
+  position: relative;
+  height: 3.15rem;
+  margin: 0 0 0.85rem;
+  border: 1px solid var(--ack-line);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+}
+
+.ack-bay {
+  position: absolute;
+  inset: 4px 4px 4px auto;
+  width: 46%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: rgba(243, 239, 228, 0.38);
+  border: 1px dashed rgba(212, 176, 106, 0.35);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.ack-strip {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 1;
+  width: 42%;
+  height: calc(100% - 8px);
+  margin: 0;
+  padding: 0 0.4rem;
+  border: 0;
+  border-radius: 6px;
+  background: var(--ack-gold);
+  color: #1a140c;
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.ack-strip:focus-visible {
+  outline: 2px solid #fff4d4;
+  outline-offset: 2px;
+}
+
+.ack-strip:active {
+  cursor: grabbing;
+}
+
+.ack-gate.ack-seated .ack-bay {
+  color: rgba(243, 239, 228, 0.12);
+}
+
+.ack-fallback {
+  display: none;
+  width: 100%;
+  min-height: var(--touch);
+  margin: 0 0 0.85rem;
+  border: 1px solid var(--ack-gold);
+  border-radius: 8px;
+  background: var(--ack-gold);
+  color: #1a140c;
+  font-family: var(--mono);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.ack-gate.ack-reduced .ack-track,
+.ack-gate.ack-reduced .ack-hint {
+  display: none;
+}
+
+.ack-gate.ack-reduced .ack-fallback {
+  display: block;
+}
+
+.ack-edumark {
+  margin: 0 0 0.65rem;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.ack-edumark-compact {
+  margin: 0.15rem 0 0;
+  font-size: 0.62rem;
+}

@@ -44,4 +44,18 @@ assert.strictEqual(Hl.tafIssueZuluIndex(cyqx), cyqx.indexOf("031740Z"));
 assert.notStrictEqual(Hl.tafIssueZuluIndex(cyqx), cyqx.indexOf("040000Z"));
 assert.strictEqual(Hl.tafIssueZuluIndex(taf), taf.indexOf("261700Z"));
 
+const cyyz = Hl.formatAtis(`
+CYYZ ARR ATIS O 0700Z
+360/07KT 15SM FEW055
+19/14 A2995
+LDG AND DEP RWY 05.
+APCH ILS RWY 05.
+ACFT ARRG CYYZ WITH PERMISSION TO LAND PRIOR TO 1030Z SHALL NTFY CYYZ ATC ON INITIAL CTC.
+`);
+assert.ok(cyyz.includes("07:00Z"), cyyz);
+assert.ok(cyyz.includes("10:30Z"), cyyz);
+assert.strictEqual(Hl.issueZuluIndex(cyyz), cyyz.indexOf("07:00Z"));
+assert.notStrictEqual(Hl.issueZuluIndex(cyyz), cyyz.indexOf("10:30Z"));
+assert.strictEqual(Hl.tafIssueZuluIndex(cyyz), cyyz.indexOf("07:00Z"));
+
 console.log("taf-temp-zulu ok");

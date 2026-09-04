@@ -77,6 +77,7 @@ const PUBLIC_ROOT = new Set([
   "index.html",
   "privacy-policy.html",
   "background.jpeg",
+  "ack-bg.jpg",
   "sw.js",
   "manifest.webmanifest",
   "robots.txt",

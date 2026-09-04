@@ -280,7 +280,7 @@ Polar day/night (`cosH` out of [−1, 1]) → hide the chip.
 - ATIS / METAR stale: **1 hour** (`STALE_MS`).
 - TAF issued / TAF body Zulu: **6 hours** (`TAF_STALE_MS`).
 - Token forms: `25 20:25Z`, `20:25Z`, `2025Z`, `252025Z`.
-- **TAF body: only the issue stamp can go red.** First clock Zulu (`031740Z`), not later remarks (`NXT FCST BY 040000Z`) or FM/TEMPO groups. Those later `Z` groups may stay `.zulu-time` but must not get `.zulu-old` or `data-ms`.
+- **TAF and ATIS body: only the issue stamp can go red.** First clock Zulu (`031740Z`, `07:00Z`), not later remarks (`NXT FCST BY 040000Z`, `PRIOR TO 10:30Z`) or FM/TEMPO groups. Those later `Z` groups may stay `.zulu-time` but must not get `.zulu-old` or `data-ms`. A future remark would otherwise roll to yesterday (`ZULU_FUTURE_MS`) and go stale-red.
 - **TAF max/min temps are not clock times.** `TX31/2706Z` / `TN27/2622Z` / `TNM02/0615Z` use **date + hour** (`DDHHZ`), never HHMM. Do not paint them as `.zulu-time` / `.zulu-old`. Hour 24–31 in a 4-digit `Z` group is also rejected.
 - A stamp **later than now + 1 minute** is rolled to **yesterday** (EGLL 1350Z read at 11:44Z is last night). `ZULU_FUTURE_MS = 60s`.
 - The ATIS header reads **Arrival ATIS is N minutes old, displayed METAR is older.** (or **more recent** / **the same age**). Age is publication Zulu vs now, not fetch time. METAR compare uses the displayed METAR observation minute vs the ATIS publication minute. No METAR on screen → age only, no compare clause.

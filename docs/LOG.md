@@ -2,6 +2,15 @@
 
 Session history for rebuild. Older narrative also lives in `CURSOR_general_logs/ATIS_PWA/LOG.md`.
 
+## 2026-09-04 — version 1.9
+
+Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`. Home **1.9**. SW `gearup-v398`. Live: https://gearup4u.netlify.app
+
+- **Acknowledgement gate** — First visit: slide **I AGREE** into **ACKNOWLEDGE**. Educational / not for operations. Stored as `gearup4u.ack.v1` + cookie `edu-not-ops-v1`. `?ack=reset` shows it again. Background `ack-bg.jpg` (aircraft stays centered; card moves up on small phones).
+- **Home** — **Download iOS app** under the liability line. Same App Store URL as Support.
+- **ATIS issue red** — Only the publication Zulu can go stale-red. Remarks like `PRIOR TO 10:30Z` stay normal.
+- Factory pins unchanged. Hard refresh / kill the home-screen PWA once for `gearup-v398`.
+
 ## 2026-09-04 — Privacy and Support footer
 
 Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp` `ad6aebe`. Home still **1.8**. Netlify `6a9a98e41432b0a0838725e6`. Live: https://gearup4u.netlify.app/privacy-policy.html

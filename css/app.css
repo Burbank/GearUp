@@ -738,6 +738,12 @@ html.theme-bright .home-script {
   margin-top: 0.6rem;
 }
 
+.disclaimer .home-ios {
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: underline;
+}
+
 .home-version {
   margin-top: 0.45rem;
   display: flex;
