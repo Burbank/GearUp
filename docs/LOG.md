@@ -2,6 +2,12 @@
 
 Session history for rebuild. Older narrative also lives in `CURSOR_general_logs/ATIS_PWA/LOG.md`.
 
+## 2026-09-04 — version 1.9 (last-card space)
+
+Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp` `3fbb604`. Still **1.9**. SW `gearup-v405`. Netlify `6a9aa2fa7238e5f4aea14e8b`. Live: https://gearup4u.netlify.app
+
+ATIS, TAF, and the flight board can scroll past a complete last card, then the same gap as between cards. ATIS no longer uses `min-height: 100%` (that hid the card bottom past the tab bar). Hard refresh / kill the home-screen PWA once for `gearup-v405`.
+
 ## 2026-09-04 — version 1.9
 
 Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp` `076b128`. Home **1.9**. SW `gearup-v398`. Netlify `6a9a9a6f8ba204a5f4efbc39`. Live: https://gearup4u.netlify.app
