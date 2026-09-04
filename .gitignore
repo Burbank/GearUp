@@ -7,6 +7,11 @@ data/usage.json
 # Local Netlify folder
 .netlify
 
+# Owner source photo; the served file is ack-bg.jpg
+Background_Disclaimer_agree.jpg
+# Owner App Store QR; the served file is icons/appstore-qr.png
+appstore QR.png
+
 # Working scans of the home handwriting (canonical copy is docs/branding/)
 Handwritten*.png
 Handwritten notes*.png

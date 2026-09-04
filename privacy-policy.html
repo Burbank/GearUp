@@ -22,16 +22,25 @@
       href="/icons/favicon-dark.png"
       media="(prefers-color-scheme: dark)"
     />
-    <link rel="stylesheet" href="/css/legal.css?v=12" />
+    <link rel="stylesheet" href="/css/legal.css?v=14" />
   </head>
   <body>
-    <h1 class="legal-title">
-      <span class="legal-brand" aria-hidden="true">
-        <span class="legal-word">GearUp</span>
-        <span class="legal-mark"></span>
-      </span>
-      Privacy and Support
-    </h1>
+    <header class="legal-head">
+      <h1 class="legal-title">
+        <span class="legal-brand" aria-hidden="true">
+          <span class="legal-word">GearUp</span>
+          <span class="legal-mark"></span>
+        </span>
+        Privacy and Support
+      </h1>
+      <img
+        class="legal-icon"
+        src="/icons/icon-512.png"
+        width="128"
+        height="128"
+        alt=""
+      />
+    </header>
     <div class="section">
       <p>
         GearUp4U is a free, unofficial airport briefing app for education only.<br />
@@ -39,7 +48,7 @@
       </p>
       <p>
         We do not collect personal data, run analytics, or show ads.<br />
-        Pins and theme stay on your device.
+        Pins, theme, and the educational-use acknowledgement stay on your device.
       </p>
       <p>
         When you look up an airport, GearUp4U asks its own service for briefing
@@ -58,8 +67,8 @@
       </p>
     </div>
     <div class="contact">
-      <div class="contact-left">
-        <h2>Contact</h2>
+      <div class="contact-col contact-left">
+        <h2>Contact Developer</h2>
         <p>If you have any questions, please contact us at:</p>
         <p>
           <a
@@ -71,17 +80,29 @@
           ></a>
         </p>
       </div>
-      <div class="contact-right">
+      <div class="contact-col contact-qr">
         <img
-          class="site-icon"
-          src="/icons/icon-512.png"
-          width="128"
-          height="128"
-          alt=""
+          class="store-qr"
+          src="/icons/appstore-qr.png"
+          width="1600"
+          height="1600"
+          alt="QR code to download GearUp4U on the App Store"
         />
+      </div>
+      <div class="contact-col contact-right">
+        <p class="contact-scan">
+          Scan QR code with iPhone camera to download the free iOS app.
+        </p>
         <p class="contact-site">
           <span class="link-label">WEBSITE:</span>
           <a href="https://gearup4u.netlify.app">https://gearup4u.netlify.app</a>
+        </p>
+        <p class="contact-app">
+          <a
+            href="https://apps.apple.com/us/app/gearup4u/id6806373583"
+            target="_blank"
+            rel="noopener noreferrer"
+          >Download iOS app</a>
         </p>
       </div>
     </div>

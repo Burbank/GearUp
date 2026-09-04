@@ -2,6 +2,20 @@
 
 Session history for rebuild. Older narrative also lives in `CURSOR_general_logs/ATIS_PWA/LOG.md`.
 
+## 2026-09-04 — Privacy and Support footer
+
+Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`. Home still **1.8**. Live: https://gearup4u.netlify.app/privacy-policy.html
+
+Three-column contact card: email, App Store QR, website plus **Download iOS app**. Header uses the current 4U mark and the app icon on the right. Acknowledgement gate stays local.
+
+## 2026-09-04 — acknowledgement gate (local)
+
+First-visit flight-strip slider: slide **I AGREE** into **ACKNOWLEDGE**. Copy is educational / not for operations. Stored as `gearup4u.ack.v1` + cookie `edu-not-ops-v1`. `persist()` only after success. `?ack=reset` shows the gate again. Background is `ack-bg.jpg` (`cover`, aircraft centered in the site viewport). No MAC / fingerprint / server log. Still **1.8**. SW `gearup-v392`.
+
+## 2026-09-04 — ATIS issue-only red (local)
+
+Only the ATIS publication Zulu can go stale-red. `PRIOR TO 10:30Z` does not. Local only. Still **1.8**. SW `gearup-v390`.
+
 ## 2026-09-04 — version 1.8 (CYYZ ARR ATIS)
 
 Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp` `81b8b89`. Home **1.8**. SW `gearup-v389`. Netlify `6a9a08811dd11f355cfff7e2`. Live: https://gearup4u.netlify.app
