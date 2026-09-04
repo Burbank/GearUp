@@ -4,7 +4,7 @@ Session history for rebuild. Older narrative also lives in `CURSOR_general_logs/
 
 ## 2026-09-04 — version 1.9
 
-Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`. Home **1.9**. SW `gearup-v398`. Live: https://gearup4u.netlify.app
+Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp` `076b128`. Home **1.9**. SW `gearup-v398`. Netlify `6a9a9a6f8ba204a5f4efbc39`. Live: https://gearup4u.netlify.app
 
 - **Acknowledgement gate** — First visit: slide **I AGREE** into **ACKNOWLEDGE**. Educational / not for operations. Stored as `gearup4u.ack.v1` + cookie `edu-not-ops-v1`. `?ack=reset` shows it again. Background `ack-bg.jpg` (aircraft stays centered; card moves up on small phones).
 - **Home** — **Download iOS app** under the liability line. Same App Store URL as Support.
