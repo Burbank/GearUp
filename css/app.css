@@ -38,6 +38,10 @@
   --border-w: 2px;
   --radius: 10px;
   --touch: 48px;
+  --card-stack-gap: 0.45rem;
+  --scroll-end-buffer: calc(
+    var(--card-stack-gap) + 5rem + env(safe-area-inset-bottom, 0px)
+  );
   --tab-line: #000000;
   --cdm-amber: #d97706;
   --cdm-logo-red: #e40000;
@@ -299,7 +303,7 @@ body {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
   touch-action: pan-y;
-  scroll-padding-bottom: calc(2.75rem + env(safe-area-inset-bottom, 0px));
+  scroll-padding-bottom: var(--scroll-end-buffer);
 }
 
 html.pin-scroll-lock,
@@ -757,10 +761,16 @@ html.theme-bright .home-script {
 }
 
 .view-detail {
-  min-height: 100%;
   background: var(--bg);
   color: var(--fg);
-  padding: 0.55rem 1.05rem 2rem;
+  padding: 0.55rem 1.05rem;
+}
+
+.view-end-spacer {
+  display: block;
+  flex-shrink: 0;
+  height: var(--scroll-end-buffer);
+  pointer-events: none;
 }
 
 .detail-chrome {
@@ -1117,7 +1127,7 @@ html.theme-bright .home-script {
 }
 
 .view-brief {
-  padding: 0.65rem 1.05rem 1.6rem;
+  padding: 0.65rem 1.05rem;
 }
 
 .brief-chrome {
@@ -3024,7 +3034,7 @@ html.adsb-fr24-dock .select-airport.icon-btn {
 }
 
 .view-board {
-  padding: 0.65rem 1.05rem 1.6rem;
+  padding: 0.65rem 1.05rem;
   font-family: var(--sans);
 }
 
