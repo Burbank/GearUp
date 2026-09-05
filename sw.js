@@ -1,13 +1,15 @@
-const CACHE = "gearup-v422";
+const CACHE = "gearup-v470";
 const PRECACHE = [
   "/",
   "/index.html",
   "/css/app.css",
   "/css/ack-gate.css",
   "/ack-bg.jpg",
+  "/bright-bg.jpg",
   "/js/ack-copy.js",
   "/js/ack-storage.js",
   "/js/ack-gate.js",
+  "/js/ios-nudge.js",
   "/icons/map-layers.png",
   "/js/theme.js",
   "/js/fr24card.js",

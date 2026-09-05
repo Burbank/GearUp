@@ -137,6 +137,9 @@
         rootEl.hidden = true;
         lockPage(false);
         rootEl.classList.add("ack-done");
+        try {
+          window.dispatchEvent(new CustomEvent("gearup-ack-passed"));
+        } catch (_) {}
       }, 220);
     });
     const focusEl = slider && slider.strip;

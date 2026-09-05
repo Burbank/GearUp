@@ -16,7 +16,7 @@ Times in the UI are UTC unless a local clock is shown next to them.
 - TAF header runway line (`js/runways.js`) is a static OurAirports plot, not the in-use ATIS set. Parallel numbers collapse (`18L/36R` + `18C/36C` + `18R/36L` → `18/36LCR`); remaining pairs stay `06/24`. After the list: ` · 18R/36L 3800 m` names the longest jet strip and its length in metres (`round(ft × 0.3048)`). A one-strip field omits the repeated ident (`09/27 · 2500 m`). Jet strips only: paved (or long coral/laterite), **≥ 4000 ft**, not closed / water / grass / helipad. Longest family first. Not used for T/H/X.
 - Spoken ATIS wind is also **magnetic** (ICAO Annex 11 §4.3.7). Same frame as the ident, so ATIS T/H/X need **no mag-var conversion**. METAR/SPECI/TAF winds are **true** (ICAO Annex 3).
 - Displayed METAR and TAF wind groups get `dddT` plus `[dddM]` from the yearly ICAO table (`data/magvar.json`, east-positive). Magnetic = true − east variation (east is least). EDDF ~+3.7° → `240T/07KT [236M]`. No table row → no estimate, and no METAR worst-wind fallback.
-- Stale-ATIS METAR fallback (`chooseWindSource`) uses those **magnetic** degrees when `varEast` is known, then existing `W.lines`. Runways stay from the ATIS (or inferred EHAM DEPT). `/api/atis` `worstWind.*` stays ATIS-only.
+- Stale-ATIS METAR fallback (`chooseWindSource`) uses those **magnetic** degrees when `varEast` is known, then existing `W.lines`. Fresh ATIS runways stay from the copy (or inferred EHAM DEPT). No D-ATIS or stale ATIS uses the jet-strip database instead — see §18. `/api/atis` `worstWind.*` stays ATIS-only.
 
 The strip is still labeled UNOFFICIAL ESTIMATE because it is a worst-heading / gust pick, not the official ATIS figure.
 
@@ -146,7 +146,7 @@ WORST {rwy} {DEPARTURE|LANDING} WIND {ddd/ss|CALM}[ T#|H# X#]
 - If the copy has both a departure block and an arrival block, parse the wind from that block (fall back to the whole copy if that block has no wind).
 - Exception (EHAM only): when the DEPT tab is showing an arrival copy (`SHOWN DUE NO RECENT DEPT ATIS AVAIL.`), the strip uses **inferred takeoff** runways and **DEPARTURE**. See §17.
 - `ddd` is three digits; speed is two+ digits.
-- Aside, far right of the cell: `UNOFFICIAL ESTIMATE`. If the strip used the on-screen METAR, `| BASED ON METAR`. If it still used stale ATIS wind, `| STALE`. When the wind is from ATIS, a dim `ATIS` sits after the X value.
+- Aside, far right of the cell: `UNOFFICIAL ESTIMATE`. If the strip used the on-screen METAR, `| BASED ON METAR`. If it used ATIS wind, `| BASED ON ATIS`, plus `| STALE` when that ATIS is stale. When the wind is from ATIS, a dim `ATIS` sits after the X value.
 - Layout: flex `.worstwind-line` → `.worstwind-main` + `.worstwind-aside`. Never put the stamp/aside inside CSS multi-column article flow (this app has no newspaper columns, but do not inject into `#flow` if that layout is added later).
 
 Primary + secondary runways → two lines; secondary wind pairs to secondary runway.
@@ -165,7 +165,7 @@ Use METAR wind **only** when all of these are true:
 
 Fresh ATIS always wins, even if the header says the displayed METAR is more recent. Spoken ATIS wind is magnetic; runway QFU is magnetic.
 
-When METAR arrives after a stale ATIS is already on screen, `showMetar` refills the strip so it can switch without a manual refresh.
+When METAR arrives after a stale ATIS is already on screen, `showMetar` refills the strip so it can switch without a manual refresh. Infer uses **this same gate** — do not pass empty `atisText` when a copy is on screen. If `from === "metar"` but infer cannot run (no jet-strip line, VRB, missing variation), keep the ATIS-parsed runways and still paint METAR wind.
 
 Rebuild the table once a year: `node scripts/build-magvar.js` (OurAirports coords + WMM-2025 at generate time; the PWA only loads `data/magvar.json`).
 
@@ -369,4 +369,31 @@ Night (AIP): **2130–0530 UTC**, DST **2030–0430 UTC**. Takeoff ids kept: `36
 
 Peak banks are **Amsterdam local** (W25 UTC banks as local clock). Outbound: 07:00–07:20, 09:20–10:40, 11:40–12:40, 14:00–15:00, 16:20–18:00, 20:00–21:40. Inbound: 08:00–09:20, 11:00–11:40, 13:00–14:00, 15:20–16:20, 18:20–20:00. Half-open `[start, end)`.
 
-The wind strip then uses these takeoff ids with kind `departure`. ATIS body highlights stay on the **arrival** runways from the copy.
+The wind strip then uses these takeoff ids with kind `departure`. ATIS body highlights stay on the **arrival** runways from the copy. The infer aside is `BASED ON ATIS`. A METAR refresh must not replace this with §18.
+
+---
+
+## 18. METAR inferred runway (no D-ATIS or stale)
+
+`js/runways.js` `endsFromLine` / `inferIntoWind` plus `js/worstwind.js` `chooseWindSource` / `magneticWind` / `worstForRunway`.
+
+Infer only when `chooseWindSource` returns `from === "metar"` (same stale / on-screen / not-older / variation rules as §6). Do not infer on a stale ATIS whose METAR is older than the ATIS. If METAR wins but infer cannot run, keep ATIS-parsed runways and paint METAR wind.
+
+When that gate passes and a METAR is on screen with a magnetic direction (`varEast` known for directional wind), infer the into-wind jet strip from the TAF runway database line (`data/runways.json`). Heading is still **n × 10** (36 → 360). Count **headwind votes** on the METAR mean and the two sector ends (`headwindVotes`). Pick the ident number that is into-wind on more of those headings; ties use the smaller own-worst tail. EDFH `277M` / `237–307` is **21** (head at 237 and 277, only T1 at 307). Both ILS → no airport preference. Include every parallel of the winning number (`26L` and `26R`). VRB with no mean direction does not infer.
+
+Preferred direction (same phrase on DEPT and ARR) may override that pick only while the preferred end’s worst tail is **under 5 kt**. At **5 kt tail** it flips to the wind-only / opposite end:
+
+- Hand list first: **HKJK 06** (departure and landing; ATC accepts a *light* tailwind, not 5 kt).
+- Else one-sided ILS from `data/runways.json` `ilsOne` (baked at `scripts/build-runways.js` from FlightGear `nav.dat` type-4 localizers). Only when **exactly one** end of a reciprocal pair has an ILS. Both ends (including CAT III vs CAT I) → ignore ILS.
+
+The card never prints ILS or “preferred” — only `Inferred Runway …`.
+
+Phrase (same on DEPT and ARR):
+
+- one: `Inferred Runway 27`
+- two: `Inferred Runways, 26L and/or 26R`
+- more: `Inferred Runways, 36C, 36L and/or 36R`
+
+Wind lines use kind `runway`: `WORST 27 WIND 270/12 H12 X0` (no DEPARTURE / LANDING). The infer aside is `BASED ON METAR`. The wind strip uses the same METAR aside. EHAM “arrival shown under DEPT” still uses §17 instead (`BASED ON ATIS`).
+
+Does not run without a database line (no jet strip) or without METAR / variation. Official D-ATIS with no METAR strip stays ATIS-only.

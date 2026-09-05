@@ -10,6 +10,8 @@
   let dropped = false;
   let lastHeld = null;
   let lastHeldAt = 0;
+  let sawLive = false;
+  let holdUntil = 0;
 
   function followZoom(alt) {
     const n = Number(alt);
@@ -34,17 +36,98 @@
       /* ignore */
     }
   }
+
+  let parentFs = false;
+
+  function parentFsEl() {
+    return parentFs ? document.documentElement : null;
+  }
+
+  function syncParentFs(on) {
+    const next = !!on;
+    if (parentFs === next) return;
+    parentFs = next;
+    try {
+      document.dispatchEvent(new Event("fullscreenchange"));
+    } catch {
+      /* ignore */
+    }
+    try {
+      document.dispatchEvent(new Event("webkitfullscreenchange"));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function wrapFullscreen() {
+    if (window.parent === window) return;
+    const elProto = Element.prototype;
+    const origRF = elProto.requestFullscreen;
+    if (typeof origRF === "function" && !origRF._gearup) {
+      elProto.requestFullscreen = function () {
+        post({ reason: "fullscreen", on: true });
+        syncParentFs(true);
+        return Promise.resolve();
+      };
+      elProto.requestFullscreen._gearup = true;
+    }
+    const origWR = elProto.webkitRequestFullscreen;
+    if (typeof origWR === "function" && !origWR._gearup) {
+      elProto.webkitRequestFullscreen = function () {
+        post({ reason: "fullscreen", on: true });
+        syncParentFs(true);
+      };
+      elProto.webkitRequestFullscreen._gearup = true;
+    }
+    const origExit = Document.prototype.exitFullscreen;
+    if (typeof origExit === "function" && !origExit._gearup) {
+      Document.prototype.exitFullscreen = function () {
+        post({ reason: "fullscreen", on: false });
+        syncParentFs(false);
+        return Promise.resolve();
+      };
+      Document.prototype.exitFullscreen._gearup = true;
+    }
+    const origWExit = Document.prototype.webkitExitFullscreen;
+    if (typeof origWExit === "function" && !origWExit._gearup) {
+      Document.prototype.webkitExitFullscreen = function () {
+        post({ reason: "fullscreen", on: false });
+        syncParentFs(false);
+      };
+      Document.prototype.webkitExitFullscreen._gearup = true;
+    }
+    try {
+      Object.defineProperty(document, "fullscreenElement", {
+        configurable: true,
+        get: parentFsEl,
+      });
+    } catch {
+      /* ignore */
+    }
+    try {
+      Object.defineProperty(document, "webkitFullscreenElement", {
+        configurable: true,
+        get: parentFsEl,
+      });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  wrapFullscreen();
   const ZOOM_CSS =
     "#zoomIn,#zoomOut,#ZIn,#ZOut,.ol-zoom,.ol-zoom-in,.ol-zoom-out,#ui2_banner,#ui2_banner_try,#ui2_banner_close{display:none!important}";
   const PHONE_CSS = [
     "#toggle-width,#toggle_width,#toggle_sidebar_control,#toggle_sidebar_button",
     "#expand_sidebar_control,#expand_sidebar_button,#shrink_sidebar_button",
   ].join(",") + "{display:none!important}";
+  const HIDE_UNUSED_CSS =
+    "#H,#M{display:none!important;visibility:hidden!important;pointer-events:none!important}";
   const RAIL_CSS =
-    "#U,#H,#T{min-width:2.7em!important;width:2.7em!important;box-sizing:border-box!important}";
+    "#U,#T{min-width:2.7em!important;width:2.7em!important;box-sizing:border-box!important}";
   const NO_PASTE_CSS =
-    "#L,#O,#P,#I,#F,#M,#K,#R,#N,#S,button,[role=button]{cursor:pointer;-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;-webkit-user-modify:read-only;-webkit-tap-highlight-color:transparent;touch-action:manipulation}" +
-    "#L *,#O *,#P *,#I *,#F *,#M *,button *,[role=button] *{pointer-events:none;-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important}";
+    "#L,#O,#P,#I,#F,#G,#M,#K,#R,#N,#S,button,[role=button]{cursor:pointer;-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;-webkit-user-modify:read-only;-webkit-tap-highlight-color:transparent;touch-action:manipulation}" +
+    "#L *,#O *,#P *,#I *,#F *,#G *,#M *,button *,[role=button] *{pointer-events:none;-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important}";
 
   function injectStyle(id, css) {
     let style = document.getElementById(id);
@@ -114,7 +197,7 @@
         el.closest('input, textarea, select, [contenteditable="true"]')
       );
     const isKey = (el) =>
-      !!(el && el.closest && el.closest("button, [role=button], #L, #O, #P, #I, #F, #M"));
+      !!(el && el.closest && el.closest("button, [role=button], #L, #O, #P, #I, #F, #G, #M"));
     const clear = () => {
       try {
         const sel = window.getSelection();
@@ -151,6 +234,7 @@
   function hideChrome() {
     injectStyle("gearup-hide-zoom", ZOOM_CSS);
     injectStyle("gearup-hide-phone", PHONE_CSS);
+    injectStyle("gearup-hide-unused", HIDE_UNUSED_CSS);
     injectStyle("gearup-rail-wide", RAIL_CSS);
     injectStyle("gearup-no-paste", NO_PASTE_CSS);
     bindNoPaste();
@@ -169,7 +253,20 @@
     }
     shutSidebarOnce();
     bindKeyDismiss();
+    wrapGalSelect();
     enableRainViewer();
+    try {
+      ensureG();
+      spaceG();
+      wrapGroundFilter();
+      styleG();
+      if (!trackingNow() && !areaLabelsOn) {
+        clickGal("L", true);
+        areaLabelsOn = true;
+      }
+    } catch {
+      /* chrome extras must not abort watch */
+    }
   }
 
   function post(payload) {
@@ -233,13 +330,50 @@
     return s;
   }
 
+  function globeG() {
+    try {
+      if (typeof g !== "undefined" && g) return g;
+    } catch {
+      /* ignore */
+    }
+    return window.g || null;
+  }
+
+  function globeSelected() {
+    try {
+      if (typeof SelectedPlane !== "undefined" && SelectedPlane) return SelectedPlane;
+    } catch {
+      /* ignore */
+    }
+    return window.SelectedPlane || null;
+  }
+
   function livePlane() {
-    if (window.SelectedPlane) return window.SelectedPlane;
-    const list = (window.g && window.g.planesOrdered) || [];
+    const sel = globeSelected();
+    if (sel) return sel;
+    const gg = globeG();
+    const list = (gg && gg.planesOrdered) || [];
     for (let i = 0; i < list.length; i++) {
       if (list[i] && list[i].selected) return list[i];
     }
+    const planes = gg && gg.planes;
+    if (planes && typeof planes === "object") {
+      for (const key in planes) {
+        if (!Object.prototype.hasOwnProperty.call(planes, key)) continue;
+        const p = planes[key];
+        if (p && p.selected) return p;
+      }
+    }
     return null;
+  }
+
+  function trackedPlane() {
+    const live = livePlane();
+    if (live) return live;
+    const hex = lastHeld && lastHeld.hex;
+    const gg = globeG();
+    if (!hex || !gg || !gg.planes) return null;
+    return gg.planes[hex] || gg.planes[hex.toUpperCase()] || null;
   }
 
   function readPlane(p) {
@@ -285,10 +419,23 @@
     const live = livePlane();
     if (live) {
       dropped = false;
+      sawLive = true;
       return readPlane(live);
     }
     const card = readPlane(null);
-    if (dropped) return null;
+    if (dropped) {
+      if (card && lastHeld && planeId(card) && planeId(card) !== planeId(lastHeld)) {
+        dropped = false;
+        sawLive = false;
+        return card;
+      }
+      return null;
+    }
+    if (lastHeld && Date.now() < holdUntil) {
+      if (card && planeId(card) && planeId(card) !== planeId(lastHeld)) return card;
+      return lastHeld;
+    }
+    if (sawLive) return null;
     if (cardHidden && lastHeld) {
       if (card && planeId(card) && planeId(card) !== planeId(lastHeld)) return card;
       return lastHeld;
@@ -392,20 +539,22 @@
     const style = document.createElement("style");
     style.id = "gearup-fold-style";
     style.textContent = [
-      ".sectionTitle.gearup-fold{cursor:pointer;-webkit-user-select:none;user-select:none}",
-      ".sectionTitle.gearup-fold .section-title-content{display:flex;align-items:center;justify-content:center;gap:0.45em}",
-      ".sectionTitle.gearup-fold .section-title-content:before{content:'';width:0;height:0;border-left:0.38em solid transparent;border-right:0.38em solid transparent;border-top:0.48em solid #e8e8e8}",
-      ".sectionTitle.gearup-fold[aria-expanded='true'] .section-title-content:before{border-top:0;border-bottom:0.48em solid #e8e8e8}",
+      '@font-face{font-family:"Atkinson Hyperlegible";font-style:normal;font-weight:400;font-display:swap;src:url("/fonts/AtkinsonHyperlegible-Regular.woff2") format("woff2")}',
+      '@font-face{font-family:"Atkinson Hyperlegible";font-style:normal;font-weight:700;font-display:swap;src:url("/fonts/AtkinsonHyperlegible-Bold.woff2") format("woff2")}',
+      ".sectionTitle.gearup-fold{display:none!important}",
+      "#gearup-card-cycle{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;width:116px;min-width:116px;max-width:116px;min-height:54px;margin:8px 0 10px 8px;padding:4.5px 4.8px;border:2px solid var(--cycle-border,#00a1e4);border-radius:10px;background:var(--cycle-bg,#00a1e4);color:var(--cycle-fg,#fff);font-family:var(--cycle-sans,'Atkinson Hyperlegible'),-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif!important;font-size:14.08px!important;font-weight:700!important;letter-spacing:0.04em!important;line-height:1.05;opacity:var(--cycle-fade,0.7)!important;cursor:pointer;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation;text-shadow:none!important}",
+      "#gearup-card-cycle:active{background:var(--cycle-press,#003d5c)!important;border-color:var(--cycle-press,#003d5c)!important;color:#fff!important}",
+      "#gearup-card-cycle[hidden]{display:none!important}",
       "#gearup-fold-body[hidden]{display:none!important}",
       "#show_trace,#history_collapse,#trace_date{display:none!important}",
       "#infoblock-container>.sectionTitle:not(.gearup-fold){display:none!important}",
       "#infoblock-container>#spatial_block,",
-      "#infoblock-container>button,#infoblock_close{display:none!important}",
+      "#infoblock-container>button:not(#gearup-card-cycle),#infoblock_close{display:none!important}",
       "#anon_mlat_info,#tisb_info{display:none!important}",
       "#selected_infoblock,#infoblock-container,#reg_info{background:transparent!important;background-color:transparent!important;background-image:none!important;box-shadow:none!important;border-color:transparent!important}",
       ".aggregator-selected-bg:before,.aggregator-selected-bg:after{display:none!important;background:none!important;content:none!important}",
       "#selected_infoblock{top:0!important;left:0!important;bottom:auto!important;right:auto!important;opacity:1!important}",
-      "#selected_infoblock,#selected_infoblock .infoHeading,#selected_infoblock .infoData,#selected_infoblock .highlightedTitle,#selected_infoblock td,#selected_infoblock span{text-shadow:0 1px 2px #000,0 0 8px #000}",
+      "#selected_infoblock:not(#gearup-card-cycle),#selected_infoblock .infoHeading,#selected_infoblock .infoData,#selected_infoblock .highlightedTitle,#selected_infoblock td,#selected_infoblock span:not(#gearup-card-cycle){text-shadow:0 1px 2px #000,0 0 8px #000}",
       "#selected_infoblock img{display:none!important}",
       "#selected_photo,#selected_photo img{background:transparent!important;display:block!important}",
       "#selected_infoblock.gearup-fold-shut{height:auto!important;max-height:none!important;overflow:visible!important;pointer-events:auto!important}",
@@ -416,6 +565,11 @@
       "#selected_infoblock.gearup-fold-shut #selected_photo.gearup-photo-ready{display:block!important}",
       "#selected_infoblock.gearup-fold-shut #selected_photo:not(.gearup-photo-ready){display:none!important;height:0!important;min-height:0!important;margin:0!important;padding:0!important;overflow:hidden!important}",
       "#selected_infoblock.gearup-fold-shut #selected_photo:not(.gearup-photo-ready) img{display:none!important}",
+      "#selected_infoblock.gearup-fold-shut #selected_photo ~ *:not(#gearup-card-cycle){display:none!important}",
+      "#selected_infoblock.gearup-fold-shut #selected_photo :not(img):not(a){display:none!important}",
+      "#selected_infoblock.gearup-fold-shut #copyrightInfo,#selected_infoblock.gearup-fold-shut #copyright{display:none!important}",
+      "#selected_infoblock.gearup-fold-shut #reg_info tr:has(#selected_photo) ~ tr{display:none!important}",
+      "#selected_infoblock.gearup-fold-shut .photo_container > :not(#selected_photo){display:none!important}",
       "#gearup-close-track{display:none!important}",
       "#selected_infoblock.gearup-card-hidden{display:none!important}",
     ].join("");
@@ -436,12 +590,6 @@
     return n;
   }
 
-  function foldLabelNode(title) {
-    return (
-      (title && title.querySelector(".section-title-content")) || title
-    );
-  }
-
   function foldOpen() {
     try {
       const raw = localStorage.getItem(FOLD_KEY);
@@ -455,17 +603,139 @@
     }
   }
 
+  function parentRoot() {
+    try {
+      return window.parent && window.parent.document
+        ? window.parent.document.documentElement
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function parentToken(name, fallback) {
+    const root = parentRoot();
+    if (!root) return fallback;
+    try {
+      const value = window.parent.getComputedStyle(root).getPropertyValue(name).trim();
+      return value || fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  function parentBright() {
+    const root = parentRoot();
+    if (!root) return false;
+    if (root.classList.contains("theme-bright")) return true;
+    if (root.classList.contains("theme-dim")) return false;
+    try {
+      return window.parent.matchMedia("(prefers-color-scheme: light)").matches;
+    } catch {
+      return false;
+    }
+  }
+
+  function syncCycleTheme(btn) {
+    if (!btn) return;
+    const sans = parentToken(
+      "--sans",
+      '"Atkinson Hyperlegible", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif'
+    );
+    btn.style.setProperty("--cycle-sans", sans);
+    btn.style.setProperty("--cycle-press", parentToken("--btn-press", "#003d5c"));
+    try {
+      const fadeSrc =
+        window.parent.document.getElementById("adsb-return") ||
+        window.parent.document.getElementById("adsb-help");
+      if (fadeSrc) {
+        const fade = window.parent.getComputedStyle(fadeSrc).opacity;
+        if (fade) btn.style.setProperty("--cycle-fade", fade);
+      }
+      const add = window.parent.document.getElementById("adsb-hextory-add");
+      if (add) {
+        const cs = window.parent.getComputedStyle(add);
+        if (cs.backgroundColor && cs.backgroundColor !== "rgba(0, 0, 0, 0)") {
+          btn.style.setProperty("--cycle-bg", cs.backgroundColor);
+          btn.style.setProperty("--cycle-fg", cs.color);
+          btn.style.setProperty("--cycle-border", cs.borderColor);
+          if (cs.fontFamily) btn.style.setProperty("--cycle-sans", cs.fontFamily);
+          if (cs.fontSize) btn.style.setProperty("font-size", cs.fontSize, "important");
+          if (cs.fontWeight) btn.style.setProperty("font-weight", cs.fontWeight, "important");
+          if (cs.letterSpacing) btn.style.setProperty("letter-spacing", cs.letterSpacing, "important");
+          return;
+        }
+      }
+    } catch {
+      /* fall through */
+    }
+    if (parentBright()) {
+      btn.style.setProperty("--cycle-bg", parentToken("--panel", "#ffffff"));
+      btn.style.setProperty("--cycle-fg", parentToken("--fg", "#000000"));
+      btn.style.setProperty("--cycle-border", parentToken("--accent", "#003d7a"));
+    } else {
+      btn.style.setProperty("--cycle-bg", parentToken("--accent", "#00a1e4"));
+      btn.style.setProperty("--cycle-fg", parentToken("--btn-text", "#ffffff"));
+      btn.style.setProperty("--cycle-border", parentToken("--accent", "#00a1e4"));
+    }
+  }
+
+  function leftoverDetails() {
+    if (cardHidden || trackingNow()) return false;
+    const box = document.getElementById("selected_infoblock");
+    if (!box || box.classList.contains("gearup-card-hidden")) return false;
+    const style = window.getComputedStyle(box);
+    if (style.display === "none" || style.visibility === "hidden") return false;
+    const r = box.getBoundingClientRect();
+    return r.width > 40 && r.height > 20;
+  }
+
+  function ensureCycleBtn() {
+    const box = document.getElementById("selected_infoblock");
+    if (!box) return null;
+    let btn = document.getElementById("gearup-card-cycle");
+    if (!btn) {
+      btn = document.createElement("button");
+      btn.id = "gearup-card-cycle";
+      btn.type = "button";
+      btn.addEventListener("click", onCycleClick);
+      btn.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") onCycleClick(e);
+      });
+    }
+    if (btn.parentNode !== box) box.insertBefore(btn, box.firstChild);
+    return btn;
+  }
+
+  function paintCycle() {
+    const btn = ensureCycleBtn();
+    if (!btn) return;
+    syncCycleTheme(btn);
+    if (trackingNow()) {
+      btn.hidden = false;
+      const open = foldOpen();
+      btn.textContent = open ? "COLLAPSE" : "EXPAND";
+      btn.setAttribute("aria-label", open ? "Collapse details" : "Expand details");
+      btn.setAttribute("data-mode", open ? "collapse" : "expand");
+      return;
+    }
+    if (leftoverDetails()) {
+      btn.hidden = false;
+      btn.textContent = "DISMISS";
+      btn.setAttribute("aria-label", "Dismiss details");
+      btn.setAttribute("data-mode", "dismiss");
+      return;
+    }
+    btn.hidden = true;
+  }
+
   function applyFold(open) {
-    const title = document.querySelector(".sectionTitle.gearup-fold");
     const body = document.getElementById("gearup-fold-body");
     const box = document.getElementById("selected_infoblock");
-    if (!title || !body) return;
-    title.setAttribute("aria-expanded", open ? "true" : "false");
-    title.setAttribute("aria-label", open ? "Collapse details" : "Expand details");
-    const label = foldLabelNode(title);
-    if (label) label.textContent = open ? "COLLAPSE" : "COLLAPSED";
-    if (open) body.removeAttribute("hidden");
-    else body.setAttribute("hidden", "");
+    if (body) {
+      if (open) body.removeAttribute("hidden");
+      else body.setAttribute("hidden", "");
+    }
     if (box) {
       box.classList.toggle("gearup-fold-shut", !open);
       box.style.setProperty("top", "0", "important");
@@ -477,6 +747,7 @@
       box.style.setProperty("overflow-y", open ? "auto" : "visible");
     }
     syncFoldPhoto();
+    paintCycle();
   }
 
   function toggleFold(e) {
@@ -484,9 +755,8 @@
       e.preventDefault();
       e.stopPropagation();
     }
-    const title = document.querySelector(".sectionTitle.gearup-fold");
-    if (!title) return;
-    const open = title.getAttribute("aria-expanded") !== "true";
+    if (!trackingNow()) return;
+    const open = !foldOpen();
     try {
       localStorage.setItem(FOLD_KEY, open ? "1" : "0");
     } catch {
@@ -494,6 +764,22 @@
     }
     applyFold(open);
     postChrome(true);
+  }
+
+  function dismissCard() {
+    dropSelection({ hideCard: true });
+  }
+
+  function onCycleClick(e) {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (trackingNow()) {
+      toggleFold();
+      return;
+    }
+    if (leftoverDetails()) dismissCard();
   }
 
   function photoNode() {
@@ -569,18 +855,8 @@
     for (let n = start; n; n = n.nextSibling) move.push(n);
     move.forEach((n) => body.appendChild(n));
     parent.appendChild(body);
-    if (title) {
-      title.classList.add("gearup-fold");
-      title.setAttribute("role", "button");
-      title.setAttribute("tabindex", "0");
-      if (!title._gearupFold) {
-        title._gearupFold = true;
-        title.addEventListener("click", toggleFold);
-        title.addEventListener("keydown", (e) => {
-          if (e.key === "Enter" || e.key === " ") toggleFold(e);
-        });
-      }
-    }
+    if (title) title.classList.add("gearup-fold");
+    ensureCycleBtn();
     applyFold(foldOpen());
   }
 
@@ -611,9 +887,11 @@
       node.style.display = "";
       node.hidden = false;
     }
+    paintCycle();
   }
 
   function setExtensiveLabels() {
+    if (oTouched) return;
     try {
       if (typeof g !== "undefined" && g) g.extendedLabels = 2;
       if (typeof toggleExtendedLabels === "function") {
@@ -657,8 +935,118 @@
     const isOn = galOn(el);
     if (on && isOn) return;
     if (!on && !isOn) return;
+    galClicking = true;
     try {
       el.click();
+    } catch {
+      /* ignore */
+    } finally {
+      galClicking = false;
+    }
+  }
+
+  function trackingNow() {
+    return !dropped && lastHeld && (livePlane() || !sawLive);
+  }
+
+  function ensureG() {
+    try {
+      const f = galBtn("F");
+      if (!f || !f.parentNode) return;
+      let gbtn = document.getElementById("G");
+      if (gbtn && !gbtn.querySelector(".buttonText")) {
+        gbtn.remove();
+        gbtn = null;
+      }
+      if (gbtn) {
+        if (gbtn.parentNode !== f.parentNode) f.parentNode.insertBefore(gbtn, f.nextSibling);
+        gbtn.style.removeProperty("margin-top");
+        return;
+      }
+      gbtn = f.cloneNode(true);
+      gbtn.id = "G";
+      gbtn.type = "button";
+      gbtn.setAttribute("aria-label", "Ground vehicles");
+      gbtn.removeAttribute("title");
+      gbtn.removeAttribute("onclick");
+      const label = gbtn.querySelector(".buttonText");
+      if (label) label.textContent = "G";
+      else gbtn.textContent = "G";
+      gbtn.className = (f.className || "").replace(/\bactiveButton\b/g, "inActiveButton");
+      gbtn.classList.remove("activeButton");
+      gbtn.classList.add("inActiveButton");
+      gbtn.style.removeProperty("margin-top");
+      f.parentNode.insertBefore(gbtn, f.nextSibling);
+      gbtn.addEventListener(
+        "click",
+        (ev) => {
+          if (ev) {
+            ev.preventDefault();
+            ev.stopPropagation();
+          }
+          groundOn = !groundOn;
+          styleG();
+          applyGroundFilter();
+        },
+        true
+      );
+      styleG();
+    } catch {
+      /* map not ready */
+    }
+  }
+
+  function styleG() {
+    const el = galBtn("G");
+    if (!el) return;
+    try {
+      if (typeof buttonActive === "function") buttonActive("#G", !!groundOn);
+    } catch {
+      /* ignore */
+    }
+    el.classList.toggle("activeButton", groundOn);
+    el.classList.toggle("inActiveButton", !groundOn);
+    el.setAttribute("aria-pressed", groundOn ? "true" : "false");
+  }
+
+  function spaceG() {
+    const gbtn = galBtn("G");
+    if (gbtn) gbtn.style.removeProperty("margin-top");
+  }
+
+  function isEmergencyGround(p) {
+    return !!(p && String(p.category || "") === "C1");
+  }
+
+  function isGroundClutter(p) {
+    if (!p || isEmergencyGround(p)) return false;
+    const cat = String(p.category || "");
+    if (cat && cat.charAt(0) === "C") return true;
+    if (p.altitude == "ground" && (p.addrtype == "adsb_icao_nt" || p.addrtype == "tisb_other")) {
+      return true;
+    }
+    if (p.squawk == 7777 || p.squawk == "7777") return true;
+    if (p.icaoType == "GND" || p.icaoType == "TWR") return true;
+    return false;
+  }
+
+  function wrapGroundFilter() {
+    if (!window.PlaneObject || !PlaneObject.prototype || !PlaneObject.prototype.isFiltered) return;
+    if (PlaneObject.prototype.isFiltered._gearupG) return;
+    const orig = PlaneObject.prototype.isFiltered;
+    PlaneObject.prototype.isFiltered = function () {
+      if (this && this.selected) return orig.apply(this, arguments);
+      if (!groundOn && isGroundClutter(this)) return true;
+      return orig.apply(this, arguments);
+    };
+    PlaneObject.prototype.isFiltered._gearupG = true;
+    applyGroundFilter();
+  }
+
+  function applyGroundFilter() {
+    try {
+      if (typeof refreshFilter === "function") refreshFilter();
+      else if (typeof refresh === "function") refresh();
     } catch {
       /* ignore */
     }
@@ -753,6 +1141,11 @@
   let viewBound = false;
   const LATCH_KEYS = ["L", "O", "P", "I", "F"];
   const userOff = { L: false, O: false, P: false, I: false, F: false };
+  let oTouched = false;
+  let groundOn = false;
+  let galClicking = false;
+  let lastArmedAt = 0;
+  let areaLabelsOn = false;
   const TAP_PX = 14;
   const TAP_MS = 450;
 
@@ -775,6 +1168,7 @@
     tapPending = false;
     cancelCheck();
     zoomUntil = Date.now() + 1200;
+    releaseFollowOnPan();
     keepIsolate();
   }
 
@@ -799,25 +1193,57 @@
       el.addEventListener(
         "click",
         () => {
-          window.setTimeout(() => {
-            userOff[id] = !galOn(galBtn(id));
-          }, 0);
+          if (galClicking) return;
+          userOff[id] = !galOn(galBtn(id));
+          if (id === "O") oTouched = true;
         },
         false
       );
     });
   }
 
+  function releaseFollowOnPan() {
+    if (dropped || userOff.F) return;
+    userOff.F = true;
+    followOff();
+  }
+
+  function forceFollow(on) {
+    if (on) userOff.F = false;
+    clickGal("F", on);
+    try {
+      if (typeof toggleFollow === "function") toggleFollow(!!on);
+    } catch {
+      /* ignore */
+    }
+    try {
+      if (typeof buttonActive === "function") buttonActive("#F", !!on);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function forceIsolate(on) {
+    if (on) userOff.I = false;
+    clickGal("I", on);
+    try {
+      if (typeof toggleIsolation === "function") toggleIsolation(on ? "on" : "off");
+    } catch {
+      /* ignore */
+    }
+    try {
+      if (typeof buttonActive === "function") buttonActive("#I", !!on);
+    } catch {
+      /* ignore */
+    }
+  }
+
   function keepIsolate() {
-    if (dropped || !livePlane() || !lastHeld || userOff.I) return;
+    if (dropped || !lastHeld || userOff.I) return;
+    if (sawLive && !livePlane()) return;
     const on = galOn(galBtn("I"));
     if (!on) {
-      clickGal("I", true);
-      try {
-        if (typeof toggleIsolation === "function") toggleIsolation("on");
-      } catch {
-        /* ignore */
-      }
+      forceIsolate(true);
       lastIsoAt = Date.now();
       return;
     }
@@ -831,22 +1257,21 @@
   }
 
   function armKeys() {
-    LATCH_KEYS.forEach((id) => {
-      userOff[id] = false;
-    });
-    LATCH_KEYS.forEach((id) => clickGal(id, true));
+    lastArmedAt = Date.now();
+    userOff.L = false;
+    userOff.O = false;
+    userOff.P = false;
+    userOff.I = false;
+    userOff.F = false;
+    oTouched = false;
+    clickGal("L", true);
+    clickGal("O", true);
+    clickGal("P", true);
     clickGal("M", false);
     lockTrackLabelsOff(1600);
-    try {
-      if (typeof toggleIsolation === "function") toggleIsolation("on");
-    } catch {
-      /* ignore */
-    }
-    try {
-      if (typeof toggleFollow === "function") toggleFollow(true);
-    } catch {
-      /* ignore */
-    }
+    forceFollow(true);
+    forceIsolate(true);
+    setExtensiveLabels();
   }
 
   function latchVisualOff(id) {
@@ -862,23 +1287,13 @@
   }
 
   function followOff() {
-    clickGal("F", false);
+    forceFollow(false);
     latchVisualOff("F");
-    try {
-      if (typeof toggleFollow === "function") toggleFollow(false);
-    } catch {
-      /* ignore */
-    }
   }
 
   function isolateOff() {
-    clickGal("I", false);
+    forceIsolate(false);
     latchVisualOff("I");
-    try {
-      if (typeof toggleIsolation === "function") toggleIsolation("off");
-    } catch {
-      /* ignore */
-    }
   }
 
   function releaseTrack() {
@@ -900,29 +1315,30 @@
   function keepMapDetails(forceButtons) {
     wrapAdjustInfoBlock();
     bindKeyDismiss();
+    clickGal("P", true);
+    clickGal("M", false);
     if (forceButtons) armKeys();
-    else if (!livePlane()) {
-      releaseTrack();
-    } else {
+    else if (!dropped && lastHeld && (livePlane() || !sawLive)) {
       keepIsolate();
-      LATCH_KEYS.forEach((id) => {
-        if (!userOff[id]) clickGal(id, true);
-      });
+      clickGal("L", true);
+      if (!oTouched && !userOff.O) clickGal("O", true);
+      if (!userOff.F) forceFollow(true);
+      if (!userOff.I) forceIsolate(true);
     }
-    setExtensiveLabels();
+    if (!oTouched) setExtensiveLabels();
     if (Date.now() < keepKOffUntil) trackLabelsOff();
     bindViewZoom();
-    const p = livePlane();
-    if (p && window.OLMap && window.ol && !stillZooming()) {
+    const p = trackedPlane();
+    if (p && window.OLMap && window.ol && !stillZooming() && !userOff.F) {
       try {
         const view = OLMap.getView();
         const alt = numOrNull(p.alt_baro != null ? p.alt_baro : p.altitude);
         const want = followZoom(alt);
         const z = Number(view.getZoom());
-        if (!userOff.F && p.position && ol.proj) {
+        if (p.position && ol.proj) {
           view.setCenter(ol.proj.fromLonLat(p.position));
         }
-        if (!userOff.F && (!Number.isFinite(z) || z >= want - 0.2)) {
+        if (!Number.isFinite(z) || z >= want - 0.2) {
           view.setZoom(want);
         }
       } catch {
@@ -933,12 +1349,14 @@
 
   function isolateAndFollow() {
     dropped = false;
+    lastArmedAt = Date.now();
     keepMapDetails(true);
     resetIdle();
     if (!cardHidden) {
       expandFullCard();
       window.setTimeout(expandFullCard, 200);
     }
+    paintCycle();
   }
 
   function applyCardHidden() {
@@ -1044,32 +1462,27 @@
     wrapAdjustInfoBlock();
     maybePostLive();
     const live = livePlane();
-    const data = live ? readPlane(live) : null;
+    if (live) sawLive = true;
+    const data = plane();
     const hex = (data && data.hex) || "";
     const airline = (data && data.airline) || "";
-    if (!live) {
-      if (!dropped || galOn(galBtn("I")) || galOn(galBtn("F"))) releaseTrack();
-      if (lastHex) {
-        lastHex = "";
-        lastOpen = false;
-        lastAirline = "";
-        cardHidden = false;
-        stopSlideTrack();
-        if (idleTimer) {
-          clearTimeout(idleTimer);
-          idleTimer = 0;
-        }
-        post({ reason: "deselect" });
-        if (overlayOpen()) postChrome(true);
-        else post({ reason: "chrome", overlayShift: 0, cardOpen: false });
+    const focused = !!(data && (hex || data.reg));
+    if (!focused) {
+      if (lastHeld && !dropped && Date.now() < holdUntil) {
+        pickHeld(lastHeld);
+        return;
       }
+      if (sawLive && lastHex && !dropped) dropSelection();
+      sawLive = false;
+      paintCycle();
       return;
     }
     dropped = false;
     rememberHeld(data);
-    if (hex && hex !== lastHex) {
+    const id = planeId(data);
+    if (id && id !== lastHex) {
       cardHidden = false;
-      lastHex = hex;
+      lastHex = id;
       lastAirline = airline;
       applyCardHidden();
       stripFieldHelp();
@@ -1358,9 +1771,26 @@
     tick();
   }
 
-  function dropSelection() {
+  function dropSelection(opts) {
+    const hideCard = !!(opts && opts.hideCard);
+    sawLive = false;
     releaseTrack();
-    cardHidden = false;
+    try {
+      if (typeof deselectAllPlanes === "function") deselectAllPlanes();
+    } catch {
+      /* ignore */
+    }
+    if (hideCard) {
+      const close = document.getElementById("infoblock_close");
+      if (close) {
+        try {
+          close.click();
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    cardHidden = hideCard;
     applyCardHidden();
     lastHex = "";
     lastOpen = false;
@@ -1370,6 +1800,7 @@
       idleTimer = 0;
     }
     post({ reason: "deselect" });
+    paintCycle();
     if (overlayOpen()) postChrome(true);
     else post({ reason: "chrome", overlayShift: 0, cardOpen: false });
   }
@@ -1434,43 +1865,109 @@
     }
   }
 
+  function sameHex(a, b) {
+    const na = String(a || "")
+      .replace(/^~/, "")
+      .toLowerCase();
+    const nb = String(b || "")
+      .replace(/^~/, "")
+      .toLowerCase();
+    return !!(na && nb && na === nb);
+  }
+
+  let galWrap = false;
+  function wrapGalSelect() {
+    const orig = window.selectPlaneByHex;
+    if (typeof orig !== "function" || orig._gearup) return;
+    const wrapped = function (hex, options) {
+      if (galWrap) return orig.call(this, hex, options);
+      if (options === true) options = { follow: true };
+      if (typeof options !== "object" || !options) options = {};
+      else options = Object.assign({}, options);
+      const keep = lastHeld && sameHex(hex, lastHeld.hex) && (cardHidden || dropped || leftoverDetails());
+      if (keep) {
+        options.noDeselect = true;
+        options.follow = true;
+      }
+      galWrap = true;
+      try {
+        const ret = orig.call(this, hex, options);
+        if (keep) {
+          holdUntil = Date.now() + 1200;
+          dropped = false;
+          cardHidden = false;
+          rememberHeld(lastHeld);
+          applyCardHidden();
+          isolateAndFollow();
+        }
+        return ret;
+      } finally {
+        galWrap = false;
+      }
+    };
+    wrapped._gearup = true;
+    window.selectPlaneByHex = wrapped;
+  }
+
+  function armSelect(data) {
+    if (!data) return false;
+    holdUntil = Date.now() + 1200;
+    dropped = false;
+    cardHidden = false;
+    rememberHeld(data);
+    pickHeld(data);
+    applyCardHidden();
+    isolateAndFollow();
+    return true;
+  }
+
   function considerTap() {
     if (stillZooming() || gesture) return;
     const before = planeId(lastHeld);
-    if (!before && !livePlane() && !dropped) return;
     let tries = 0;
     const check = () => {
       checkTimer = 0;
       tries += 1;
+      if (Date.now() < holdUntil) return;
       const live = livePlane();
       const now = live ? readPlane(live) : null;
       const nowId = planeId(now);
       if (nowId && nowId !== before) {
-        dropped = false;
-        rememberHeld(now);
-        isolateAndFollow();
-        return;
-      }
-      if (nowId) {
-        rememberHeld(now);
-        postChrome(true);
+        armSelect(now);
         return;
       }
       if (stillZooming() || gesture) return;
-      if (tries < 2) {
-        checkTimer = setTimeout(check, 80);
+      if (!live) {
+        if (tries < 6) {
+          checkTimer = setTimeout(check, 80);
+          return;
+        }
+        if (before || !dropped || galOn(galBtn("I")) || galOn(galBtn("F"))) {
+          dropSelection();
+        }
         return;
       }
-      if (before || !dropped || galOn(galBtn("I")) || galOn(galBtn("F"))) {
-        dropSelection();
+      if (dropped || leftoverDetails() || cardHidden) {
+        armSelect(now);
+        return;
       }
+      if (nowId === before) {
+        if (tries < 5) {
+          checkTimer = setTimeout(check, 100);
+          return;
+        }
+        if (Date.now() - lastArmedAt < 1200) return;
+        dropSelection();
+        return;
+      }
+      armSelect(now);
     };
     checkTimer = setTimeout(check, 80);
   }
 
   function isOwnChrome(t) {
     if (!t || !t.closest) return false;
-    if (t.closest("#L,#O,#M,#P,#I,#F,#selected_infoblock,#ui2_banner")) {
+    if (t.closest("#L,#O,#M,#P,#I,#F,#G,#gearup-card-cycle,#selected_infoblock,#ui2_banner,.layer-switcher")) {
       return true;
     }
     if (t.closest('button,a,input,textarea,select,[role="button"]')) return true;
@@ -1488,9 +1985,10 @@
     const x = ev.clientX;
     const y = ev.clientY;
     if (x < 148 && y < 164) return true;
-    return ["L", "O", "M", "P", "I", "F"].some((id) =>
-      nearEl(document.getElementById(id), x, y, 26)
-    );
+    if (["L", "O", "M", "P", "I", "F", "G"].some((id) => nearEl(document.getElementById(id), x, y, 26))) {
+      return true;
+    }
+    return nearEl(document.querySelector(".layer-switcher > button"), x, y, 26);
   }
 
   function onPointerDown(ev) {
@@ -1525,6 +2023,7 @@
       gesture = true;
       tapPending = false;
       cancelCheck();
+      releaseFollowOnPan();
       markZoom();
     }
   }
@@ -1537,6 +2036,7 @@
       gesture = true;
       tapPending = false;
       cancelCheck();
+      releaseFollowOnPan();
     }
   }
 
@@ -1568,6 +2068,18 @@
 
   foldStyle();
   foldOpen();
+  try {
+    const root = parentRoot();
+    if (root) {
+      new MutationObserver(() => paintCycle()).observe(root, {
+        attributes: true,
+        attributeFilter: ["class"],
+      });
+    }
+  } catch {
+    /* ignore */
+  }
+  paintCycle();
   watch();
   scheduleFindFit();
   scheduleFindCount();
@@ -1588,6 +2100,10 @@
     if (!event || !event.data || event.data.source !== "gearup-parent") return;
     if (event.data.reason === "resize") sizeMapSoon();
     if (event.data.reason === "restore") restoreHeld();
+    if (event.data.reason === "fullscreen") {
+      syncParentFs(event.data.on === true);
+      sizeMapSoon();
+    }
   });
   document.addEventListener("pointerdown", onPointerDown, true);
   document.addEventListener("pointermove", onPointerMove, { capture: true, passive: true });

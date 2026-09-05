@@ -118,6 +118,7 @@
   const atisWorstwindBody = document.getElementById("atis-worstwind-body");
   const atisInferDep = document.getElementById("atis-inferdep");
   const atisInferDepLine = document.getElementById("atis-inferdep-line");
+  const atisInferDepAside = document.getElementById("atis-inferdep-aside");
   const inferPreviewDialog = document.getElementById("inferdep-preview-dialog");
   const inferPreviewClose = document.getElementById("inferdep-preview-close");
   const inferPreviewLine = document.getElementById("inferdep-preview-line");
@@ -146,6 +147,8 @@
   const adsbReturnBtn = document.getElementById("adsb-return");
   const adsbUtcEl = document.getElementById("adsb-utc");
   const adsbUtcTime = document.getElementById("adsb-utc-time");
+  const adsbLocalTime = document.getElementById("adsb-local-time");
+  const adsbLocalSuffix = document.getElementById("adsb-local-suffix");
   const adsbAddBtn = document.getElementById("adsb-hextory-add");
   const adsbFr24 = document.getElementById("adsb-fr24");
   const adsbFr24Link = document.getElementById("adsb-fr24-link");
@@ -1317,6 +1320,33 @@
     if (boardUtcEl) boardUtcEl.setAttribute("datetime", d.toISOString());
   }
 
+  function adsbLocalHm(now) {
+    const d = now || new Date();
+    const icao = selectedIcao();
+    const Tz = typeof GearUpTz !== "undefined" ? GearUpTz : null;
+    const iana = icao && Tz ? airportIana(icao) : "";
+    if (iana && Tz) {
+      const parts = Tz.clockParts(iana, d);
+      if (parts && parts.hour && parts.minute) {
+        return `${parts.hour}:${parts.minute}`;
+      }
+    }
+    return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  }
+
+  function paintAdsbClocks(now) {
+    if (!adsbUtcEl) return;
+    const d = now || new Date();
+    const zulu = `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`;
+    const local = adsbLocalHm(d);
+    const tag = adsbTabCode(selectedIcao()) || "L";
+    setText(adsbUtcTime, zulu);
+    setText(adsbLocalTime, local);
+    setText(adsbLocalSuffix, tag);
+    adsbUtcEl.setAttribute("datetime", d.toISOString());
+    adsbUtcEl.setAttribute("aria-label", `Zulu ${zulu}, local ${local} ${tag}`);
+  }
+
   function tickUtcClock() {
     if (document.hidden) {
       stopUtcClock();
@@ -1327,10 +1357,7 @@
     const hm = `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
     const hms = `${hm}:${pad2(d.getUTCSeconds())}`;
     if (!detail.hidden) setText(utcTimeEl, hms);
-    if (adsbUtcEl && !adsbUtcEl.hidden) {
-      setText(adsbUtcTime, hms);
-      adsbUtcEl.setAttribute("datetime", d.toISOString());
-    }
+    if (adsbUtcEl && !adsbUtcEl.hidden) paintAdsbClocks(d);
     setText(briefUtcTime, hm);
     setText(briefUtcDay, day);
     if (currentTab === "board") paintBoardClocks(d);
@@ -2216,6 +2243,7 @@
       bodyEl.textContent = wantArr
         ? `No arrival ATIS is available for ${icao}.`
         : `No digital ATIS is available for ${icao}.`;
+      paintMetarInferWind(true);
       maybeLoadDelay(icao, { force: forceDelay });
       return;
     }
@@ -2264,21 +2292,19 @@
     const Hl = typeof GearUpHl !== "undefined" ? GearUpHl : null;
     const atisText =
       Hl && Hl.formatAtis ? Hl.formatAtis(view.text || "") : view.text || "";
-    let arrRwys = [];
-    let depRwys = [];
     let arrTagged = [];
     let depTagged = [];
     if (Hl) {
-      if (Hl.arrRunways) {
-        arrRwys = Hl.arrRunways(atisText);
-        arrTagged = Hl.arrRunways(atisText, { tagged: true });
-      }
-      if (Hl.depRunways) {
-        depRwys = Hl.depRunways(atisText);
-        depTagged = Hl.depRunways(atisText, { tagged: true });
-      }
+      if (Hl.arrRunways) arrTagged = Hl.arrRunways(atisText, { tagged: true });
+      if (Hl.depRunways) depTagged = Hl.depRunways(atisText, { tagged: true });
     }
     const bothOps = arrTagged.length > 0 && depTagged.length > 0;
+    let arrRwys = arrTagged;
+    let depRwys = depTagged;
+    if (Hl && !bothOps) {
+      if (Hl.arrRunways) arrRwys = Hl.arrRunways(atisText);
+      if (Hl.depRunways) depRwys = Hl.depRunways(atisText);
+    }
     const useArrStrip =
       !bothOps && (atisSide === "arrival" || view.kind === "arrival");
     const highlightRwys = bothOps
@@ -2297,15 +2323,8 @@
       atisSide === "departure" &&
       view.kind === "arrival" &&
       noRecentDep;
-    const inferred = showInfer ? fillInferDep(arrRwys, atisText) : [];
+    const inferred = showInfer ? fillInferDep(arrRwys, atisText, stale) : [];
     if (!showInfer) hideInferDep();
-    lastDepRunways = inferred.length ? inferred : highlightRwys;
-    paintOpsInto(bodyEl, atisText, {
-      letter: view.letter,
-      runways: highlightRwys,
-      zuluRef: lastAtisIssued,
-      zuluIssueOnly: true,
-    });
     const windKind = inferred.length
       ? "departure"
       : bothOps
@@ -2321,19 +2340,30 @@
         ? atisSide === "arrival"
           ? arrTagged
           : depTagged
-        : lastDepRunways;
-    fillWorstWind(
-      atisText,
-      windKind,
-      windRwys,
-      stale,
+        : highlightRwys;
+    const windMore =
       inferred.length || !bothOps
         ? null
         : {
             kind: atisSide === "arrival" ? "departure" : "arrival",
             runways: atisSide === "arrival" ? depTagged : arrTagged,
-          }
-    );
+          };
+    rememberAtisWindFill(atisText, windKind, windRwys, stale, windMore);
+    const metarInfer = !inferred.length && paintMetarInferWind(stale, atisText);
+    lastDepRunways = inferred.length
+      ? inferred
+      : metarInfer
+        ? lastDepRunways
+        : highlightRwys;
+    paintOpsInto(bodyEl, atisText, {
+      letter: view.letter,
+      runways: highlightRwys,
+      zuluRef: lastAtisIssued,
+      zuluIssueOnly: true,
+    });
+    if (!metarInfer) {
+      fillWorstWind(atisText, windKind, windRwys, stale, windMore);
+    }
     if (!inferred.length) maybeOpenInferPreview(atisText, arrRwys);
     const R = typeof GearUpRwycond !== "undefined" ? GearUpRwycond : null;
     fillRwycond(atisRwycond, atisRwycondBody, R ? R.parse(atisText) : null);
@@ -2589,13 +2619,66 @@
     return true;
   }
 
+  let lastInferMode = null;
+
   function hideInferDep() {
+    lastInferMode = null;
     if (!atisInferDep) return;
     atisInferDep.hidden = true;
-    if (atisInferDepLine) atisInferDepLine.textContent = "";
+    if (atisInferDepLine) clearNode(atisInferDepLine);
+    paintEstimateAside(atisInferDepAside, {});
   }
 
-  function fillInferDep(arrRunways, text) {
+  function paintEstimateAside(host, opts) {
+    if (!host) return;
+    clearNode(host);
+    const note = document.createElement("span");
+    note.className = "worstwind-note";
+    note.textContent = "UNOFFICIAL ESTIMATE";
+    host.appendChild(note);
+    const fromMetar = !!(opts && opts.fromMetar);
+    const fromAtis = !!(opts && opts.fromAtis);
+    const stale = !!(opts && opts.stale);
+    if (fromMetar) {
+      host.appendChild(document.createTextNode(" | "));
+      const metarNote = document.createElement("span");
+      metarNote.className = "worstwind-note";
+      metarNote.textContent = "BASED ON METAR";
+      host.appendChild(metarNote);
+    } else if (fromAtis) {
+      host.appendChild(document.createTextNode(" | "));
+      const atisNote = document.createElement("span");
+      atisNote.className = "worstwind-note";
+      atisNote.textContent = "BASED ON ATIS";
+      host.appendChild(atisNote);
+      if (stale) {
+        host.appendChild(document.createTextNode(" | "));
+        const staleNote = document.createElement("span");
+        staleNote.className = "worstwind-note zulu-old";
+        staleNote.textContent = "STALE";
+        host.appendChild(staleNote);
+      }
+    } else if (stale) {
+      host.appendChild(document.createTextNode(" | "));
+      const staleNote = document.createElement("span");
+      staleNote.className = "worstwind-note zulu-old";
+      staleNote.textContent = "STALE";
+      host.appendChild(staleNote);
+    }
+  }
+
+  function paintInferPhrase(phrase, fromMetar, stale) {
+    if (!atisInferDepLine) return;
+    atisInferDepLine.textContent = phrase;
+    paintEstimateAside(atisInferDepAside, {
+      fromMetar: !!fromMetar,
+      fromAtis: !fromMetar,
+      stale: !fromMetar && !!stale,
+    });
+    if (atisInferDep) atisInferDep.hidden = false;
+  }
+
+  function fillInferDep(arrRunways, text, stale) {
     hideInferDep();
     const E = typeof GearUpEhamRwy !== "undefined" ? GearUpEhamRwy : null;
     if (!E || !E.infer || !atisInferDep || !atisInferDepLine) return [];
@@ -2609,15 +2692,27 @@
     const inf = E.infer(arrRunways, Date.now(), dir);
     const rwys = inf && Array.isArray(inf.runways) ? inf.runways : [];
     if (!rwys.length || !inf.phrase) return [];
-    atisInferDepLine.textContent = inf.phrase;
-    atisInferDep.hidden = false;
+    paintInferPhrase(inf.phrase, false, stale);
+    lastInferMode = "eham";
     return rwys;
   }
 
   let lastWorstFill = null;
+  let lastAtisWindFill = null;
+
+  function rememberAtisWindFill(text, kind, runways, stale, more) {
+    lastAtisWindFill = {
+      text,
+      kind,
+      runways: runways || [],
+      stale: !!stale,
+      more: more || null,
+    };
+  }
 
   function hideWorstWind() {
     lastWorstFill = null;
+    lastAtisWindFill = null;
     if (!atisWorstwind) return;
     atisWorstwind.hidden = true;
     if (atisWorstwindBody) clearNode(atisWorstwindBody);
@@ -2642,7 +2737,7 @@
     for (const line of rows) {
       const p = document.createElement("p");
       const parts = String(line).match(
-        /^(WORST\s+\S+\s+(?:DEPARTURE|LANDING)\s+WIND)\s+(\S+)(.*)$/
+        /^(WORST\s+\S+\s+(?:(?:DEPARTURE|LANDING)\s+)?WIND)\s+(\S+)(.*)$/
       );
       const comps = parts
         ? String(parts[3] || "")
@@ -2664,10 +2759,21 @@
       const main = document.createElement("span");
       main.className = "worstwind-main";
       if (parts) {
-        const label = document.createElement("span");
-        label.className = "worstwind-label";
-        label.textContent = parts[1];
-        main.appendChild(label);
+        const fullLabel = parts[1];
+        const restLabel = fullLabel.replace(/^WORST\s+/i, "");
+        if (/^WORST\b/i.test(fullLabel)) {
+          const lead = document.createElement("span");
+          lead.className = "worstwind-lead";
+          lead.textContent = "WORST";
+          main.appendChild(lead);
+          if (restLabel) main.appendChild(document.createTextNode(" "));
+        }
+        if (restLabel) {
+          const label = document.createElement("span");
+          label.className = "worstwind-label";
+          label.textContent = restLabel;
+          main.appendChild(label);
+        }
         main.appendChild(document.createTextNode(" "));
         const speed = document.createElement("span");
         speed.className = "worstwind-speed" + (hiTail || hiCross ? " hl-ops" : "");
@@ -2688,43 +2794,17 @@
           el.textContent = tok;
           main.appendChild(el);
         }
-        if (!fromMetar) {
-          main.appendChild(document.createTextNode(" "));
-          const src = document.createElement("span");
-          src.className = "worstwind-src";
-          src.textContent = "ATIS";
-          main.appendChild(src);
-        }
       } else {
         main.textContent = line;
-        if (!fromMetar) {
-          main.appendChild(document.createTextNode(" "));
-          const src = document.createElement("span");
-          src.className = "worstwind-src";
-          src.textContent = "ATIS";
-          main.appendChild(src);
-        }
       }
       p.appendChild(main);
       const aside = document.createElement("span");
       aside.className = "worstwind-aside";
-      const note = document.createElement("span");
-      note.className = "worstwind-note";
-      note.textContent = "UNOFFICIAL ESTIMATE";
-      aside.appendChild(note);
-      if (fromMetar) {
-        aside.appendChild(document.createTextNode(" | "));
-        const metarNote = document.createElement("span");
-        metarNote.className = "worstwind-note";
-        metarNote.textContent = "BASED ON METAR";
-        aside.appendChild(metarNote);
-      } else if (stale) {
-        aside.appendChild(document.createTextNode(" | "));
-        const staleNote = document.createElement("span");
-        staleNote.className = "worstwind-note zulu-old";
-        staleNote.textContent = "STALE";
-        aside.appendChild(staleNote);
-      }
+      paintEstimateAside(aside, {
+        fromMetar: !!fromMetar,
+        fromAtis: !fromMetar,
+        stale: !!stale,
+      });
       p.appendChild(aside);
       container.appendChild(p);
     }
@@ -2790,34 +2870,40 @@
 
   function worstWindRows(W, source, kind, runways, fromMetar) {
     if (!W || !W.lines) return [];
+    const windKind =
+      kind === "arrival" ? "arrival" : kind === "runway" ? "runway" : "departure";
     return W.lines(source.text, {
-      kind: kind === "arrival" ? "arrival" : "departure",
+      kind: windKind,
       runways: runways || [],
       varEast: fromMetar ? currentVarEast() : null,
     });
   }
 
-  function fillWorstWind(text, kind, runways, stale, more) {
+  function fillWorstWind(text, kind, runways, stale, more, extra) {
     lastWorstFill = {
       text,
       kind,
       runways: runways || [],
       stale: !!stale,
       more: more || null,
+      mode: extra && extra.mode,
+      atisText: extra && extra.atisText,
     };
     if (!atisWorstwind || !atisWorstwindBody) return;
     const W = typeof GearUpWorstWind !== "undefined" ? GearUpWorstWind : null;
     const source =
-      W && W.chooseWindSource
-        ? W.chooseWindSource({
-            atisText: text,
-            atisIssued: lastAtisIssued,
-            atisStale: !!stale,
-            metarText: lastMetarRaw && metarBox && !metarBox.hidden ? lastMetarRaw : "",
-            metarObserved: lastMetarObserved,
-            varEast: currentVarEast(),
-          })
-        : { text, from: "atis" };
+      extra && extra.source
+        ? extra.source
+        : W && W.chooseWindSource
+          ? W.chooseWindSource({
+              atisText: text,
+              atisIssued: lastAtisIssued,
+              atisStale: !!stale,
+              metarText: lastMetarRaw && metarBox && !metarBox.hidden ? lastMetarRaw : "",
+              metarObserved: lastMetarObserved,
+              varEast: currentVarEast(),
+            })
+          : { text, from: "atis" };
     const fromMetar = source.from === "metar";
     let rows = worstWindRows(W, source, kind, runways, fromMetar);
     if (more && more.runways && more.runways.length) {
@@ -2834,15 +2920,104 @@
     atisWorstwind.hidden = false;
   }
 
+  function metarOnScreen() {
+    return !!(lastMetarRaw && metarBox && !metarBox.hidden);
+  }
+
+  function atisTextForWind() {
+    const v = lastAtisShown;
+    if (!v || !v.text) return "";
+    const Hl = typeof GearUpHl !== "undefined" ? GearUpHl : null;
+    return Hl && Hl.formatAtis ? Hl.formatAtis(v.text) : v.text;
+  }
+
+  function paintMetarInferWind(stale, atisText) {
+    if (lastInferMode === "eham") return false;
+    const copy = atisText != null ? atisText : atisTextForWind();
+    const noCopy = !String(copy).trim();
+    const R = typeof GearUpRunways !== "undefined" ? GearUpRunways : null;
+    const W = typeof GearUpWorstWind !== "undefined" ? GearUpWorstWind : null;
+    const varEast = currentVarEast();
+    const source = W && W.chooseWindSource
+      ? W.chooseWindSource({
+          atisText: copy,
+          atisIssued: lastAtisIssued,
+          atisStale: !!stale || noCopy,
+          metarText: metarOnScreen() ? lastMetarRaw : "",
+          metarObserved: lastMetarObserved,
+          varEast,
+        })
+      : { text: copy, from: "atis" };
+    if (source.from !== "metar") {
+      hideInferDep();
+      return false;
+    }
+    const line = R && R.line ? R.line(currentIcao) : "";
+    if (!metarOnScreen() || !line || !W || !W.magneticDir || !R.inferIntoWind) {
+      hideInferDep();
+      return false;
+    }
+    const wind = W.magneticWind
+      ? W.magneticWind(source.text, varEast)
+      : null;
+    const magDir =
+      wind && Number.isFinite(wind.dir)
+        ? wind.dir
+        : W.magneticDir(source.text, varEast);
+    const inf = R.inferIntoWind(line, wind || magDir, { icao: currentIcao });
+    const rwys = inf && inf.runways ? inf.runways : [];
+    if (!rwys.length || !inf.phrase) {
+      hideInferDep();
+      return false;
+    }
+    paintInferPhrase(inf.phrase, true, false);
+    lastInferMode = "metar";
+    lastDepRunways = rwys;
+    fillWorstWind(copy, "runway", rwys, !!stale, null, {
+      source,
+      mode: "metar-infer",
+      atisText: copy,
+    });
+    return true;
+  }
+
   function refreshWorstWind() {
-    if (!lastWorstFill) return;
-    fillWorstWind(
-      lastWorstFill.text,
-      lastWorstFill.kind,
-      lastWorstFill.runways,
-      lastWorstFill.stale,
-      lastWorstFill.more
+    const stale = !!(
+      (lastWorstFill && lastWorstFill.stale) ||
+      (lastAtisWindFill && lastAtisWindFill.stale)
     );
+    const atisText =
+      (lastWorstFill && lastWorstFill.atisText) ||
+      (lastAtisWindFill && lastAtisWindFill.text) ||
+      (lastWorstFill && lastWorstFill.text) ||
+      atisTextForWind();
+    if (lastInferMode !== "eham" && paintMetarInferWind(stale, atisText)) return;
+    if (lastAtisWindFill) {
+      fillWorstWind(
+        lastAtisWindFill.text,
+        lastAtisWindFill.kind,
+        lastAtisWindFill.runways,
+        lastAtisWindFill.stale,
+        lastAtisWindFill.more
+      );
+      return;
+    }
+    if (lastWorstFill && lastWorstFill.mode !== "metar-infer") {
+      fillWorstWind(
+        lastWorstFill.text,
+        lastWorstFill.kind,
+        lastWorstFill.runways,
+        lastWorstFill.stale,
+        lastWorstFill.more
+      );
+      return;
+    }
+    hideInferDep();
+    if (atisWorstwind) {
+      atisWorstwind.hidden = true;
+      if (atisWorstwindBody) clearNode(atisWorstwindBody);
+    }
+    closeWorstwindDialog();
   }
 
   function hideAtisRwycond() {
@@ -5752,28 +5927,15 @@
   let adsbFr24Token = 0;
   let adsbFr24Reg = "";
   let adsbFr24Info = null;
+  let adsbFr24Last = null;
   let adsbPrevIcao = loadPrevIcao();
   let adsbPlaneSelected = false;
-  let adsbFr24Linger = 0;
-
-  function cancelAdsbFr24Linger() {
-    if (!adsbFr24Linger) return;
-    clearTimeout(adsbFr24Linger);
-    adsbFr24Linger = 0;
-  }
-
-  function hideAdsbFr24Soon() {
-    cancelAdsbFr24Linger();
-    adsbFr24Linger = setTimeout(() => {
-      adsbFr24Linger = 0;
-      hideAdsbFr24();
-    }, 5000);
-  }
 
   function hideAdsbFr24() {
     adsbFr24Token += 1;
     adsbFr24Reg = "";
     adsbFr24Info = null;
+    adsbFr24Last = null;
     adsbPlaneSelected = false;
     if (adsbFr24) adsbFr24.hidden = true;
     if (adsbFr24Link) {
@@ -5791,7 +5953,10 @@
     if (adsbFr24Arr) adsbFr24Arr.textContent = "";
     paintFr24City(adsbFr24CityFrom, "", "");
     paintFr24City(adsbFr24CityTo, "", "");
-    if (adsbFr24Motion) adsbFr24Motion.textContent = "";
+    if (adsbFr24Motion) {
+      adsbFr24Motion.textContent = "";
+      adsbFr24Motion.classList.remove("is-waiting");
+    }
     if (adsbFr24) {
       adsbFr24.classList.remove("is-dock");
       adsbFr24.classList.remove("is-inferred");
@@ -5813,6 +5978,109 @@
     const dock = !adsbFr24.hidden && remnantFr24Px() < 200;
     adsbFr24.classList.toggle("is-dock", dock);
     document.documentElement.classList.toggle("adsb-fr24-dock", dock);
+  }
+
+  let adsbFsOn = false;
+
+  function adsbStage() {
+    return document.querySelector(".slots-wrap");
+  }
+
+  function liveFullscreenEl() {
+    return document.fullscreenElement || document.webkitFullscreenElement || null;
+  }
+
+  function notifyAdsbFrame(reason, extra) {
+    if (!adsbFrame || !adsbFrame.contentWindow) return;
+    try {
+      adsbFrame.contentWindow.postMessage(
+        Object.assign({ source: "gearup-parent", reason }, extra || {}),
+        window.location.origin
+      );
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function notifyAdsbFs(on) {
+    notifyAdsbFrame("fullscreen", { on: !!on });
+    notifyAdsbFrame("resize");
+  }
+
+  function armAdsbFsFallback(stage) {
+    window.setTimeout(() => {
+      if (!adsbFsOn || !stage) return;
+      if (liveFullscreenEl() === stage) return;
+      if (!stage.classList.contains("is-adsb-fs")) {
+        stage.classList.add("is-adsb-fs");
+        notifyAdsbFs(true);
+      }
+    }, 200);
+  }
+
+  function setAdsbFullscreen(on) {
+    const stage = adsbStage();
+    if (!stage) return;
+    adsbFsOn = !!on;
+    const current = liveFullscreenEl();
+    if (on) {
+      let asked = false;
+      const req = stage.requestFullscreen || stage.webkitRequestFullscreen;
+      if (typeof req === "function") {
+        try {
+          const pending = req.call(stage);
+          asked = true;
+          if (pending && typeof pending.then === "function") {
+            pending
+              .then(() => {
+                if (liveFullscreenEl() !== stage) {
+                  stage.classList.add("is-adsb-fs");
+                  notifyAdsbFs(true);
+                } else {
+                  notifyAdsbFrame("resize");
+                }
+              })
+              .catch(() => {
+                stage.classList.add("is-adsb-fs");
+                notifyAdsbFs(true);
+              });
+          }
+        } catch {
+          asked = false;
+        }
+      }
+      if (!asked) {
+        stage.classList.add("is-adsb-fs");
+        notifyAdsbFs(true);
+      } else {
+        armAdsbFsFallback(stage);
+      }
+      return;
+    }
+    stage.classList.remove("is-adsb-fs");
+    if (current === stage) {
+      const ex = document.exitFullscreen || document.webkitExitFullscreen;
+      if (typeof ex === "function") {
+        try {
+          Promise.resolve(ex.call(document)).catch(() => {});
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    notifyAdsbFs(false);
+  }
+
+  function onAdsbFullscreenChange() {
+    const stage = adsbStage();
+    const on = liveFullscreenEl() === stage;
+    if (!on && stage) stage.classList.remove("is-adsb-fs");
+    if (on !== adsbFsOn) {
+      adsbFsOn = on;
+      notifyAdsbFs(on);
+      return;
+    }
+    if (on) notifyAdsbFrame("resize");
   }
 
   function fr24Card() {
@@ -5938,12 +6206,21 @@
     );
     const type = formatFr24Type(info);
     const ident = [reg && reg !== flight ? reg : "", type].filter(Boolean).join(" · ");
-    const motion = formatFr24Motion(info, dock);
+    const waiting = Boolean(info && info.waiting);
+    const motion = waiting
+      ? fr24Card().WAITING_UPDATES || "waiting for updates"
+      : formatFr24Motion(info, dock);
     const href = String((info && (info.liveUrl || info.historyUrl)) || "").trim();
-    const useful = fr24HasCard(Object.assign({}, info, { flight }));
+    const useful =
+      waiting || fr24HasCard(Object.assign({}, info, { flight }));
     if (!useful && !(flight || reg || type || from || to || airline || motion)) {
       adsbFr24.hidden = true;
       return;
+    }
+    if (waiting || fr24HasRouteOrTimes(info) || (info && info.inferred)) {
+      const stored = Object.assign({}, info);
+      delete stored.waiting;
+      adsbFr24Last = { key: adsbFr24Reg, info: stored };
     }
     if (adsbFr24) adsbFr24.classList.toggle("is-inferred", Boolean(info && info.inferred));
     if (adsbFr24Airline) adsbFr24Airline.textContent = airline;
@@ -5967,7 +6244,10 @@
       to,
       info && info.toIcao
     );
-    if (adsbFr24Motion) adsbFr24Motion.textContent = motion;
+    if (adsbFr24Motion) {
+      adsbFr24Motion.textContent = motion;
+      adsbFr24Motion.classList.toggle("is-waiting", waiting);
+    }
     if (adsbFr24Link) {
       if (href) {
         adsbFr24Link.href = href;
@@ -6028,15 +6308,15 @@
       .toLowerCase()
       .replace(/^~/, "");
     if (!reg && !hex && !(select && (select.flight || select.type))) {
-      hideAdsbFr24Soon();
+      hideAdsbFr24();
       return;
     }
-    cancelAdsbFr24Linger();
-    adsbFr24Reg = reg || hex;
+    const key = reg || hex;
+    if (adsbFr24Last && adsbFr24Last.key !== key) adsbFr24Last = null;
+    adsbFr24Reg = key;
     adsbPlaneSelected = true;
     paintAdsbReturnBtn();
     const token = ++adsbFr24Token;
-    adsbFr24Info = null;
     const history =
       window.Hextory && window.Hextory.fr24Url
         ? window.Hextory.fr24Url({ reg })
@@ -6046,14 +6326,15 @@
         ? window.Hextory.peekFr24({ reg })
         : null;
     const identity = identityAdsbFr24(select, history);
-    if (peek && peek.payload && fr24HasRouteOrTimes(peek.payload)) {
-      paintAdsbFr24(
-        mergeSelectMotion(
-          Object.assign({}, peek.payload, { historyUrl: history }),
-          select
-        )
-      );
-      if (!peek.stale) return;
+    const lastInfo =
+      adsbFr24Last && adsbFr24Last.key === key ? adsbFr24Last.info : null;
+    const hold = fr24Card().holdFr24Card;
+    const peekInfo =
+      peek && peek.payload && fr24HasRouteOrTimes(peek.payload) ? peek.payload : null;
+    const held = hold ? hold(peekInfo, lastInfo, select) : peekInfo || lastInfo;
+    if (held) {
+      paintAdsbFr24(Object.assign({}, held, { historyUrl: history }));
+      if (peekInfo && peek && !peek.stale) return;
     } else if (fr24HasCard(identity)) {
       paintAdsbFr24(identity);
     }
@@ -6065,49 +6346,62 @@
     fetch("/api/fr24?reg=" + encodeURIComponent(reg), { cache: "no-store" })
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (token !== adsbFr24Token || adsbFr24Reg !== (reg || hex)) return;
+        if (token !== adsbFr24Token || adsbFr24Reg !== key) return;
         return airportsReady.then(() => {
-          if (token !== adsbFr24Token || adsbFr24Reg !== (reg || hex)) return;
+          if (token !== adsbFr24Token || adsbFr24Reg !== key) return;
+          let incoming = null;
           if (data && (data.from || data.to)) {
-            const info = mergeSelectMotion(
-              {
-                reg: data.reg || reg,
-                flight: data.flight || (select && select.flight) || "",
-                callsign: data.callsign || (select && select.flight) || "",
-                from: data.from || "",
-                to: data.to || "",
-                eta: data.eta || "",
-                dep: data.dep || "",
-                fromIcao: data.fromIcao || "",
-                toIcao: data.toIcao || "",
-                liveUrl: data.liveUrl || "",
-                historyUrl: history,
-                type: data.type || (select && select.type) || "",
-                airline: data.airline || (select && select.airline) || "",
-                category: data.category || "",
-                squawk: data.squawk || "",
-                flightTime: data.flightTime,
-                alt: data.alt != null ? data.alt : select && select.alt,
-                gs: data.gs != null ? data.gs : select && select.gs,
-                track: data.track != null ? data.track : select && select.track,
-              },
-              select
-            );
-            if (!fr24HasCard(info)) return;
-            paintAdsbFr24(info);
+            incoming = {
+              reg: data.reg || reg,
+              flight: data.flight || (select && select.flight) || "",
+              callsign: data.callsign || (select && select.flight) || "",
+              from: data.from || "",
+              to: data.to || "",
+              eta: data.eta || "",
+              dep: data.dep || "",
+              fromIcao: data.fromIcao || "",
+              toIcao: data.toIcao || "",
+              liveUrl: data.liveUrl || "",
+              historyUrl: history,
+              type: data.type || (select && select.type) || "",
+              airline: data.airline || (select && select.airline) || "",
+              category: data.category || "",
+              squawk: data.squawk || "",
+              flightTime: data.flightTime,
+              alt: data.alt != null ? data.alt : select && select.alt,
+              gs: data.gs != null ? data.gs : select && select.gs,
+              track: data.track != null ? data.track : select && select.track,
+            };
+          } else if (data) {
+            incoming = Object.assign({}, identity);
+            if (data.airline && !incoming.airline) incoming.airline = data.airline;
+            if (data.flight && !incoming.flight) incoming.flight = data.flight;
+            if (data.type && !incoming.type) incoming.type = data.type;
+            if (data.liveUrl) incoming.liveUrl = data.liveUrl;
+          }
+          const prior =
+            adsbFr24Last && adsbFr24Last.key === key ? adsbFr24Last.info : lastInfo;
+          const kept = hold
+            ? hold(fr24HasRouteOrTimes(incoming) ? incoming : null, prior, select)
+            : incoming && fr24HasRouteOrTimes(incoming)
+              ? incoming
+              : prior;
+          if (kept) {
+            paintAdsbFr24(Object.assign({}, kept, { historyUrl: history }));
             return;
           }
-          const fallback = Object.assign({}, identity);
-          if (data) {
-            if (data.airline && !fallback.airline) fallback.airline = data.airline;
-            if (data.flight && !fallback.flight) fallback.flight = data.flight;
-            if (data.type && !fallback.type) fallback.type = data.type;
-            if (data.liveUrl) fallback.liveUrl = data.liveUrl;
+          if (incoming && fr24HasCard(incoming)) {
+            paintAdsbFr24(Object.assign({}, incoming, { historyUrl: history }));
           }
-          if (fr24HasCard(fallback)) paintAdsbFr24(fallback);
         });
       })
-      .catch(() => {});
+      .catch(() => {
+        if (token !== adsbFr24Token || adsbFr24Reg !== key) return;
+        const prior =
+          adsbFr24Last && adsbFr24Last.key === key ? adsbFr24Last.info : lastInfo;
+        const next = hold ? hold(null, prior, select) : prior;
+        if (next) paintAdsbFr24(Object.assign({}, next, { historyUrl: history }));
+      });
   }
 
   function setAdsbChrome(show) {
@@ -6118,14 +6412,7 @@
     if (adsbReturnBtn) adsbReturnBtn.hidden = !show;
     if (adsbUtcEl) {
       adsbUtcEl.hidden = !show;
-      if (show) {
-        const now = new Date();
-        setText(
-          adsbUtcTime,
-          `${pad2(now.getUTCHours())}:${pad2(now.getUTCMinutes())}:${pad2(now.getUTCSeconds())}`
-        );
-        adsbUtcEl.setAttribute("datetime", now.toISOString());
-      }
+      if (show) paintAdsbClocks(new Date());
     }
     if (show) setAdsbExternalHref(selectedIcao() || loadLastIcao());
     const hx = window.Hextory;
@@ -6238,6 +6525,32 @@
         adsbFrameUrl = next;
       }
     });
+  }
+
+  function reloadAdsbGlobe() {
+    const frame = adsbFrame;
+    if (!frame) return;
+    const armed =
+      (window.Hextory &&
+        typeof window.Hextory.armedFollowUrl === "function" &&
+        window.Hextory.armedFollowUrl()) ||
+      "";
+    const url = armed || adsbFollowUrl || adsbFrameUrl || "";
+    if (!url || url === "about:blank") return;
+    if (armed) adsbFollowUrl = armed;
+    adsbFrameUrl = "";
+    frame.src = "about:blank";
+    window.setTimeout(() => {
+      const next =
+        (window.Hextory &&
+          typeof window.Hextory.armedFollowUrl === "function" &&
+          window.Hextory.armedFollowUrl()) ||
+        adsbFollowUrl ||
+        url;
+      if (!next || next === "about:blank") return;
+      frame.src = next;
+      adsbFrameUrl = next;
+    }, 30);
   }
 
   function loadThirdPane() {
@@ -6562,10 +6875,12 @@
   }
 
   refreshBtn.addEventListener("click", () => {
+    reloadAdsbGlobe();
     if (currentIcao) openAtis(currentIcao, { force: true });
   });
 
   briefRefresh.addEventListener("click", () => {
+    reloadAdsbGlobe();
     const icao = briefIcaoFromHash() || currentIcao || loadLastIcao();
     if (icao) loadBrief(icao, { force: true });
   });
@@ -6598,7 +6913,10 @@
     tabBoard.addEventListener("click", () => openBoard());
   }
   if (boardRefresh) {
-    boardRefresh.addEventListener("click", () => loadBoard({ force: true }));
+    boardRefresh.addEventListener("click", () => {
+      reloadAdsbGlobe();
+      loadBoard({ force: true });
+    });
   }
   if (boardFocusBtn) {
     boardFocusBtn.addEventListener("click", () => openBoardFocusDialog());
@@ -6771,6 +7089,7 @@
       },
       planeOverlay: setAdsbPlaneOverlay,
       liveFlight: showAdsbFr24,
+      fullscreen: setAdsbFullscreen,
       restoreFailed: () => {
         const back = normalizeIcao(adsbPrevIcao);
         if (back.length === 4 && back !== selectedIcao()) {
@@ -6835,6 +7154,8 @@
     placePinOnViewport();
     syncAdsbFr24Dock();
   });
+  document.addEventListener("fullscreenchange", onAdsbFullscreenChange);
+  document.addEventListener("webkitfullscreenchange", onAdsbFullscreenChange);
   if (window.visualViewport) {
     window.visualViewport.addEventListener("resize", placePinOnViewport);
   }
@@ -6906,6 +7227,11 @@
     boardAdsbBtn.addEventListener("click", () => openAmsCdmFromBoard());
   }
   document.getElementById("tab-slots").addEventListener("click", () => {
+    if (isAdsbHash()) {
+      dismissFrontOverlays();
+      returnAdsbToAirport();
+      return;
+    }
     const icao = selectedIcao();
     const want = thirdHashFor(icao);
     if (hashKey() !== want.toLowerCase()) location.hash = want;
@@ -7320,6 +7646,7 @@
   if (window.GearUpRunways && window.GearUpRunways.load) {
     window.GearUpRunways.load().then(() => {
       if (currentIcao) paintBriefRunways(currentIcao);
+      refreshWorstWind();
     });
   }
   if (window.GearUpMagvar && window.GearUpMagvar.load) {

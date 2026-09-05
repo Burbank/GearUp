@@ -254,7 +254,7 @@ QNH 1013 HPA
 END OF INFO S`;
 assert.strictEqual(looksCombinedAtis(ehamDep), false, "EHAM DEP ATIS is not combined");
 const eham = parseAirframesMessages(
-  [{ label: "A9", text: ehamDep, timestamp: "2026-09-03T20:22:00Z" }],
+  [{ label: "A9", text: ehamDep, timestamp: new Date(liveNow - 5 * 60 * 1000).toISOString() }],
   "EHAM"
 );
 assert.strictEqual(eham.kind, "departure", eham.kind);

@@ -29,7 +29,7 @@
   const ACK_STRIP_LABEL = "I AGREE";
   const ACK_BAY_LABEL = "ACKNOWLEDGE";
   const ACK_FALLBACK_BUTTON = "I AGREE — not for operational use";
-  const ACK_EDU_MARK = "NOT FOR OPERATIONAL USE · EDU ONLY";
+  const ACK_EDU_MARK = "NOT FOR OPERATIONAL USE · EDUCATIONAL ONLY";
 
   return {
     ACK_STORAGE_KEY,

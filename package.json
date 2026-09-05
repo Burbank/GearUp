@@ -1,7 +1,7 @@
 {
   "name": "gearup",
   "private": true,
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "GearUp — departure D-ATIS, TAF, and briefing PWA",
   "scripts": {
     "start": "node server.js",

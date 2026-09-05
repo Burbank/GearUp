@@ -562,7 +562,13 @@
       ete = F.formatFr24EteRem ? F.formatFr24EteRem(info) : "";
     }
     let motionLine = "";
-    if (motion.live && F.formatFr24Motion) {
+    let waiting = false;
+    const hasLiveMotion =
+      motion.live && (motion.alt != null || motion.gs != null);
+    if (info && info.waiting && !hasLiveMotion) {
+      motionLine = (F.WAITING_UPDATES || "waiting for updates");
+      waiting = true;
+    } else if (motion.live && F.formatFr24Motion) {
       motionLine = F.formatFr24Motion(motion, false);
     } else {
       motionLine = formatLiveLine(
@@ -586,6 +592,7 @@
       flight,
       ete,
       motion: motionLine,
+      waiting,
       strip,
     };
   }
@@ -855,6 +862,17 @@
       ) ||
       null
     );
+  }
+
+  function armedFollowUrl() {
+    if (!flyWatch || (Flytify && Flytify.expired && Flytify.expired(flyWatch))) {
+      return "";
+    }
+    const row = flyRow() || {
+      hex: flyWatch.hex || "",
+      reg: flyWatch.reg || "",
+    };
+    return followUrl(row, { quiet: true }) || "";
   }
 
   function flyArmed(row) {
@@ -1590,6 +1608,20 @@
     }
   }
 
+  function storeFr24Hit(key, payload) {
+    if (!key) return;
+    const F = Fr24Card || {};
+    const prev = fr24ByKey.get(key);
+    const kept = F.keepUsefulFr24
+      ? F.keepUsefulFr24(payload, prev && prev.payload)
+      : { payload, held: false };
+    const next = kept.held && kept.payload
+      ? Object.assign({}, kept.payload, { waiting: true })
+      : kept.payload || payload;
+    if (next && !kept.held) delete next.waiting;
+    fr24ByKey.set(key, { payload: next, fetchedAt: Date.now() });
+  }
+
   function fr24Payload(data, reg) {
     return {
       reg: (data && data.reg) || reg,
@@ -1634,8 +1666,7 @@
         if (window.GearUpAirports && window.GearUpAirports.load) {
           await window.GearUpAirports.load();
         }
-        const payload = fr24Payload(data, reg);
-        fr24ByKey.set(key, { payload, fetchedAt: Date.now() });
+        storeFr24Hit(key, fr24Payload(data, reg));
         if (!cardDrag) paintCards();
         return { payload };
       } catch {
@@ -1697,10 +1728,7 @@
         const reg = displayReg(row.reg);
         const data = map[reg] || map[keyReg(row.reg)] || null;
         if (!data) continue;
-        fr24ByKey.set(fr24MapKey(row), {
-          payload: fr24Payload(data, reg),
-          fetchedAt: Date.now(),
-        });
+        storeFr24Hit(fr24MapKey(row), fr24Payload(data, reg));
       }
       if (!cardDrag) paintCards();
     } catch {
@@ -1726,8 +1754,8 @@
     addBtn.setAttribute("aria-disabled", added ? "true" : "false");
     addBtn.setAttribute("aria-label", added ? "Added to Hextory" : "Add to Hextory");
     addBtn.innerHTML = added
-      ? '<span class="adsb-add-line">ADDED <span class="adsb-add-to">to</span></span><span class="adsb-add-line">Hextory</span>'
-      : '<span class="adsb-add-line">ADD <span class="adsb-add-to">to</span></span><span class="adsb-add-line">HEXTORY</span>';
+      ? '<span class="adsb-add-line"><span class="adsb-add-hex" aria-hidden="true">⬡</span> ADDED <span class="adsb-add-to">to</span></span><span class="adsb-add-line">Hextory</span>'
+      : '<span class="adsb-add-line"><span class="adsb-add-hex" aria-hidden="true">⬡</span> ADD <span class="adsb-add-to">to</span></span><span class="adsb-add-line">HEXTORY</span>';
   }
 
   function revealAddBtn() {
@@ -2571,6 +2599,10 @@
         }
         return;
       }
+      if (data.reason === "fullscreen") {
+        if (hooks.fullscreen) hooks.fullscreen(data.on === true);
+        return;
+      }
       if (data.reason === "find-hits") {
         const line =
           Find && Find.formatFindHits
@@ -2610,6 +2642,7 @@
     addFromBoard,
     boardPinLive,
     followForBoard,
+    armedFollowUrl,
     startLive,
     stopLive,
     copyText,

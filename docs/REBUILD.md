@@ -32,9 +32,9 @@ Bundle is a static PWA. Weather and Schiphol traffic go through the same-origin 
 
 ## Version
 
-Footer and `aria-label` on home: **2.0** (`index.html` `.home-version`).
-User-Agent: `GearUp/2.0` in `lib/http.js`.
-Service worker cache at 2.0 ship: `gearup-v422`.
+Footer and `aria-label` on home: **2.1** (`index.html` `.home-version`).
+User-Agent: `GearUp/2.1` in `lib/http.js`.
+Service worker cache at 2.1 ship: `gearup-v470`.
 
 When bumping later: change the footer, UA, SW cache string, CSS query, and mask query together.
 
@@ -64,7 +64,7 @@ When bumping later: change the footer, UA, SW cache string, CSS query, and mask 
 | `lib/present.js` | Attach formatted ATIS, runways, worst-wind lines for PWA + iOS |
 | `netlify/functions/*` | Thin wrappers around `lib/` |
 | `data/airports.json` | OurAirports index (ICAO, IATA, name, city, lat/lon, elev, tz) |
-| `data/runways.json` | Compact ICAO → `18/36LCR, 06/24` (OurAirports) |
+| `data/runways.json` | Compact ICAO → `18/36LCR, 06/24` (OurAirports) plus `ilsOne` (one-sided ILS) |
 | `icons/four-u.png` | Home 4U mask (ink in alpha, paper clear) |
 | `docs/CALCULATIONS.md` | Every formula |
 | `archive/liveatc-listen/` | Parked LiveATC listen (not in the live app) |
@@ -129,7 +129,7 @@ Airport rebuild (large download): `node scripts/build-airports.js` → `data/air
 
 Magnetic variation table (yearly): `node scripts/build-magvar.js` → `data/magvar.json`. Uses OurAirports coordinates and WMM-2025 in the script only.
 
-Runway header line: `node scripts/build-runways.js` → `data/runways.json`. OurAirports `runways.csv` (same source as the airport-index length rank). Jet strips only (paved, ≥ 4000 ft). Display only on the TAF tab; not used for worst-wind.
+Runway header line: `node scripts/build-runways.js` → `data/runways.json`. OurAirports `runways.csv` (same source as the airport-index length rank). Jet strips only (paved, ≥ 4000 ft). `ilsOne` is baked from FlightGear `nav.dat` ILS localizers (`--ils-only` refreshes that map only). Used for the TAF header line and METAR inferred runway (§18).
 
 Airline FIND names: `node scripts/build-airline-names.js airlines.dat` → `js/airline-names.js`. OpenFlights dump is build-time only; do not commit `airlines.dat`. Overrides in that script win common shorts (Southwest, Delta, United, Turkish).
 

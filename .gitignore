@@ -9,6 +9,8 @@ data/usage.json
 
 # Owner source photo; the served file is ack-bg.jpg
 Background_Disclaimer_agree.jpg
+# Owner bright chrome photo; the served file is bright-bg.jpg
+Snow_SPL - 1.png
 # Owner App Store QR; the served file is icons/appstore-qr.png
 appstore QR.png
 

@@ -34,6 +34,14 @@ const us = Hl.formatAtis("KJFK ATIS INFO A 2053Z. WIND 24011KT. ADVS YOU HAVE IN
 assert.ok(!/ADVS YOU HAVE/i.test(us), us);
 assert.ok(us.includes("20:53Z"), us);
 
+const sentences = Hl.formatAtis(
+  "TS BKN035CB BKN250 32/23 A2995. TSB30 OCNL LTGICCG N. APCHS BEING CONDUCTED. FREQ 118.3 RWY 9."
+);
+assert.ok(/A2995\.\n/.test(sentences), sentences);
+assert.ok(/\.\nAPCHS BEING CONDUCTED/.test(sentences), sentences);
+assert.ok(sentences.includes("118.3"), sentences);
+assert.ok(!sentences.includes("118.\n3"), sentences);
+
 const egll = Hl.stripAdviseInfo(
   "AUTO 36013KT Q1014.\nACKNOWLEDGE RECEIPT OF INFORMATION P\nAND REPORT AIRCRAFT TYPE AND CURRENT\nQNH ON FIRST CONTACT WITH HEATHROW"
 );

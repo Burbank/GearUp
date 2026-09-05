@@ -281,8 +281,7 @@
 
   function isAirborne(info) {
     if (!info) return false;
-    const alt = Number(info.alt);
-    if (Number.isFinite(alt)) return alt > 0;
+    if (isMotionVal(info.alt)) return Number(info.alt) > 0;
     return info.live === true;
   }
 
@@ -447,6 +446,37 @@
     );
   }
 
+  const WAITING_UPDATES = "waiting for updates";
+
+  function keepUsefulFr24(next, prev) {
+    if (fr24HasRouteOrTimes(next)) return { payload: next, held: false };
+    if (fr24HasRouteOrTimes(prev)) return { payload: prev, held: true };
+    return { payload: next || prev || null, held: false };
+  }
+
+  function holdFr24Card(current, last, live) {
+    const kept = keepUsefulFr24(current, last);
+    if (!fr24HasRouteOrTimes(kept.payload)) return null;
+    const out = Object.assign({}, kept.payload);
+    if (kept.held && isAirborne(out)) {
+      out.alt = null;
+      out.gs = null;
+      out.track = null;
+    }
+    if (live) {
+      if (live.alt != null) out.alt = live.alt;
+      if (live.gs != null) out.gs = live.gs;
+      if (live.track != null) out.track = live.track;
+      if (live.reg && !out.reg) out.reg = live.reg;
+      if (live.type && !out.type) out.type = live.type;
+      if (live.airline && !out.airline) out.airline = live.airline;
+      if (live.flight && !out.flight) out.flight = live.flight;
+    }
+    const hasMotion = isMotionVal(out.alt) || isMotionVal(out.gs);
+    out.waiting = Boolean(kept.held && isAirborne(out) && !hasMotion);
+    return out;
+  }
+
   function mergeFr24Motion(hexRow, fr24Hit) {
     const hexTs = Number(hexRow && hexRow.seenAt) || 0;
     const frTs = Number(fr24Hit && fr24Hit.fetchedAt) || 0;
@@ -485,6 +515,9 @@
     fr24HasUseful,
     fr24HasRouteOrTimes,
     fr24HasCard,
+    WAITING_UPDATES,
+    keepUsefulFr24,
+    holdFr24Card,
     isAirborne,
     mergeFr24Motion,
     TAXI_KT,

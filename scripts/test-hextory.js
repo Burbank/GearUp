@@ -48,6 +48,9 @@ const {
   mergeFr24Motion,
   isAirborne,
   cleanFlightId,
+  holdFr24Card,
+  keepUsefulFr24,
+  WAITING_UPDATES,
 } = require("../js/fr24card.js");
 
 function assert(cond, msg) {
@@ -508,6 +511,26 @@ const unknownCard = cardPaintModel(
   bud
 );
 assert(unknownCard.layout === "baseline" && !unknownCard.inferred, "unknown airline stays baseline");
+
+const lastRoute = { from: "AMS", to: "MIA", flight: "KL671", alt: 38000, gs: 480, live: true };
+assert(!holdFr24Card(null, null, { alt: 37000 }), "no card until a route exists");
+const heldAir = holdFr24Card(null, lastRoute, { alt: null, gs: null, flight: "KL671" });
+assert(heldAir && heldAir.from === "AMS" && heldAir.to === "MIA", "held card keeps route");
+assert(heldAir.waiting && heldAir.alt == null && heldAir.gs == null, "airborne hold drops motion");
+const heldLive = holdFr24Card(null, lastRoute, { alt: 37000, gs: 470 });
+assert(!heldLive.waiting && heldLive.alt === 37000, "live ADS-B motion is a valid update");
+const fresh = holdFr24Card({ from: "AMS", to: "MIA", alt: 36000, gs: 460 }, lastRoute, {});
+assert(!fresh.waiting && fresh.alt === 36000, "fresh FR24 route is not waiting");
+assert(keepUsefulFr24({ flight: "KL671" }, lastRoute).held, "empty refresh keeps last route");
+assert(!keepUsefulFr24({ from: "JFK", to: "AMS" }, lastRoute).held, "new route replaces last");
+
+const waitingCard = cardPaintModel(
+  { hex: "484bd0", reg: "PH-CKA", type: "B744", live: true },
+  { fetchedAt: 3, payload: Object.assign({}, usefulHit.payload, { waiting: true }) }
+);
+assert(waitingCard.layout === "fr24", "held route stays an FR24 card");
+assert(waitingCard.motion === WAITING_UPDATES, "held airborne card waits for updates");
+assert(waitingCard.waiting, "waiting flag for dim motion");
 
 assert(atFlightLevel({ alt: 35000 }), "FL350 is flight level");
 assert(atFlightLevel({ lastAlt: 33000 }), "last FL is flight level");

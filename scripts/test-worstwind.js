@@ -336,7 +336,8 @@ assert.strictEqual(
     metarText: olderMetar,
     metarObserved: "2026-09-03T18:00:00Z",
   }).from,
-  "atis"
+  "atis",
+  "older METAR must not infer; keep ATIS runways"
 );
 assert.strictEqual(
   W.chooseWindSource({
@@ -347,6 +348,24 @@ assert.strictEqual(
     metarObserved: "2026-09-03T20:25:00Z",
   }).from,
   "atis"
+);
+assert.strictEqual(
+  W.chooseWindSource({
+    atisText: "",
+    atisStale: false,
+    metarText: newerMetar,
+    metarObserved: "2026-09-03T20:25:00Z",
+    varEast: 2.7,
+  }).from,
+  "metar"
+);
+assert.strictEqual(W.magneticDir("KMIA 051200Z 27012KT 10SM FEW040", 6), 264);
+assert.ok(
+  W.lines("KMIA 051200Z 27012KT", {
+    kind: "runway",
+    runways: [rwy("27")],
+    varEast: 0,
+  })[0].startsWith("WORST 27 WIND 270/12")
 );
 
 assert.deepStrictEqual(

@@ -190,6 +190,40 @@
     return Math.max(...parts);
   }
 
+  function sectorDirs(wind) {
+    const dirs = [];
+    if (Number.isFinite(wind && wind.dir)) dirs.push(norm360(wind.dir));
+    if (
+      wind &&
+      Number.isFinite(wind.varFrom) &&
+      Number.isFinite(wind.varTo)
+    ) {
+      dirs.push(norm360(wind.varFrom), norm360(wind.varTo));
+    }
+    const uniq = [];
+    const seen = new Set();
+    for (const d of dirs) {
+      const k = Math.round(norm360(d));
+      if (seen.has(k)) continue;
+      seen.add(k);
+      uniq.push(norm360(d));
+    }
+    return uniq;
+  }
+
+  function headwindVotes(wind, rwy) {
+    if (!wind || !rwy || !Number.isFinite(rwy.hdg)) {
+      return { heads: 0, n: 0 };
+    }
+    const spd = speedKt(wind);
+    const dirs = sectorDirs(wind);
+    let heads = 0;
+    for (const dir of dirs) {
+      if (tailKt(dir, spd, rwy.hdg) <= 0.05) heads += 1;
+    }
+    return { heads, n: dirs.length };
+  }
+
   function candidateDirs(wind, hdg) {
     const dirs = [];
     if (Number.isFinite(wind.dir)) dirs.push(norm360(wind.dir));
@@ -253,12 +287,14 @@
 
   function formatLine(rwy, kind, worst) {
     const ident = rwy.id || String(rwy.n).padStart(2, "0") + (rwy.side || "");
-    const use = kind === "arrival" ? "LANDING" : "DEPARTURE";
+    const use =
+      kind === "arrival" ? "LANDING" : kind === "runway" ? "" : "DEPARTURE";
     let wind = "CALM";
     if (worst && Number.isFinite(worst.dir) && !worst.calm) {
       wind = `${pad3(worst.dir)}/${String(Math.round(worst.spd)).padStart(2, "0")}`;
     }
-    return `WORST ${ident} ${use} WIND ${wind}${formatComps(worst)}`;
+    const mid = use ? `${ident} ${use}` : ident;
+    return `WORST ${mid} WIND ${wind}${formatComps(worst)}`;
   }
 
   function pickWinds(all) {
@@ -300,16 +336,32 @@
     return next;
   }
 
+  function magneticWind(text, varEast) {
+    const winds = pickWinds(parseWinds(text)).map((w) => shiftWind(w, varEast));
+    return winds.find((x) => Number.isFinite(x.dir)) || null;
+  }
+
+  function magneticDir(text, varEast) {
+    const w = magneticWind(text, varEast);
+    return w ? w.dir : null;
+  }
+
   function chooseWindSource(opts) {
     const o = opts || {};
     const atisText = String(o.atisText || "");
     const metarText = String(o.metarText || "");
-    if (!o.atisStale || !metarText.trim()) {
+    const noAtis = !atisText.trim();
+    if ((!o.atisStale && !noAtis) || !metarText.trim()) {
       return { text: atisText, from: "atis" };
     }
     const atisMs = Date.parse(o.atisIssued);
     const metarMs = Date.parse(o.metarObserved);
-    if (Number.isFinite(metarMs) && Number.isFinite(atisMs) && metarMs < atisMs) {
+    if (
+      !noAtis &&
+      Number.isFinite(metarMs) &&
+      Number.isFinite(atisMs) &&
+      metarMs < atisMs
+    ) {
       return { text: atisText, from: "atis" };
     }
     if (!metarHasLiveWind(metarText)) {
@@ -343,7 +395,8 @@
   function lines(text, opts) {
     const o = opts || {};
     const runways = o.runways || [];
-    const kind = o.kind === "arrival" ? "arrival" : "departure";
+    const kind =
+      o.kind === "arrival" ? "arrival" : o.kind === "runway" ? "runway" : "departure";
     const winds = windsForKind(text, kind).map((w) =>
       shiftWind(w, o.varEast)
     );
@@ -374,5 +427,10 @@
     parseWinds,
     lines,
     chooseWindSource,
+    worstForRunway,
+    headwindVotes,
+    magneticWind,
+    magneticDir,
+    shiftWind,
   };
 });

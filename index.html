@@ -83,7 +83,7 @@
       media="(prefers-color-scheme: dark)"
     />
     <script src="/js/theme.js?v=3"></script>
-    <link rel="stylesheet" href="/css/app.css?v=366" />
+    <link rel="stylesheet" href="/css/app.css?v=380" />
     <link rel="stylesheet" href="/css/ack-gate.css?v=7" />
   </head>
   <body>
@@ -128,9 +128,28 @@
         ></button>
       </div>
     </div>
-    <script src="/js/ack-copy.js?v=3"></script>
+    <script src="/js/ack-copy.js?v=4"></script>
     <script src="/js/ack-storage.js?v=1"></script>
-    <script src="/js/ack-gate.js?v=3"></script>
+    <script src="/js/ack-gate.js?v=4"></script>
+    <script src="/js/ios-nudge.js?v=2"></script>
+    <div
+      id="ios-nudge"
+      class="ios-nudge"
+      hidden
+      role="status"
+      aria-live="polite"
+    >
+      <p>
+        We recommend downloading the
+        <a
+          href="https://apps.apple.com/us/app/gearup4u/id6806373583"
+          target="_blank"
+          rel="noopener noreferrer"
+          >iOS app</a
+        >.
+      </p>
+      <div class="ios-nudge-bar" aria-hidden="true"></div>
+    </div>
     <div id="app">
       <nav class="tabs" role="tablist" aria-label="Sections">
         <button type="button" id="tab-atis" class="tab" data-tab="atis">
@@ -187,7 +206,7 @@
             </button>
           </div>
         </header>
-        <p class="ack-edumark" data-ack-edumark>NOT FOR OPERATIONAL USE · EDU ONLY</p>
+        <p class="ack-edumark" data-ack-edumark>NOT FOR OPERATIONAL USE · EDUCATIONAL ONLY</p>
         <form id="lookup-form" class="lookup" autocomplete="off">
           <div class="lookup-field">
             <label class="sr-only" for="icao-input">Airport</label>
@@ -216,11 +235,6 @@
             TAF.
           </p>
           <p>
-            To save as a web app on iPhone, open this page in Safari, tap Share,
-            then Add to Home Screen.
-          </p>
-          <p>
-            Not for operational use.<br />
             US, Canadian, Hong Kong, and Czech ATIS are from official government
             sources.<br />
             METAR and TAF are sourced from NOAA.<br />
@@ -235,9 +249,7 @@
             ADS-B opens an area view below 10,000 feet AGL; zoom out to show more
             aircraft in the area.
           </p>
-          <p>
-            The author assumes no liability. EDUCATIONAL USE ONLY
-          </p>
+          <p>The author assumes no liability.</p>
           <p>
             <a
               class="home-ios"
@@ -248,7 +260,7 @@
           </p>
         </div>
         <div class="home-version">
-          <p aria-label="Version 2.0">2.0</p>
+          <p aria-label="Version 2.1">2.1</p>
           <a
             class="cdm-reset cdm-help home-support"
             href="https://gearup4u.netlify.app/privacy-policy.html"
@@ -330,7 +342,7 @@
         <div id="atis-inferdep" class="atis-panel inferdep" hidden>
           <p class="worstwind-line">
             <span id="atis-inferdep-line" class="worstwind-main inferdep-line"></span>
-            <span class="worstwind-aside"
+            <span id="atis-inferdep-aside" class="worstwind-aside"
               ><span class="worstwind-note">UNOFFICIAL ESTIMATE</span></span
             >
           </p>
@@ -587,8 +599,22 @@
             target="_blank"
             rel="noopener noreferrer"
             aria-label="Open ADS-B in browser"
-            ><span class="adsb-glyph">E</span></a
-          >
+            ><span class="adsb-glyph adsb-open-glyph" aria-hidden="true"
+              ><svg
+                class="adsb-open-icon"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+                />
+              </svg></span
+          ></a>
           <button
             type="button"
             id="adsb-hextory"
@@ -606,17 +632,33 @@
             hidden
             aria-label="Return to last airport"
           >
-            <span class="adsb-glyph">↺</span>
+            <span class="adsb-glyph adsb-uturn-glyph" aria-hidden="true"
+              ><svg
+                class="adsb-uturn-icon"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="m15 15-6 6m0 0-6-6m6 6V9a6 6 0 0 1 12 0v3" />
+              </svg></span
+            >
           </button>
           <time
             id="adsb-utc"
             class="adsb-utc utc-clock"
             hidden
             datetime=""
-            aria-label="Zulu time"
+            aria-label="Zulu and local time"
           >
             <span id="adsb-utc-time">--:--:--</span
             ><span class="utc-suffix">Z</span>
+            <span class="adsb-clock-sep" aria-hidden="true">|</span>
+            <span id="adsb-local-time">--:--</span
+            ><span id="adsb-local-suffix" class="adsb-local-suffix">L</span>
           </time>
           <button
             type="button"
@@ -625,7 +667,10 @@
             hidden
             aria-label="Add to Hextory"
           >
-            <span class="adsb-add-line">ADD <span class="adsb-add-to">to</span></span>
+            <span class="adsb-add-line"
+              ><span class="adsb-add-hex" aria-hidden="true">⬡</span> ADD
+              <span class="adsb-add-to">to</span></span
+            >
             <span class="adsb-add-line">HEXTORY</span>
           </button>
           <div id="adsb-fr24" class="adsb-fr24" hidden>
@@ -936,16 +981,20 @@
               height="18"
               alt="Map layers"
             />
-            and turn on rain viewer radar.
+            — rain radar is on.
           </p>
+          <p><strong>Buttons on the right, black = ON</strong></p>
+          <p>L — labels (only when several aircraft are on the map)</p>
+          <p>O — basic or Overflowing aircraft labels</p>
+          <p>I — Isolate this aircraft; others not shown.</p>
+          <p>F — follow this aircraft (turns off if you pan)</p>
+          <p>G — ground vehicles (off hides service trucks; fire and rescue stay visible)</p>
           <p>
-            Tap an aircraft to isolate it and open Globe Airplanes Live full aircraft card
-            (the same extensive card as O on Global Aircraft Live). The card
-            stays on the left; i, E, Hextory, and ↺ sit to its right. Tracking
-            stays: O plots each ADS-B update, isolate clears clutter, and F
-            stays centered. Pan and pinch keep isolate; a short tap on empty
-            map drops it. ADD to HEXTORY under ⬡ and ↺ saves that aircraft;
-            tapping a plane no longer adds it by itself.
+            Tap a plane to isolate and follow. The card stays on the left.
+            EXPAND / COLLAPSE folds the left card. DISMISS shows only when
+            nothing is tracked and leftover details are still on screen.
+            Empty map drops the plane. Add Presently Tracked in the Hextory
+            header to save the aircraft you are following.
           </p>
           <p>
             Colour is altitude. Grey is on the ground. This in-app map only
@@ -958,16 +1007,20 @@
             filter live traffic only. A full registration or hex that is not
             transmitting shows last seen — add it to Hextory from the toast.
             HEAVY JETS, CARGO, and EMERGENCY filter this airport’s map (no
-            10,000 ft cap). ↺ or FIND → CANCEL clears the filter. Selecting a
-            plane also opens a small FlightRadar24 card at the bottom right
-            with the live route and ETA when that registration is airborne.
+            10,000 ft cap). The return button or FIND → CANCEL clears the
+            filter.
+          </p>
+          <p>
+            Selecting a plane also opens a small FlightRadar24 card at the
+            bottom right with the live route and ETA when that registration
+            is airborne.
           </p>
           <p>
             <a
               href="https://airplanes.live/map-help/"
               target="_blank"
               rel="noopener noreferrer"
-              >Map help</a
+              >Airplanes.Live map help</a
             >
           </p>
           <p>
@@ -975,16 +1028,50 @@
               href="https://www.flightradar24.com/data"
               target="_blank"
               rel="noopener noreferrer"
-              >Look up a flight</a
+              >look up a flight on Flightradar24</a
             >
           </p>
           <p>
-            E opens the unfiltered airplanes.live globe in a new browser tab,
+            <span class="adsb-help-open" aria-hidden="true"
+              ><svg
+                class="adsb-open-icon"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+                />
+              </svg></span
+            >
+            opens the unfiltered airplanes.live globe in a new browser tab,
             so you can search and zoom freely.
           </p>
           <p>
-            ↺ returns to the last airport zoom. Pan and tap the map freely;
-            only this button goes back.
+            <span class="adsb-help-open" aria-hidden="true"
+              ><svg
+                class="adsb-uturn-icon"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="m15 15-6 6m0 0-6-6m6 6V9a6 6 0 0 1 12 0v3" />
+              </svg></span
+            >
+            first returns to the last tracked airplane, if there was one.
+            After that it returns to the last airport zoom. Pan and tap the
+            map freely; only this button goes back.
+          </p>
+          <p>
+            Tap the ADS-B tab again to reset to the airport view.
           </p>
         </div>
         <button type="button" id="adsb-help-close" class="icon-btn">
@@ -1057,9 +1144,16 @@
           </p>
           <p>
             When the displayed ATIS is stale, the strip uses the on-screen METAR
-            if that report has wind. METAR and TAF degrees are true; GearUp
-            shows an estimated magnetic heading from a dated variation table and
-            uses that magnetic value for the stale strip.
+            if that report has wind and is not older than the ATIS. METAR and TAF
+            degrees are true; GearUp shows an estimated magnetic heading from a
+            dated variation table and uses that magnetic value for the stale
+            strip. With no D-ATIS, or when that same gate picks METAR, the
+            into-wind jet strip is inferred from that magnetic wind. DEPT and ARR
+            then show the same Inferred Runway line. If infer cannot run, ATIS
+            runways stay and only the wind may come from METAR.
+          </p>
+          <p>
+            BASED ON METAR or BASED ON ATIS is the source for that line.
           </p>
         </div>
         <button type="button" id="worstwind-dialog-close" class="icon-btn">
@@ -1226,8 +1320,9 @@
             Registration. A full registration or hex adds a tail and isolates
             it when it is known; a parked tail still gets a Hextory card.
             Airline, aircraft, and the chips filter live traffic at the
-            current airport. ↺ or FIND → CANCEL clears that filter. BACKUP
-            LIST / RESTORE LIST brings a saved set back. Tap a card to find
+            current airport. The return button or FIND → CANCEL clears that
+            filter. BACKUP LIST / RESTORE LIST brings a saved set back. Tap
+            a card to find
             that aircraft on the map.
           </p>
           <p>Pin a Schiphol flight — it lands here and the map link is copied.</p>
@@ -1467,21 +1562,21 @@
     <script src="/js/sun.js" defer></script>
     <script src="/js/tz.js" defer></script>
     <script src="/js/magvar.js?v=2" defer></script>
-    <script src="/js/runways.js?v=3" defer></script>
-    <script src="/js/hl.js?v=224" defer></script>
-    <script src="/js/worstwind.js?v=216" defer></script>
+    <script src="/js/runways.js?v=6" defer></script>
+    <script src="/js/hl.js?v=226" defer></script>
+    <script src="/js/worstwind.js?v=219" defer></script>
     <script src="/js/ehamrwy.js" defer></script>
     <script src="/js/rwycond.js" defer></script>
     <script src="/js/cdm.js?v=238" defer></script>
     <script src="/js/board.js?v=227" defer></script>
     <script src="/js/airports.js?v=211" defer></script>
-    <script src="/js/fr24card.js?v=6" defer></script>
+    <script src="/js/fr24card.js?v=7" defer></script>
     <script src="/js/hubflight.js?v=1" defer></script>
     <script src="/js/airline-names.js?v=1" defer></script>
     <script src="/js/find.js?v=7" defer></script>
     <script src="/js/flytify.js?v=2" defer></script>
-    <script src="/js/hextory.js?v=75" defer></script>
+    <script src="/js/hextory.js?v=79" defer></script>
     <script src="/js/actype.js?v=5" defer></script>
-    <script src="/js/app.js?v=316" defer></script>
+    <script src="/js/app.js?v=331" defer></script>
   </body>
 </html>

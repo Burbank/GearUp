@@ -11,8 +11,19 @@ function assert(cond, msg) {
   if (!cond) throw new Error(msg);
 }
 
+const fs = require("fs");
+const path = require("path");
+
 const html = rewriteGlobeHtml("<html><body><p>tar1090</p></body></html>");
 assert(html.indexOf("/js/adsb-hook.js") !== -1, "inject hook");
+assert(html.indexOf("adsb-hook.js?v=69") !== -1, "hook cache");
+const hook = fs.readFileSync(path.join(__dirname, "../js/adsb-hook.js"), "utf8");
+assert(hook.indexOf("#H,#M{display:none") !== -1, "hide unused H and M");
+assert(hook.indexOf("wrapFullscreen") !== -1, "wrap fullscreen");
+assert(hook.indexOf('reason: "fullscreen"') !== -1, "parent fullscreen");
+assert(hook.indexOf("startFollowGlide") === -1, "no follow glide");
+assert(hook.indexOf("GLIDE_") === -1, "no glide constants");
+assert(hook.indexOf("wrapSetProjection") === -1, "no setProjection wrap");
 assert(safeRelPath("libs/jquery.js") === "libs/jquery.js", "rel path");
 assert(safeRelPath("../secret") === "", "reject parent path");
 assert(

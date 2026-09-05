@@ -10,6 +10,10 @@
 
   const SUFFIX_ORDER = { L: 0, C: 1, R: 2 };
   const MIN_JET_FT = 4000;
+  const DEFAULT_MAX_TAIL_KT = 5;
+  const PREFERRED = {
+    HKJK: { id: "06", maxTailKt: DEFAULT_MAX_TAIL_KT },
+  };
   const SOFT =
     /grass|turf|dirt|gravel|sand|soil|clay|earth|wood|ice|snow|water|unpaved|\bgrs\b|\bgre\b|\bgrvl\b/i;
   const PAVED =
@@ -164,7 +168,7 @@
     if (loading) return loading;
     const fetchFn = typeof fetch === "function" ? fetch : null;
     if (!fetchFn) return Promise.resolve(null);
-    loading = fetchFn("/data/runways.json?v=3", { cache: "force-cache" })
+    loading = fetchFn("/data/runways.json?v=6", { cache: "force-cache" })
       .then((res) => {
         if (!res.ok) throw new Error("runways");
         return res.json();
@@ -189,13 +193,248 @@
     return s ? String(s) : "";
   }
 
+  function headingOf(n) {
+    const num = Number(n);
+    if (!Number.isFinite(num)) return null;
+    return num === 36 ? 360 : num * 10;
+  }
+
+  function rwyOfIdent(id) {
+    const p = parseIdent(id);
+    if (!p) return null;
+    return {
+      id: p.n + p.s,
+      n: Number(p.n),
+      side: p.s,
+      hdg: headingOf(p.n),
+      role: "main",
+    };
+  }
+
+  function endsFromLine(raw) {
+    const text = String(raw || "")
+      .replace(/\s+·\s+.*$/, "")
+      .trim();
+    if (!text) return [];
+    const out = [];
+    const seen = new Set();
+    function add(id) {
+      const row = rwyOfIdent(id);
+      if (!row || seen.has(row.id)) return;
+      seen.add(row.id);
+      out.push(row);
+    }
+    for (const tok of text.split(/[,\s]+/).filter(Boolean)) {
+      const fam = tok.match(/^(\d{2})\/(\d{2})([LCR]+)$/);
+      if (fam) {
+        for (const s of fam[3]) {
+          add(fam[1] + s);
+          add(fam[2] + s);
+        }
+        continue;
+      }
+      const pair = tok.match(/^(\d{2}[LCR]?)\/(\d{2}[LCR]?)$/);
+      if (pair) {
+        add(pair[1]);
+        add(pair[2]);
+        continue;
+      }
+      add(tok);
+    }
+    return out;
+  }
+
+  function ends(icao) {
+    return endsFromLine(line(icao));
+  }
+
+  function inferPhrase(ids) {
+    if (!ids.length) return "";
+    if (ids.length === 1) return "Inferred Runway " + ids[0];
+    if (ids.length === 2) {
+      return "Inferred Runways, " + ids[0] + " and/or " + ids[1];
+    }
+    const last = ids[ids.length - 1];
+    return "Inferred Runways, " + ids.slice(0, -1).join(", ") + " and/or " + last;
+  }
+
+  function worstApi() {
+    if (typeof GearUpWorstWind !== "undefined" && GearUpWorstWind.worstForRunway) {
+      return GearUpWorstWind;
+    }
+    if (typeof require === "function") {
+      try {
+        return require("./worstwind.js");
+      } catch (err) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  function asWind(magDirOrWind) {
+    if (magDirOrWind == null || magDirOrWind === "") return null;
+    if (typeof magDirOrWind === "number" || typeof magDirOrWind === "string") {
+      const dir = Number(magDirOrWind);
+      if (!Number.isFinite(dir)) return null;
+      return {
+        dir,
+        spd: 10,
+        gust: null,
+        varFrom: null,
+        varTo: null,
+        vrb: false,
+      };
+    }
+    if (typeof magDirOrWind !== "object") return null;
+    if (!Number.isFinite(Number(magDirOrWind.dir))) return null;
+    return magDirOrWind;
+  }
+
+  function ilsOneOf(icao) {
+    const code = String(icao || "").toUpperCase();
+    const s = table && table.ilsOne ? table.ilsOne[code] : "";
+    return s ? String(s) : "";
+  }
+
+  function reciprocalN(n) {
+    const x = Number(n);
+    if (!Number.isFinite(x) || x < 1 || x > 36) return null;
+    const r = x + 18;
+    return r > 36 ? r - 36 : r;
+  }
+
+  function ilsOneIdent(endIds, ilsIds) {
+    const ends = new Set();
+    const ils = new Set();
+    for (const id of endIds || []) {
+      const p = parseIdent(id);
+      if (p) ends.add(Number(p.n));
+    }
+    for (const id of ilsIds || []) {
+      const p = parseIdent(id);
+      if (p) ils.add(Number(p.n));
+    }
+    const candidates = [];
+    const seen = new Set();
+    for (const n of ends) {
+      const rec = reciprocalN(n);
+      if (rec == null || seen.has(n) || seen.has(rec)) continue;
+      seen.add(n);
+      seen.add(rec);
+      const nIls = ils.has(n);
+      const recPresent = ends.has(rec);
+      const recIls = recPresent && ils.has(rec);
+      if (nIls && recPresent && !recIls) candidates.push(n);
+      else if (recIls && !nIls) candidates.push(rec);
+    }
+    if (candidates.length !== 1) return "";
+    return String(candidates[0]).padStart(2, "0");
+  }
+
+  function preferredOf(icao) {
+    const code = String(icao || "").toUpperCase();
+    const hand = PREFERRED[code];
+    if (hand && hand.id) {
+      return {
+        id: String(hand.id),
+        maxTailKt: Number.isFinite(hand.maxTailKt)
+          ? hand.maxTailKt
+          : DEFAULT_MAX_TAIL_KT,
+      };
+    }
+    const ils = ilsOneOf(code);
+    if (!ils) return null;
+    return { id: ils, maxTailKt: DEFAULT_MAX_TAIL_KT };
+  }
+
+  function pickFamily(list, n) {
+    const pick = list
+      .filter((row) => row.n === n)
+      .sort((a, b) => String(a.side).localeCompare(String(b.side)));
+    return {
+      runways: pick,
+      phrase: inferPhrase(pick.map((row) => row.id)),
+    };
+  }
+
+  function betterWindPick(cur, next) {
+    if (!cur) return true;
+    if (next.heads > cur.heads + 1e-6) return true;
+    if (next.heads < cur.heads - 1e-6) return false;
+    if (next.tail < cur.tail - 1e-6) return true;
+    if (next.tail > cur.tail + 1e-6) return false;
+    return next.n < cur.n;
+  }
+
+  function windOnlyNumber(list, wind, W) {
+    let best = null;
+    const seen = new Set();
+    for (const row of list) {
+      if (seen.has(row.n)) continue;
+      seen.add(row.n);
+      const worst = W.worstForRunway(wind, row);
+      if (!worst || !Number.isFinite(worst.tail)) continue;
+      const votes = W.headwindVotes
+        ? W.headwindVotes(wind, row)
+        : { heads: worst.tail <= 0.05 ? 1 : 0 };
+      const next = {
+        n: row.n,
+        heads: Number(votes.heads) || 0,
+        tail: worst.tail,
+      };
+      if (betterWindPick(best, next)) best = next;
+    }
+    return best ? best.n : null;
+  }
+
+  function inferIntoWind(lineOrEnds, magDirOrWind, opts) {
+    const list = Array.isArray(lineOrEnds)
+      ? lineOrEnds
+      : endsFromLine(lineOrEnds);
+    const wind = asWind(magDirOrWind);
+    const W = worstApi();
+    if (!list.length || !wind || !W || !W.worstForRunway) {
+      return { runways: [], phrase: "" };
+    }
+    const bestN = windOnlyNumber(list, wind, W);
+    if (bestN == null) return { runways: [], phrase: "" };
+
+    const pref = preferredOf(opts && opts.icao);
+    const part = pref ? parseIdent(pref.id) : null;
+    if (part) {
+      const prefN = Number(part.n);
+      const prefRow = list.find((row) => row.n === prefN);
+      if (prefRow) {
+        const prefWorst = W.worstForRunway(wind, prefRow);
+        const cap = Number.isFinite(pref.maxTailKt)
+          ? pref.maxTailKt
+          : DEFAULT_MAX_TAIL_KT;
+        if (prefWorst && Number.isFinite(prefWorst.tail) && prefWorst.tail < cap - 1e-6) {
+          return pickFamily(list, prefN);
+        }
+      }
+    }
+    return pickFamily(list, bestN);
+  }
+
   return {
     MIN_JET_FT,
+    DEFAULT_MAX_TAIL_KT,
+    PREFERRED,
     parseIdent,
     isJetRunway,
     formatAirport,
     indexTable,
     load,
     line,
+    ilsOneOf,
+    ilsOneIdent,
+    preferredOf,
+    headingOf,
+    endsFromLine,
+    ends,
+    inferPhrase,
+    inferIntoWind,
   };
 });

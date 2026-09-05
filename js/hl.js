@@ -195,7 +195,8 @@
       Number.isFinite(w.spd) ? w.spd : 0,
       Number.isFinite(w.gust) ? w.gust : 0
     );
-    return windThreat(magDir(w.dir, varEast), spd, rwys);
+    const dir = w.role != null ? w.dir : magDir(w.dir, varEast);
+    return windThreat(dir, spd, rwys);
   }
 
   function ktFrom(spd, unit) {
@@ -439,7 +440,11 @@
         Number.isFinite(owner.spd) ? owner.spd : 0,
         Number.isFinite(owner.gust) ? owner.gust : 0
       );
-      const threat = windThreat(magDir(n, varEast), spd, rwys);
+      const threat = windThreat(
+        owner.role != null ? n : magDir(n, varEast),
+        spd,
+        rwys
+      );
       if (!threat.tail && !threat.cross) return;
       seen.add(key);
       out.push({ start, end, cls: "hl-ops" });
@@ -1327,6 +1332,10 @@
     };
   }
 
+  function breakAtisSentences(text) {
+    return String(text || "").replace(/[.?] +/g, (m) => m[0] + "\n");
+  }
+
   function formatAtis(text) {
     const src = String(text || "").replace(/\r\n/g, "\n").trim();
     if (!src) return src;
@@ -1348,8 +1357,8 @@
     if (rwys.rwy) paras.push(rwys.rwy);
     if (rwys.rest) paras.push(rwys.rest);
     if (noted.notice) paras.push(noted.notice);
-    if (!span && !noted.notice) return raw;
-    return paras.join("\n\n");
+    if (!span && !noted.notice) return breakAtisSentences(raw);
+    return breakAtisSentences(paras.join("\n\n"));
   }
 
   return {
