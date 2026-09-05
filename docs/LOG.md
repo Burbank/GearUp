@@ -4,7 +4,7 @@ Session history for rebuild. Older narrative also lives in `CURSOR_general_logs/
 
 ## 2026-09-05 — version 2.0
 
-Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`. Home **2.0**. SW `gearup-v422`. Live: https://gearup4u.netlify.app
+Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp` `880a85b`. Home **2.0**. SW `gearup-v422`. Netlify `6a9b69ac16717550da99648a`. Live: https://gearup4u.netlify.app
 
 Do not reintroduce `navigator.clipboard.readText()` / `clipboard.read()` on focus, visibility, mount, or generic clicks. Safari’s Paste pill is clipboard consent; the first tap on any button becomes that consent click. Copy (`writeText`) is fine. Hextory ingest of a globe link is only from a real `paste` event (`clipboardData.getData`). ADS-B iframe `allow` is `clipboard-write; fullscreen` — no `clipboard-read`.
 
