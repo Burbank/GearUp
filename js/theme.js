@@ -2,8 +2,17 @@
 
 (function (root) {
   const KEY = "gearup-theme-override-v1";
-  const BRIGHT_COLOR = "#ffffff";
   const DIM_COLOR = "#1a2332";
+  const DESKTOP_BRIGHT = "#efece6";
+
+  function brightColor() {
+    try {
+      if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) {
+        return DESKTOP_BRIGHT;
+      }
+    } catch (_) {}
+    return "#ffffff";
+  }
 
   function systemIsLight() {
     try {
@@ -16,13 +25,13 @@
   function loadOverride() {
     try {
       const v = localStorage.getItem(KEY);
-      if (v === "bright" || v === "dim") return v;
+      if (v === "bright" || v === "dim" || v === "system") return v;
     } catch (_) {}
     return null;
   }
 
   function themeMode() {
-    return loadOverride() || "system";
+    return loadOverride() || "dim";
   }
 
   function applyTheme() {
@@ -39,15 +48,16 @@
     );
     const schemeMeta = document.querySelector('meta[name="color-scheme"]');
     if (mode === "bright") {
-      if (lightMeta) lightMeta.setAttribute("content", BRIGHT_COLOR);
-      if (darkMeta) darkMeta.setAttribute("content", BRIGHT_COLOR);
+      const color = brightColor();
+      if (lightMeta) lightMeta.setAttribute("content", color);
+      if (darkMeta) darkMeta.setAttribute("content", color);
       if (schemeMeta) schemeMeta.setAttribute("content", "light");
     } else if (mode === "dim") {
       if (lightMeta) lightMeta.setAttribute("content", DIM_COLOR);
       if (darkMeta) darkMeta.setAttribute("content", DIM_COLOR);
       if (schemeMeta) schemeMeta.setAttribute("content", "dark");
     } else {
-      if (lightMeta) lightMeta.setAttribute("content", BRIGHT_COLOR);
+      if (lightMeta) lightMeta.setAttribute("content", brightColor());
       if (darkMeta) darkMeta.setAttribute("content", DIM_COLOR);
       if (schemeMeta) schemeMeta.setAttribute("content", "light dark");
     }
@@ -75,13 +85,9 @@
   }
 
   function setThemeMode(mode) {
-    if (mode === "bright" || mode === "dim") {
+    if (mode === "bright" || mode === "dim" || mode === "system") {
       try {
         localStorage.setItem(KEY, mode);
-      } catch (_) {}
-    } else {
-      try {
-        localStorage.removeItem(KEY);
       } catch (_) {}
     }
     applyTheme();

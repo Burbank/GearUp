@@ -12,10 +12,10 @@
   const SHARE_PROMO_LINES = ["", "Try the free", SHARE_PROMO_URL];
 
   const SEED = [
-    { reg: "09-0016", type: "B752", airline: "United States Air Force" },
-    { reg: "92-9000", type: "B742", airline: "United States Air Force" },
-    { reg: "82-8000", type: "B742", airline: "United States Air Force" },
-    { reg: "PH-GOV", type: "B737", airline: "Government of the Netherlands" },
+    { hex: "a0dac5", reg: "N154TS", type: "B738", airline: "Falcon Aviation Holdings" },
+    { hex: "8961b4", reg: "A6-COM", type: "B744", airline: "Dubai Air Wing" },
+    { hex: "48411c", reg: "P4-787", type: "B788", airline: "Comlux Aruba" },
+    { hex: "76cd16", reg: "9V-SHV", type: "A359", airline: "Singapore Airlines" },
     { reg: "PH-MPS", type: "B744", airline: "Martinair" },
     { reg: "PH-CKC", type: "B744", airline: "KLM Cargo (Martinair)" },
     { reg: "PH-CKB", type: "B744", airline: "KLM Cargo (Martinair)" },
@@ -197,7 +197,8 @@
       "enableLabels",
       "extendedLabels=2",
       "hideSideBar",
-      "legacyUI"
+      "legacyUI",
+      "mobile"
     );
     return "/globe/?" + q.join("&");
   }
@@ -709,6 +710,7 @@
   const regForm = document.getElementById("hextory-reg-form");
   const regInput = document.getElementById("hextory-reg-input");
   const regCancel = document.getElementById("hextory-reg-cancel");
+  const closeBtn = document.getElementById("hextory-close");
   const infoBtn = document.getElementById("hextory-info");
   const helpDialog = document.getElementById("hextory-help-dialog");
   const helpClose = document.getElementById("hextory-help-close");
@@ -748,10 +750,14 @@
   const HOLD_MS = 700;
   const AGE_TICK_MS = 30 * 1000;
 
+  function overlayShowing() {
+    return !!(overlay && !overlay.hidden && !overlay.classList.contains("is-parked"));
+  }
+
   function startAgeTick() {
     if (ageTimer) return;
     ageTimer = window.setInterval(() => {
-      if (!overlay || overlay.hidden || cardDrag) return;
+      if (!overlayShowing() || cardDrag) return;
       if (list.some((row) => row && row.checked && !contactIsLive(row))) {
         paintCards();
       }
@@ -1101,7 +1107,7 @@
   }
 
   function hideHextorySheet() {
-    if (overlay) overlay.hidden = true;
+    parkOverlay();
     stopAgeTick();
     closeHelp();
   }
@@ -1546,7 +1552,7 @@
       btn.appendChild(side);
       pinsEl.appendChild(btn);
     }
-    if (overlay && !overlay.hidden) requestAnimationFrame(lockAircraftCardSize);
+    if (overlayShowing()) requestAnimationFrame(lockAircraftCardSize);
   }
 
   function paintCards() {
@@ -1558,7 +1564,7 @@
   }
 
   function lockAircraftCardSize() {
-    if (!pinsEl || (overlay && overlay.hidden)) return;
+    if (!pinsEl || !overlayShowing()) return;
     const cards = [...pinsEl.querySelectorAll(".hextory-card:not(.hextory-home)")];
     if (!cards.length) return;
     pinsEl.style.removeProperty("--hextory-ac-h");
@@ -1749,28 +1755,12 @@
       ta.select();
       const ok = document.execCommand("copy");
       ta.remove();
+      if (document.activeElement && document.activeElement.blur) {
+        document.activeElement.blur();
+      }
       return ok;
     } catch {
       return false;
-    }
-  }
-
-  async function readClipboard() {
-    try {
-      if (!navigator.clipboard || !navigator.clipboard.readText) return "";
-      return await navigator.clipboard.readText();
-    } catch {
-      return "";
-    }
-  }
-
-  function readIframeGlobe() {
-    const frame = document.getElementById("adsb-frame");
-    if (!frame) return "";
-    try {
-      return String((frame.contentWindow && frame.contentWindow.location.href) || "");
-    } catch {
-      return String(frame.getAttribute("src") || "");
     }
   }
 
@@ -1815,19 +1805,9 @@
     return result;
   }
 
-  function emptyClipHint() {
-    if (!window.isSecureContext) {
-      return "Local HTTP cannot use the clipboard. Open this page as https or 127.0.0.1, Copy Link, then tap ⬡.";
-    }
-    return "Copy Link on the details card, then tap ⬡. If iOS asks, tap Paste.";
-  }
-
   function ingestParsed(parsed, text, bump, opts) {
     const speak = opts && opts.toast;
-    if (!parsed) {
-      if (speak) hooks.toast("Hextory", emptyClipHint());
-      return null;
-    }
+    if (!parsed) return null;
     if (text && text === lastClip) {
       if (speak) {
         const name = parsed.reg || String(parsed.hex || "").toUpperCase();
@@ -1847,20 +1827,8 @@
     return result;
   }
 
-  async function ingestClipboard(bump, opts) {
-    const speak = opts && opts.toast;
-    let text = await readClipboard();
-    let parsed = parseGlobeText(text);
-    if (!parsed) {
-      const frameText = readIframeGlobe();
-      parsed = parseGlobeText(frameText);
-      if (parsed) text = frameText;
-    }
-    if (!parsed) {
-      if (speak) hooks.toast("Hextory", emptyClipHint());
-      return null;
-    }
-    return ingestParsed(parsed, text, bump, opts);
+  function ingestPastedText(text, bump, opts) {
+    return ingestParsed(parseGlobeText(text), text, bump, opts);
   }
 
   function liveKey(row) {
@@ -2063,7 +2031,7 @@
   }
 
   function fitOverlayToChrome() {
-    if (!overlay || overlay.hidden) return;
+    if (!overlayShowing()) return;
     const gap = 8;
     const box = viewBox();
     let top = box.top + 12;
@@ -2090,9 +2058,15 @@
     overlay.style.paddingBottom = Math.round(bottomPad + gap) + "px";
   }
 
+  function parkOverlay() {
+    if (!overlay) return;
+    overlay.hidden = false;
+    overlay.classList.add("is-parked");
+  }
+
   function closeOverlay(opts) {
     if (!(opts && opts.force) && !canCloseAfterSwipe()) return;
-    if (overlay) overlay.hidden = true;
+    parkOverlay();
     stopAgeTick();
     closeHelp();
     closeRegDialog();
@@ -2115,6 +2089,7 @@
     });
     persist();
     overlay.hidden = false;
+    overlay.classList.remove("is-parked");
     startAgeTick();
     requestAnimationFrame(() => {
       lockAircraftCardSize();
@@ -2405,11 +2380,48 @@
     });
   }
 
+  function flightKey(value) {
+    return String(value || "")
+      .replace(/\s+/g, "")
+      .toUpperCase();
+  }
+
+  function liveHitForBoard(row) {
+    const flight = flightKey(row && row.flight);
+    const reg = keyReg(row && row.reg);
+    const pin = {
+      hex: "",
+      reg: (row && row.reg) || "",
+      flight: (row && row.flight) || "",
+    };
+    if (lastFocus) {
+      if (sameCard(pin, lastFocus)) return lastFocus;
+      if (flight && flightKey(lastFocus.flight) === flight) return lastFocus;
+    }
+    for (const entry of list) {
+      if (!contactIsLive(entry)) continue;
+      if (reg && keyReg(entry.reg) === reg) return entry;
+      if (flight && flightKey(entry.flight) === flight) return entry;
+    }
+    return null;
+  }
+
+  function boardPinLive(row) {
+    return Boolean(liveHitForBoard(row));
+  }
+
+  function followForBoard(row) {
+    const hit = liveHitForBoard(row);
+    if (!hit) return "";
+    return followUrl(hit, { quiet: true });
+  }
+
   function addFromBoard(row) {
     const incoming = {
       reg: displayReg(row && row.reg),
       type: String((row && row.aircraft) || "").trim().toUpperCase(),
       airline: String((row && row.airline) || "").trim(),
+      flight: String((row && row.flight) || "").replace(/\s+/g, "").toUpperCase(),
       hex: "",
     };
     if (!incoming.reg && row && row.flight) incoming.reg = displayReg(row.flight);
@@ -2421,10 +2433,6 @@
       ensureFr24(result.entry);
     }
     return result.entry;
-  }
-
-  function mapChromeOpen() {
-    return Boolean(hexBtn && !hexBtn.hidden);
   }
 
   function init(nextHooks) {
@@ -2489,6 +2497,7 @@
         }
       });
     }
+    if (closeBtn) closeBtn.addEventListener("click", () => closeOverlay({ force: true }));
     if (infoBtn) infoBtn.addEventListener("click", openHelp);
     if (helpClose) helpClose.addEventListener("click", closeHelp);
     if (helpDialog) {
@@ -2516,11 +2525,21 @@
       });
     }
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") ingestClipboard(false);
       if (document.visibilityState === "visible" && flyWatch) tickFlytify(true);
     });
-    window.addEventListener("focus", () => {
-      if (mapChromeOpen()) ingestClipboard(false);
+    window.addEventListener("paste", (event) => {
+      const t = event.target;
+      if (
+        t &&
+        t.closest &&
+        t.closest('input, textarea, select, [contenteditable="true"]')
+      ) {
+        return;
+      }
+      const text =
+        event.clipboardData && event.clipboardData.getData("text/plain");
+      if (!text || !parseGlobeText(text)) return;
+      ingestPastedText(text, true, { toast: true });
     });
     window.addEventListener("message", (event) => {
       if (!event || event.origin !== window.location.origin) return;
@@ -2534,11 +2553,22 @@
         if (hooks.liveFlight) hooks.liveFlight(null);
         return;
       }
+      if (data.reason === "restore-failed") {
+        if (hooks.restoreFailed) hooks.restoreFailed();
+        return;
+      }
       if (data.reason === "chrome") {
         const shift = Number(data.overlayShift) || 0;
-        if (hooks.planeOverlay) hooks.planeOverlay(shift > 4, shift);
-        if (shift > 4) revealAddBtn();
-        else if (addBtn) addBtn.hidden = true;
+        const cardOpen = data.cardOpen === true || lastFocus;
+        if (cardOpen) {
+          if (hooks.planeOverlay) {
+            hooks.planeOverlay(true, shift > 4 ? shift : 280);
+          }
+          revealAddBtn();
+        } else {
+          if (hooks.planeOverlay) hooks.planeOverlay(false);
+          if (addBtn) addBtn.hidden = true;
+        }
         return;
       }
       if (data.reason === "find-hits") {
@@ -2563,25 +2593,23 @@
         lastFocus = data;
         revealAddBtn();
         if (hooks.planeOverlay) {
-          hooks.planeOverlay(true, data.overlayShift);
+          const shift = Number(data.overlayShift) || 0;
+          hooks.planeOverlay(true, shift > 4 ? shift : 280);
         }
         if (hooks.liveFlight) hooks.liveFlight(data);
         applyGlobeContacts([data]);
         return;
       }
-      if (hooks.planeOverlay) hooks.planeOverlay(true, data.overlayShift);
     });
   }
 
   window.Hextory = Object.assign(api, {
     init,
-    openOverlay,
     closeOverlay,
     openFind,
-    openHelp,
-    closeHelp,
     addFromBoard,
-    addFromMap,
+    boardPinLive,
+    followForBoard,
     startLive,
     stopLive,
     copyText,

@@ -82,8 +82,8 @@
       href="/icons/icon-192-dark.png?v=17"
       media="(prefers-color-scheme: dark)"
     />
-    <script src="/js/theme.js"></script>
-    <link rel="stylesheet" href="/css/app.css?v=354" />
+    <script src="/js/theme.js?v=3"></script>
+    <link rel="stylesheet" href="/css/app.css?v=366" />
     <link rel="stylesheet" href="/css/ack-gate.css?v=7" />
   </head>
   <body>
@@ -163,8 +163,7 @@
             <button
               type="button"
               data-theme="system"
-              class="active"
-              aria-pressed="true"
+              aria-pressed="false"
               title="Follow device appearance"
             >
               SYSTEM
@@ -180,7 +179,8 @@
             <button
               type="button"
               data-theme="dim"
-              aria-pressed="false"
+              class="active"
+              aria-pressed="true"
               title="Manual dim theme"
             >
               DIM
@@ -248,7 +248,7 @@
           </p>
         </div>
         <div class="home-version">
-          <p aria-label="Version 1.9">1.9</p>
+          <p aria-label="Version 2.0">2.0</p>
           <a
             class="cdm-reset cdm-help home-support"
             href="https://gearup4u.netlify.app/privacy-policy.html"
@@ -566,7 +566,7 @@
             id="adsb-frame"
             title="ADS-B"
             src="about:blank"
-            allow="clipboard-write; clipboard-read; fullscreen"
+            allow="clipboard-write; fullscreen"
             hidden
           ></iframe>
           <button
@@ -722,11 +722,22 @@
           <div class="board-pin-actions">
             <button
               type="button"
+              id="board-pin-hextory"
+              class="board-pin-adsb"
+              aria-label="Add to Hextory"
+            >
+              <span>ADD TO</span>
+              <span>HEXTORY</span>
+            </button>
+            <button
+              type="button"
               id="board-pin-adsb"
               class="board-pin-adsb"
-              aria-label="Open aircraft on ADS-B"
+              aria-label="Track aircraft on ADS-B"
+              disabled
             >
-              ADS-B
+              <span>TRACK</span>
+              <span>ADS-B</span>
             </button>
             <button
               type="button"
@@ -772,6 +783,30 @@
         aria-labelledby="board-focus-title"
       >
         <h2 id="board-focus-title">Focus</h2>
+        <div
+          class="board-focus-ticks hextory-find-modes"
+          id="board-focus-modes"
+          role="radiogroup"
+          aria-label="Focus by"
+        >
+          <label class="board-focus-tick">
+            <input
+              type="radio"
+              name="board-focus-mode"
+              value="registration"
+              checked
+            />
+            <span>REGISTRATION</span>
+          </label>
+          <label class="board-focus-tick">
+            <input type="radio" name="board-focus-mode" value="airline" />
+            <span>AIRLINE</span>
+          </label>
+          <label class="board-focus-tick">
+            <input type="radio" name="board-focus-mode" value="aircraft" />
+            <span>AIRCRAFT</span>
+          </label>
+        </div>
         <form id="board-focus-form" class="board-focus-form" autocomplete="off">
           <label class="sr-only" for="board-focus-input"
             >Flight number, airport, or registration</label
@@ -787,7 +822,7 @@
             autocomplete="off"
             spellcheck="false"
             lang="en"
-            placeholder="KL871, BCN, or PH-EHD"
+            placeholder="KL871, BCN, PH-EHD"
           />
           <button
             type="button"
@@ -852,12 +887,18 @@
         <h2 id="board-focus-help-title">Focus search</h2>
         <div class="cdm-help-body">
           <p>
-            Type an airline, flight, airport, or registration. The chips
-            narrow those results.
+            REGISTRATION matches a flight number, an airport, or a tail
+            (KL871, BCN, PH-EHD).
           </p>
           <p>
-            Example: type KL, then tap HEAVY JETS. Only the large KLM jets
-            remain.
+            AIRLINE matches the airline name on the board (KLM, Martinair).
+          </p>
+          <p>
+            AIRCRAFT matches the type code (77W, B744, A333).
+          </p>
+          <p>
+            The chips below then narrow those results. Example: type KL on
+            AIRLINE, then tap HEAVY JETS. Only the large KLM jets remain.
           </p>
           <p>
             LAST repeats the previous search. EU, NON-EU, NEXT 2 HOURS, and
@@ -899,8 +940,11 @@
           </p>
           <p>
             Tap an aircraft to isolate it and open Globe Airplanes Live full aircraft card
-            (the same extensive card as O on Global Aircraft Live). Pan and
-            zoom if needed. ADD to HEXTORY under ⬡ and ↺ saves that aircraft;
+            (the same extensive card as O on Global Aircraft Live). The card
+            stays on the left; i, E, Hextory, and ↺ sit to its right. Tracking
+            stays: O plots each ADS-B update, isolate clears clutter, and F
+            stays centered. Pan and pinch keep isolate; a short tap on empty
+            map drops it. ADD to HEXTORY under ⬡ and ↺ saves that aircraft;
             tapping a plane no longer adds it by itself.
           </p>
           <p>
@@ -1150,15 +1194,18 @@
               FIND
             </button>
           </div>
-          <button
-            type="button"
-            id="hextory-info"
-            class="cdm-reset cdm-help home-support"
-            aria-label="Hextory help"
-            aria-controls="hextory-help-dialog"
-          >
-            i
-          </button>
+            <button type="button" id="hextory-close" class="hextory-close">
+              CLOSE OVERLAY
+            </button>
+            <button
+              type="button"
+              id="hextory-info"
+              class="cdm-reset cdm-help home-support"
+              aria-label="Hextory help"
+              aria-controls="hextory-help-dialog"
+            >
+              i
+            </button>
         </div>
       </div>
     </div>
@@ -1410,7 +1457,7 @@
     <button
       type="button"
       id="select-airport"
-      class="icon-btn back-btn select-airport"
+      class="icon-btn select-airport"
       hidden
       aria-label="Select airport"
     >
@@ -1425,16 +1472,16 @@
     <script src="/js/worstwind.js?v=216" defer></script>
     <script src="/js/ehamrwy.js" defer></script>
     <script src="/js/rwycond.js" defer></script>
-    <script src="/js/cdm.js?v=237" defer></script>
-    <script src="/js/board.js?v=225" defer></script>
+    <script src="/js/cdm.js?v=238" defer></script>
+    <script src="/js/board.js?v=227" defer></script>
     <script src="/js/airports.js?v=211" defer></script>
     <script src="/js/fr24card.js?v=6" defer></script>
     <script src="/js/hubflight.js?v=1" defer></script>
     <script src="/js/airline-names.js?v=1" defer></script>
     <script src="/js/find.js?v=7" defer></script>
     <script src="/js/flytify.js?v=2" defer></script>
-    <script src="/js/hextory.js?v=68" defer></script>
+    <script src="/js/hextory.js?v=75" defer></script>
     <script src="/js/actype.js?v=5" defer></script>
-    <script src="/js/app.js?v=307" defer></script>
+    <script src="/js/app.js?v=316" defer></script>
   </body>
 </html>

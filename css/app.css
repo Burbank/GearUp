@@ -48,6 +48,12 @@
   --sans: "Atkinson Hyperlegible", -apple-system, BlinkMacSystemFont, "Segoe UI",
     system-ui, sans-serif;
   --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --bezel-w: 18px;
+  --app-col: 44rem;
+  --chrome-dim: rgba(8, 10, 14, 0.55);
+  --tab-bar-h: calc(0.85rem + 44px + var(--border-w));
+  --chrome-photo: url("/ack-bg.jpg");
+  --tab-strip-w: min(calc(var(--app-col) - 2 * var(--bezel-w)), calc(100% - 2 * var(--bezel-w)));
 }
 
 @media (prefers-color-scheme: dark) {
@@ -105,6 +111,17 @@ html.theme-bright {
   --cdm-logo-red: #e40000;
 }
 
+@media (hover: hover) and (pointer: fine) {
+  html.theme-bright {
+    --bg: #efece6;
+    --panel: #efece6;
+    --field: #f4f1ea;
+    --pin-bg: #efece6;
+    --placeholder: #7a7468;
+    --board-stripe: rgba(0, 61, 122, 0.06);
+  }
+}
+
 html.theme-dim {
   color-scheme: dark;
   --bg: #1a2332;
@@ -143,12 +160,35 @@ body {
   height: 100%;
   max-height: 100%;
   overflow: hidden;
-  background: var(--bg);
   color: var(--fg);
   font-family: var(--sans);
   -webkit-text-size-adjust: 100%;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior-y: none;
+}
+
+html {
+  background-color: #12161c;
+  background-image: var(--chrome-photo);
+  background-size: cover;
+  background-position: center center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+
+html::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--chrome-dim);
+}
+
+body {
+  position: relative;
+  z-index: 1;
+  background: transparent;
 }
 
 @supports (height: 100svh) {
@@ -166,6 +206,113 @@ input {
   appearance: none;
 }
 
+button,
+.tab,
+.pin,
+.icon-btn,
+.select-airport,
+.cdm-reset,
+.adsb-help,
+[role="button"],
+.lookup > button,
+.theme-toggle button,
+.cdm-chrome button,
+.view-board .board-controls > button {
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-modify: read-only;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:not(.pin) *,
+.tab *,
+.icon-btn *,
+.select-airport *,
+.cdm-reset *,
+.adsb-help *,
+[role="button"]:not(.pin) * {
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+button:not(.pin),
+.tab,
+.icon-btn,
+.select-airport,
+.cdm-reset,
+[role="button"]:not(.pin),
+.lookup > button,
+.theme-toggle button,
+.cdm-chrome button,
+.view-board .board-controls > button {
+  touch-action: manipulation;
+}
+
+html.adsb-wide,
+html.adsb-wide body {
+  width: 100%;
+  max-width: none;
+}
+
+html.adsb-wide body {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+html.adsb-wide #app {
+  max-width: none;
+  width: 100%;
+  height: 100%;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+html.adsb-wide .tabs {
+  width: var(--tab-strip-w);
+  max-width: calc(var(--app-col) - 2 * var(--bezel-w));
+  margin-left: auto;
+  margin-right: auto;
+}
+
+html.adsb-wide #app::before,
+html.adsb-wide #app::after {
+  bottom: auto;
+  height: var(--tab-bar-h);
+}
+
+html.adsb-wide #app::before {
+  left: max(0px, calc((100% - var(--app-col)) / 2));
+}
+
+html.adsb-wide #app::after {
+  right: max(0px, calc((100% - var(--app-col)) / 2));
+}
+
+html.adsb-wide #slots,
+html.adsb-wide #slots.view-slots {
+  width: 100% !important;
+  max-width: none !important;
+  margin-left: 0;
+  margin-right: 0;
+  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: transparent;
+}
+
+html.adsb-wide .slots-wrap,
+html.adsb-wide #adsb-frame {
+  width: 100% !important;
+  max-width: none !important;
+  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
@@ -177,6 +324,7 @@ body {
 }
 
 #app {
+  position: relative;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -184,8 +332,52 @@ body {
   min-height: 0;
   max-width: 44rem;
   margin: 0 auto;
+  padding-left: var(--bezel-w);
+  padding-right: var(--bezel-w);
   overflow: hidden;
   overscroll-behavior-y: none;
+}
+
+#app::before,
+#app::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--bezel-w);
+  z-index: 101;
+  pointer-events: none;
+  background:
+    linear-gradient(145deg, #5b686d 0%, #4a5559 100%),
+    linear-gradient(
+      45deg,
+      rgba(107, 122, 127, 0.45) 0%,
+      rgba(91, 104, 109, 0.15) 20%,
+      transparent 40%,
+      rgba(74, 85, 89, 0.3) 60%,
+      rgba(58, 68, 72, 0.6) 100%
+    );
+  background-blend-mode: normal, overlay;
+}
+
+#app::before {
+  left: 0;
+  border-right: 2px solid #3a4448;
+  box-shadow:
+    inset -2px 0 6px rgba(255, 255, 255, 0.18),
+    inset 2px 0 8px rgba(0, 0, 0, 0.35),
+    inset 0 2px 4px rgba(255, 255, 255, 0.12),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.35);
+}
+
+#app::after {
+  right: 0;
+  border-left: 2px solid #3a4448;
+  box-shadow:
+    inset 2px 0 6px rgba(255, 255, 255, 0.18),
+    inset -2px 0 8px rgba(0, 0, 0, 0.35),
+    inset 0 2px 4px rgba(255, 255, 255, 0.12),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.35);
 }
 
 .tabs {
@@ -196,7 +388,23 @@ body {
   position: relative;
   z-index: 100;
   border-bottom: var(--border-w) solid var(--line);
-  background: var(--bg);
+  background-color: #12161c;
+  background-image:
+    linear-gradient(var(--chrome-dim), var(--chrome-dim)), var(--chrome-photo);
+  background-size: cover, cover;
+  background-position: center center, center center;
+  background-attachment: fixed, fixed;
+  background-repeat: no-repeat, no-repeat;
+}
+
+#tab-atis,
+#tab-brief,
+#tab-board:not([hidden]) {
+  flex: 1.2 1 0;
+}
+
+#tab-slots {
+  flex: 1 1 0;
 }
 
 .tab {
@@ -252,50 +460,6 @@ body {
   text-align: center;
 }
 
-.tab.tab-cdm-flight {
-  display: inline-flex;
-  flex: 1;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  width: auto;
-  min-width: 0;
-  gap: 0.02rem;
-  padding: 0.12rem 0.2rem;
-  white-space: normal;
-  line-height: 1.1;
-}
-
-.tab.tab-cdm-flight[hidden] {
-  display: none !important;
-}
-
-.tab.tab-cdm-flight span {
-  display: block;
-  width: 100%;
-  text-align: center;
-}
-
-.tab .tobt-remain {
-  font-size: calc(1em + 3pt);
-  font-variant-numeric: tabular-nums;
-}
-
-.tab.cdm-soon .tobt-remain {
-  animation: tobt-blink 1.5s step-end infinite;
-}
-
-@keyframes tobt-blink {
-  0%,
-  49% {
-    opacity: 1;
-  }
-  50%,
-  100% {
-    opacity: 0.2;
-  }
-}
-
 .view {
   flex: 1;
   min-height: 0;
@@ -304,6 +468,10 @@ body {
   overscroll-behavior-y: contain;
   touch-action: pan-y;
   scroll-padding-bottom: var(--scroll-end-buffer);
+}
+
+.view:not(.view-slots) {
+  background: var(--bg);
 }
 
 html.pin-scroll-lock,
@@ -1801,7 +1969,8 @@ html.cdm-under-board #slots.view-slots {
 }
 
 #adsb-return .adsb-glyph {
-  transform: translateY(2px);
+  font-size: 1.15em;
+  transform: translateY(calc(0.22em - 15%));
 }
 
 .adsb-external {
@@ -1815,6 +1984,46 @@ html.cdm-under-board #slots.view-slots {
 .adsb-return {
   top: 86px;
   left: 86px;
+}
+
+html.adsb-plane-open {
+  --adsb-plane-shift: 300px;
+}
+
+html.adsb-plane-open #adsb-help,
+html.adsb-plane-open #adsb-external,
+html.adsb-plane-open #adsb-hextory,
+html.adsb-plane-open #adsb-return {
+  top: 10px;
+  transform: none;
+}
+
+html.adsb-plane-open #adsb-help {
+  left: calc(var(--adsb-plane-shift, 300px) + 10px);
+}
+
+html.adsb-plane-open #adsb-external {
+  left: calc(var(--adsb-plane-shift, 300px) + 58px);
+}
+
+html.adsb-plane-open #adsb-hextory {
+  left: calc(var(--adsb-plane-shift, 300px) + 106px);
+}
+
+html.adsb-plane-open #adsb-return {
+  left: calc(var(--adsb-plane-shift, 300px) + 154px);
+}
+
+html.adsb-plane-open #adsb-utc.adsb-utc.utc-clock {
+  top: 56px;
+  left: calc(var(--adsb-plane-shift, 300px) + 10px);
+  transform: none;
+}
+
+html.adsb-plane-open #adsb-hextory-add.cdm-reset {
+  top: 96px;
+  left: calc(var(--adsb-plane-shift, 300px) + 10px);
+  transform: none;
 }
 
 #adsb-utc.adsb-utc.utc-clock {
@@ -1976,17 +2185,18 @@ html.theme-dim .adsb-help.cdm-reset {
 
 .adsb-fr24 {
   position: absolute;
-  left: calc(var(--adsb-plane-shift, 0px) + 10px);
+  left: auto;
   right: 10px;
   bottom: max(28px, calc(env(safe-area-inset-bottom, 0px) + 16px));
-  z-index: 4;
+  z-index: 12;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 0.18rem;
-  max-width: min(360px, 100%);
-  margin-left: auto;
+  width: max-content;
+  max-width: min(360px, calc(100vw - 20px));
+  margin-left: 0;
   padding: 0.7rem 0.95rem;
   border-radius: 12px;
   border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
@@ -2002,13 +2212,13 @@ html.theme-dim .adsb-help.cdm-reset {
 }
 
 .adsb-fr24.is-dock {
-  left: 10px;
+  left: auto;
   right: 10px;
-  max-width: none;
+  max-width: min(280px, calc(100vw - 20px));
   margin-left: 0;
   padding: 0.55rem 0.75rem;
-  padding-left: max(12px, calc(var(--adsb-plane-shift, 0px) + 8px));
   font-size: 1.15rem;
+  z-index: 8;
 }
 
 .adsb-fr24[hidden] {
@@ -2200,16 +2410,22 @@ html.theme-dim .adsb-fr24 {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: flex-end;
   padding: max(12px, env(safe-area-inset-top, 0px))
     max(12px, env(safe-area-inset-right, 0px))
     max(12px, env(safe-area-inset-bottom, 0px))
     max(12px, env(safe-area-inset-left, 0px));
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(0, 0, 0, 0.28);
 }
 
 .hextory-overlay[hidden] {
   display: none !important;
+}
+
+.hextory-overlay.is-parked {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .hextory-sheet {
@@ -2219,7 +2435,7 @@ html.theme-dim .adsb-fr24 {
   width: min(44rem, 100%);
   max-width: 44rem;
   height: auto;
-  max-height: 100%;
+  max-height: 58vh;
   min-height: 0;
   padding: 0.7rem 0.85rem 0.65rem;
   border: var(--border-w) solid var(--line);
@@ -2244,9 +2460,9 @@ html.theme-dim .adsb-fr24 {
 
 .hextory-head .hextory-brand .home-script {
   height: 1.77rem;
-  left: -0.22rem;
-  top: 0;
-  transform: none;
+  left: -0.44rem;
+  top: -0.08rem;
+  transform: translateY(-20%);
 }
 
 .hextory-head .theme-toggle {
@@ -2711,6 +2927,20 @@ html.theme-dim .adsb-fr24 {
   letter-spacing: 0.02em;
 }
 
+.hextory-close {
+  flex: none;
+  min-height: 44px;
+  padding: 0 0.7rem;
+  border: var(--border-w) solid var(--line);
+  border-radius: var(--radius);
+  background: var(--field);
+  color: var(--fg);
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
 .hextory-backup {
   min-height: 44px;
   padding: 0 0.85rem;
@@ -2923,7 +3153,7 @@ html.theme-dim .adsb-fr24 {
   position: fixed;
   left: max(
     env(safe-area-inset-left, 0px),
-    calc((100vw - min(44rem, 100vw)) / 2 + 0.85rem)
+    calc((100vw - min(44rem, 100vw)) / 2 + var(--bezel-w) + 0.85rem)
   );
   bottom: max(12px, calc(env(safe-area-inset-bottom, 0px) + 8px));
   z-index: 90;
@@ -3325,7 +3555,7 @@ html.adsb-fr24-dock .select-airport.icon-btn {
 
 .board-row {
   display: grid;
-  grid-template-columns: 5.1rem minmax(0, 1.15fr) minmax(0, 1fr) auto auto;
+  grid-template-columns: 5.4rem minmax(0, 1.15fr) minmax(0, 1fr) auto auto;
   grid-template-areas:
     "time ident route route route"
     "time meta meta gate status";
@@ -3373,6 +3603,8 @@ html.adsb-fr24-dock .select-airport.icon-btn {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  align-self: stretch;
+  min-height: 3.36em;
   font-family: var(--sans);
   font-weight: 400;
   letter-spacing: 0.04em;
@@ -3398,6 +3630,24 @@ html.adsb-fr24-dock .select-airport.icon-btn {
 }
 
 .board-time-z {
+  font-family: var(--sans);
+  font-size: calc(1em - 3pt);
+  font-weight: inherit;
+  letter-spacing: 0.02em;
+}
+
+.board-time-gap {
+  flex: 1 1 auto;
+  min-height: 1.12em;
+}
+
+.board-time-local {
+  margin-top: auto;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.board-time-l {
   font-family: var(--sans);
   font-size: calc(1em - 3pt);
   font-weight: inherit;
@@ -3752,10 +4002,18 @@ html.adsb-fr24-dock .select-airport.icon-btn {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
 }
 
+.board-pin-overlay.is-arrival {
+  bottom: auto;
+  height: auto;
+  background: transparent;
+  pointer-events: none;
+}
+
 .board-pin-overlay.is-arrival .board-pin-card {
   height: auto;
   max-height: 100%;
   overflow: auto;
+  pointer-events: auto;
 }
 
 .board-pin-overlay.is-departure .board-pin-card {
@@ -3819,8 +4077,22 @@ html.adsb-fr24-dock .select-airport.icon-btn {
 }
 
 .board-pin-adsb {
-  font-size: 0.82rem;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  font-size: 0.72rem;
   letter-spacing: 0.04em;
+  line-height: 1.05;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.board-pin-adsb:disabled,
+.board-pin-adsb[aria-disabled="true"] {
+  opacity: 0.38;
+  pointer-events: none;
 }
 
 .board-pin-close {

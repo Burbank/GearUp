@@ -97,6 +97,22 @@ list = removeKey(list, cardKey(list[0]));
 assert(list.length === 0, "remove by key");
 assert(SEED.length === 8, "seed count");
 assert(
+  SEED.filter((row) => /PH-CK[ABC]|PH-MPS/.test(row.reg)).length === 4,
+  "PH 747s stay in seed"
+);
+assert(
+  SEED.every((row) => !/GOV|United States Air Force|Government of the Netherlands/i.test(
+    [row.reg, row.airline].join(" ")
+  )),
+  "no government seed aircraft"
+);
+assert(
+  ["a0dac5", "8961b4", "48411c", "76cd16"].every((hex) =>
+    SEED.some((row) => row.hex === hex)
+  ),
+  "replacement hexes in seed"
+);
+assert(
   fr24Url({ reg: "PH-CKA" }) ===
     "https://www.flightradar24.com/data/aircraft/ph-cka",
   "FR24 PH-CKA"

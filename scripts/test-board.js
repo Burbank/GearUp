@@ -434,6 +434,11 @@ assert.strictEqual(matchFocus(ehdRow, "EHD"), true);
 assert.strictEqual(matchFocus(ehdRow, "X-EHD"), true);
 assert.strictEqual(matchFocus(ehdRow, "PH-EHD"), true);
 assert.strictEqual(matchFocus(ehdRow, "BCN"), false);
+const klmRow = { flight: "KL0871", airline: "KLM", aircraft: "77W", dests: ["JFK"] };
+assert.strictEqual(matchFocus(klmRow, "KLM", "airline"), true);
+assert.strictEqual(matchFocus(klmRow, "77W", "aircraft"), true);
+assert.strictEqual(matchFocus(klmRow, "77W", "airline"), false);
+assert.strictEqual(matchFocus(bcnRow, "KLM", "airline"), false);
 assert.deepStrictEqual(visibleFlights([jfkRow, ehdRow, bcnRow], "EHD"), [ehdRow]);
 assert.ok(visibleFlights([jfkRow, bcnRow], "BCN").every((row) => row.dests.includes("BCN")));
 

@@ -275,7 +275,8 @@
     if (u === "UNSET" || u === "-" || u === "N/A" || u === "NA" || u === "TBD" || u === "NONE") {
       return "";
     }
-    if (/^\d{1,2}:\d{2}$/.test(v)) return v;
+    const clock = v.match(/^(\d{1,2}:\d{2})(?::\d{2})?$/);
+    if (clock) return clock[1];
     return u;
   }
 
@@ -345,6 +346,16 @@
     return rows.join(" · ");
   }
 
+  function mergeCdmWatch(prev, next) {
+    if (!next || !next.callsign) return next;
+    const fields = Object.assign({}, (prev && prev.fields) || {});
+    const incoming = next.fields || {};
+    Object.keys(incoming).forEach((key) => {
+      if (incoming[key]) fields[key] = incoming[key];
+    });
+    return { callsign: next.callsign, fields };
+  }
+
   function diffCdmWatch(prev, next) {
     if (!next || !next.callsign) return null;
     if (!prev || prev.callsign !== next.callsign) {
@@ -357,7 +368,7 @@
     for (const key of keys) {
       const from = a[key] || "";
       const to = b[key] || "";
-      if (from === to || !to) continue;
+      if (from === to || !to || !from) continue;
       changes.push({ key, from, to });
     }
     if (!changes.length) return null;
@@ -395,6 +406,7 @@
     numericSearchScript,
     readCdmWatch,
     readCdmWatchFromHtml,
+    mergeCdmWatch,
     diffCdmWatch,
     formatCdmChangeSummary,
   };

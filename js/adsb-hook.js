@@ -6,6 +6,10 @@
   let lastGoodWidth = 0;
   let deselectTimer = 0;
   let slideRaf = 0;
+  let cardHidden = false;
+  let dropped = false;
+  let lastHeld = null;
+  let lastHeldAt = 0;
 
   function followZoom(alt) {
     const n = Number(alt);
@@ -23,13 +27,149 @@
     deselectTimer = 0;
   }
 
-  function hideMapZoom() {
-    if (document.getElementById("gearup-hide-zoom")) return;
-    const style = document.createElement("style");
-    style.id = "gearup-hide-zoom";
-    style.textContent =
-      "#zoomIn,#zoomOut,#ZIn,#ZOut,.ol-zoom,.ol-zoom-in,.ol-zoom-out{display:none!important;visibility:hidden!important}";
-    (document.head || document.documentElement).appendChild(style);
+  function sizeMap() {
+    try {
+      if (window.OLMap && OLMap.updateSize) OLMap.updateSize();
+    } catch {
+      /* ignore */
+    }
+  }
+  const ZOOM_CSS =
+    "#zoomIn,#zoomOut,#ZIn,#ZOut,.ol-zoom,.ol-zoom-in,.ol-zoom-out,#ui2_banner,#ui2_banner_try,#ui2_banner_close{display:none!important}";
+  const PHONE_CSS = [
+    "#toggle-width,#toggle_width,#toggle_sidebar_control,#toggle_sidebar_button",
+    "#expand_sidebar_control,#expand_sidebar_button,#shrink_sidebar_button",
+  ].join(",") + "{display:none!important}";
+  const RAIL_CSS =
+    "#U,#H,#T{min-width:2.7em!important;width:2.7em!important;box-sizing:border-box!important}";
+  const NO_PASTE_CSS =
+    "#L,#O,#P,#I,#F,#M,#K,#R,#N,#S,button,[role=button]{cursor:pointer;-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;-webkit-user-modify:read-only;-webkit-tap-highlight-color:transparent;touch-action:manipulation}" +
+    "#L *,#O *,#P *,#I *,#F *,#M *,button *,[role=button] *{pointer-events:none;-webkit-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important}";
+
+  function injectStyle(id, css) {
+    let style = document.getElementById(id);
+    if (!style) {
+      style = document.createElement("style");
+      style.id = id;
+      (document.head || document.documentElement).appendChild(style);
+    }
+    if (style.textContent !== css) style.textContent = css;
+  }
+
+  let promoClosed = false;
+  let sidebarShut = false;
+  let rainOn = false;
+
+  function enableRainViewer() {
+    try {
+      localStorage.setItem("layer_rainviewer_radar", "true");
+    } catch {
+      /* ignore */
+    }
+    if (rainOn) return;
+    let box = null;
+    document.querySelectorAll("li.layer").forEach((li) => {
+      if (/RainViewer Radar/i.test(li.textContent || "")) {
+        box = li.querySelector("input[type=checkbox]");
+      }
+    });
+    if (!box) return;
+    if (!box.checked) {
+      try {
+        box.click();
+      } catch {
+        /* ignore */
+      }
+    }
+    rainOn = !!box.checked;
+  }
+
+  function shutSidebarOnce() {
+    if (sidebarShut) return;
+    const box = document.getElementById("sidebar_container");
+    if (!box) return;
+    const st = window.getComputedStyle(box);
+    const open = st.display !== "none" && box.offsetWidth > 20;
+    if (!open) {
+      sidebarShut = true;
+      return;
+    }
+    const btn = document.getElementById("toggle_sidebar_button");
+    if (!btn) return;
+    try {
+      btn.click();
+      sidebarShut = true;
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function bindNoPaste() {
+    if (document.documentElement._gearupNoPaste) return;
+    document.documentElement._gearupNoPaste = true;
+    const isField = (el) =>
+      !!(
+        el &&
+        el.closest &&
+        el.closest('input, textarea, select, [contenteditable="true"]')
+      );
+    const isKey = (el) =>
+      !!(el && el.closest && el.closest("button, [role=button], #L, #O, #P, #I, #F, #M"));
+    const clear = () => {
+      try {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount) sel.removeAllRanges();
+      } catch {
+        /* ignore */
+      }
+    };
+    document.addEventListener(
+      "selectstart",
+      (event) => {
+        if (!isField(event.target) && isKey(event.target)) event.preventDefault();
+      },
+      true
+    );
+    document.addEventListener(
+      "contextmenu",
+      (event) => {
+        if (!isField(event.target) && isKey(event.target)) event.preventDefault();
+      },
+      true
+    );
+    document.addEventListener(
+      "touchstart",
+      (event) => {
+        if (isField(event.target) || !isKey(event.target)) return;
+        clear();
+        if (event.cancelable) event.preventDefault();
+      },
+      { capture: true, passive: false }
+    );
+  }
+
+  function hideChrome() {
+    injectStyle("gearup-hide-zoom", ZOOM_CSS);
+    injectStyle("gearup-hide-phone", PHONE_CSS);
+    injectStyle("gearup-rail-wide", RAIL_CSS);
+    injectStyle("gearup-no-paste", NO_PASTE_CSS);
+    bindNoPaste();
+    wrapTrackLabels();
+    bindCardLayout();
+    if (!promoClosed) {
+      const close = document.getElementById("ui2_banner_close");
+      if (close) {
+        try {
+          close.click();
+          promoClosed = true;
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    shutSidebarOnce();
+    bindKeyDismiss();
+    enableRainViewer();
   }
 
   function post(payload) {
@@ -85,40 +225,51 @@
     return Number.isFinite(n) ? n : null;
   }
 
-  function plane() {
-    const p = window.SelectedPlane;
-    const hex = (
-      p
-        ? String(p.icao || "")
-            .replace(/^~/, "")
-            .toLowerCase()
-        : hexFromCard()
-    );
-    const clean = /^[0-9a-f]{6}$/.test(hex) ? hex : hexFromCard();
-    const airline =
-      textOf("selected_airline") ||
-      textOf("selected_ownop") ||
-      String((p && (p.ownOp || p.desc || p.operator)) || "").trim();
-    const reg =
-      textOf("selected_registration") ||
-      String((p && (p.registration || p.reg)) || "").trim();
-    const type =
-      textOf("selected_icaotype") ||
-      String((p && (p.icaotype || p.type)) || "").trim();
-    const flight =
-      textOf("selected_callsign") ||
-      String((p && (p.flight || p.callsign)) || "").trim();
-    let alt = null;
-    let gs = null;
-    let track = null;
-    if (p) {
-      alt = numOrNull(p.alt_baro != null ? p.alt_baro : p.altitude);
-      gs = numOrNull(p.gs);
-      track = numOrNull(p.track != null ? p.track : p.true_heading);
+  function blank(value) {
+    const s = String(value || "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!s || /^n\/?a$/i.test(s) || s === "-" || s === "—") return "";
+    return s;
+  }
+
+  function livePlane() {
+    if (window.SelectedPlane) return window.SelectedPlane;
+    const list = (window.g && window.g.planesOrdered) || [];
+    for (let i = 0; i < list.length; i++) {
+      if (list[i] && list[i].selected) return list[i];
     }
-    if (!clean && !reg) return null;
+    return null;
+  }
+
+  function readPlane(p) {
+    let hex = "";
+    if (p) hex = String(p.icao || p.hex || "").replace(/^~/, "").toLowerCase();
+    if (!/^[0-9a-f]{6}$/.test(hex)) hex = hexFromCard();
+    const airline = blank(
+      textOf("selected_airline") ||
+        textOf("selected_ownop") ||
+        (p && (p.ownOp || p.desc || p.operator))
+    );
+    const reg = blank(
+      textOf("selected_registration") || (p && (p.registration || p.reg))
+    );
+    const type = blank(
+      textOf("selected_icaotype") || (p && (p.icaoType || p.icaotype || p.type))
+    );
+    const flight = blank(
+      textOf("selected_callsign") || (p && (p.flight || p.callsign))
+    );
+    const alt = p
+      ? numOrNull(p.alt_baro != null ? p.alt_baro : p.altitude)
+      : numOrNull(textOf("selected_altitude1"));
+    const gs = p ? numOrNull(p.gs) : numOrNull(textOf("selected_speed1"));
+    const track = p
+      ? numOrNull(p.track != null ? p.track : p.true_heading)
+      : null;
+    if (!/^[0-9a-f]{6}$/.test(hex) && !reg) return null;
     return {
-      hex: clean,
+      hex,
       reg,
       type,
       airline,
@@ -126,11 +277,27 @@
       alt,
       gs,
       track,
-      live: Boolean(p || clean || alt != null || gs != null),
+      live: Boolean(p),
     };
   }
 
+  function plane() {
+    const live = livePlane();
+    if (live) {
+      dropped = false;
+      return readPlane(live);
+    }
+    const card = readPlane(null);
+    if (dropped) return null;
+    if (cardHidden && lastHeld) {
+      if (card && planeId(card) && planeId(card) !== planeId(lastHeld)) return card;
+      return lastHeld;
+    }
+    return card;
+  }
+
   function overlayOpen() {
+    if (cardHidden) return false;
     const box = document.getElementById("selected_infoblock");
     if (!box) return false;
     if (box.hidden || box.style.display === "none") return false;
@@ -139,30 +306,62 @@
   }
 
   function overlayShift() {
-    if (!overlayOpen()) {
-      lastGoodWidth = 0;
-      return 0;
-    }
     const box = document.getElementById("selected_infoblock");
     const GAP = 12;
-    const MIN = 300;
     let right = 0;
-    if (box) {
+    if (overlayOpen() && box) {
       const r = box.getBoundingClientRect();
       right = Math.max(0, Math.round(r.right), Math.round(box.offsetWidth || 0));
     }
-    if (right >= MIN) lastGoodWidth = Math.max(lastGoodWidth, right);
-    if (right < lastGoodWidth) right = lastGoodWidth;
-    if (right < MIN) right = Math.max(lastGoodWidth, MIN);
-    const room = Math.max(0, Math.round(window.innerWidth - 136));
+    if (right > 48) lastGoodWidth = right;
+    if (right < 48) right = lastGoodWidth;
+    if (right < 48) return overlayOpen() ? 280 : 0;
+    const room = Math.max(0, Math.round(window.innerWidth - 204));
     return Math.min(room, right + GAP);
   }
 
   function postChrome(force) {
     const shift = overlayShift();
+    const open = overlayOpen();
     if (!force && shift === lastShift) return;
     lastShift = shift;
-    post({ reason: "chrome", overlayShift: shift });
+    post({ reason: "chrome", overlayShift: shift, cardOpen: open });
+  }
+
+  function bindCardLayout() {
+    if (document.documentElement._gearupCardLayout) return;
+    document.documentElement._gearupCardLayout = true;
+    const notify = () => {
+      if (!overlayOpen()) return;
+      startSlideTrack(400);
+      postChrome(true);
+    };
+    let ro = null;
+    try {
+      ro = new ResizeObserver(notify);
+    } catch {
+      ro = null;
+    }
+    const attach = () => {
+      const box = document.getElementById("selected_infoblock");
+      if (!box || box._gearupCardRO) return;
+      box._gearupCardRO = true;
+      if (ro) {
+        try {
+          ro.observe(box);
+        } catch {
+          /* ignore */
+        }
+      }
+      notify();
+    };
+    attach();
+    try {
+      const mo = new MutationObserver(attach);
+      mo.observe(document.documentElement, { childList: true, subtree: true });
+    } catch {
+      window.setInterval(attach, 800);
+    }
   }
 
   function stopSlideTrack() {
@@ -201,17 +400,24 @@
       "#show_trace,#history_collapse,#trace_date{display:none!important}",
       "#infoblock-container>.sectionTitle:not(.gearup-fold){display:none!important}",
       "#infoblock-container>#spatial_block,",
-      "#infoblock-container>button{display:none!important}",
+      "#infoblock-container>button,#infoblock_close{display:none!important}",
       "#anon_mlat_info,#tisb_info{display:none!important}",
-      "#selected_infoblock{top:0!important;left:0!important;bottom:auto!important;right:auto!important}",
+      "#selected_infoblock,#infoblock-container,#reg_info{background:transparent!important;background-color:transparent!important;background-image:none!important;box-shadow:none!important;border-color:transparent!important}",
+      ".aggregator-selected-bg:before,.aggregator-selected-bg:after{display:none!important;background:none!important;content:none!important}",
+      "#selected_infoblock{top:0!important;left:0!important;bottom:auto!important;right:auto!important;opacity:1!important}",
+      "#selected_infoblock,#selected_infoblock .infoHeading,#selected_infoblock .infoData,#selected_infoblock .highlightedTitle,#selected_infoblock td,#selected_infoblock span{text-shadow:0 1px 2px #000,0 0 8px #000}",
+      "#selected_infoblock img{display:none!important}",
+      "#selected_photo,#selected_photo img{background:transparent!important;display:block!important}",
       "#selected_infoblock.gearup-fold-shut{height:auto!important;max-height:none!important;overflow:visible!important;pointer-events:auto!important}",
       "#selected_infoblock.gearup-fold-shut #infoblock-container{height:auto!important;max-height:none!important;min-height:0!important;overflow:visible!important;pointer-events:auto}",
-      "#selected_infoblock.gearup-fold-shut #infoblock_close{pointer-events:auto}",
+      "#selected_infoblock #infoblock_close,.identLarge #infoblock_close{display:none!important;visibility:hidden!important;pointer-events:none!important}",
       "#selected_infoblock.gearup-fold-shut #reg_info,",
       "#selected_infoblock.gearup-fold-shut .highlightedTitle{display:block!important}",
       "#selected_infoblock.gearup-fold-shut #selected_photo.gearup-photo-ready{display:block!important}",
       "#selected_infoblock.gearup-fold-shut #selected_photo:not(.gearup-photo-ready){display:none!important;height:0!important;min-height:0!important;margin:0!important;padding:0!important;overflow:hidden!important}",
       "#selected_infoblock.gearup-fold-shut #selected_photo:not(.gearup-photo-ready) img{display:none!important}",
+      "#gearup-close-track{display:none!important}",
+      "#selected_infoblock.gearup-card-hidden{display:none!important}",
     ].join("");
     (document.head || document.documentElement).appendChild(style);
   }
@@ -432,32 +638,319 @@
     window.adjustInfoBlock._gearup = true;
   }
 
-  function isolateAndFollow() {
-    wrapAdjustInfoBlock();
+  function galOn(el) {
+    if (!el) return false;
+    const cls = " " + (el.className || "") + " ";
+    if (/\binActiveButton\b/.test(cls)) return false;
+    if (/\bactiveButton\b/.test(cls)) return true;
+    if (/\b(active|selected|pressed|buttonOn)\b/.test(cls)) return true;
+    return el.getAttribute("aria-pressed") === "true";
+  }
+
+  function galBtn(id) {
+    return document.getElementById(id);
+  }
+
+  function clickGal(id, on) {
+    const el = galBtn(id);
+    if (!el) return;
+    const isOn = galOn(el);
+    if (on && isOn) return;
+    if (!on && !isOn) return;
+    try {
+      el.click();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  let keepKOffUntil = 0;
+  let kOffBusy = false;
+
+  function applyKOffVisual() {
+    try {
+      if (typeof trackLabels !== "undefined") trackLabels = false;
+    } catch {
+      /* ignore */
+    }
+    try {
+      if (typeof g !== "undefined" && g) g.trackLabels = false;
+    } catch {
+      /* ignore */
+    }
+    try {
+      if (typeof loStore !== "undefined" && loStore) loStore.trackLabels = false;
+    } catch {
+      /* ignore */
+    }
+    const el = galBtn("K");
+    if (el) {
+      el.classList.remove("activeButton");
+      el.classList.add("inActiveButton");
+    }
+    try {
+      if (typeof buttonActive === "function") buttonActive("#K", false);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function trackLabelsOff() {
+    if (kOffBusy) {
+      applyKOffVisual();
+      return;
+    }
+    kOffBusy = true;
+    try {
+      const el = galBtn("K");
+      const orig = window.toggleTrackLabels && window.toggleTrackLabels._orig;
+      if (el && galOn(el)) {
+        try {
+          if (typeof orig === "function") orig();
+          else el.click();
+        } catch {
+          /* ignore */
+        }
+      }
+      applyKOffVisual();
+    } finally {
+      kOffBusy = false;
+    }
+  }
+
+  function lockTrackLabelsOff(ms) {
+    keepKOffUntil = Date.now() + (Number(ms) || 1600);
+    wrapTrackLabels();
+    trackLabelsOff();
+  }
+
+  function wrapTrackLabels() {
+    if (typeof window.toggleTrackLabels !== "function" || window.toggleTrackLabels._gearup) {
+      return;
+    }
+    const orig = window.toggleTrackLabels;
+    window.toggleTrackLabels = function () {
+      if (kOffBusy || Date.now() < keepKOffUntil) {
+        applyKOffVisual();
+        return;
+      }
+      return orig.apply(this, arguments);
+    };
+    window.toggleTrackLabels._gearup = true;
+    window.toggleTrackLabels._orig = orig;
+  }
+
+  let lastIsoAt = 0;
+  let idleTimer = 0;
+  let pointers = 0;
+  let gesture = false;
+  let tapPending = false;
+  let tapStartX = 0;
+  let tapStartY = 0;
+  let tapStartAt = 0;
+  let checkTimer = 0;
+  let zoomUntil = 0;
+  let viewBound = false;
+  const LATCH_KEYS = ["L", "O", "P", "I", "F"];
+  const userOff = { L: false, O: false, P: false, I: false, F: false };
+  const TAP_PX = 14;
+  const TAP_MS = 450;
+
+  function planeId(data) {
+    return data ? data.hex || data.reg || "" : "";
+  }
+
+  function rememberHeld(data) {
+    if (!data) return;
+    lastHeld = data;
+    lastHeldAt = Date.now();
+  }
+
+  function stillZooming() {
+    return pointers > 1 || Date.now() < zoomUntil;
+  }
+
+  function markZoom() {
+    gesture = true;
+    tapPending = false;
+    cancelCheck();
+    zoomUntil = Date.now() + 1200;
+    keepIsolate();
+  }
+
+  function bindViewZoom() {
+    if (viewBound) return;
+    try {
+      if (!window.OLMap || !OLMap.getView) return;
+      const view = OLMap.getView();
+      if (!view || !view.on) return;
+      view.on("change:resolution", markZoom);
+      viewBound = true;
+    } catch {
+      /* map not ready */
+    }
+  }
+
+  function bindKeyDismiss() {
+    LATCH_KEYS.forEach((id) => {
+      const el = galBtn(id);
+      if (!el || el._gearupDismiss) return;
+      el._gearupDismiss = true;
+      el.addEventListener(
+        "click",
+        () => {
+          window.setTimeout(() => {
+            userOff[id] = !galOn(galBtn(id));
+          }, 0);
+        },
+        false
+      );
+    });
+  }
+
+  function keepIsolate() {
+    if (dropped || !livePlane() || !lastHeld || userOff.I) return;
+    const on = galOn(galBtn("I"));
+    if (!on) {
+      clickGal("I", true);
+      try {
+        if (typeof toggleIsolation === "function") toggleIsolation("on");
+      } catch {
+        /* ignore */
+      }
+      lastIsoAt = Date.now();
+      return;
+    }
+    if (Date.now() - lastIsoAt < 2000) return;
+    lastIsoAt = Date.now();
     try {
       if (typeof toggleIsolation === "function") toggleIsolation("on");
     } catch {
-      /* map not ready */
+      /* ignore */
+    }
+  }
+
+  function armKeys() {
+    LATCH_KEYS.forEach((id) => {
+      userOff[id] = false;
+    });
+    LATCH_KEYS.forEach((id) => clickGal(id, true));
+    clickGal("M", false);
+    lockTrackLabelsOff(1600);
+    try {
+      if (typeof toggleIsolation === "function") toggleIsolation("on");
+    } catch {
+      /* ignore */
     }
     try {
       if (typeof toggleFollow === "function") toggleFollow(true);
     } catch {
-      /* map not ready */
+      /* ignore */
+    }
+  }
+
+  function latchVisualOff(id) {
+    const el = galBtn(id);
+    if (!el) return;
+    el.classList.remove("activeButton");
+    el.classList.add("inActiveButton");
+    try {
+      if (typeof buttonActive === "function") buttonActive("#" + id, false);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function followOff() {
+    clickGal("F", false);
+    latchVisualOff("F");
+    try {
+      if (typeof toggleFollow === "function") toggleFollow(false);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function isolateOff() {
+    clickGal("I", false);
+    latchVisualOff("I");
+    try {
+      if (typeof toggleIsolation === "function") toggleIsolation("off");
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function releaseTrack() {
+    dropped = true;
+    userOff.I = true;
+    userOff.F = true;
+    followOff();
+    isolateOff();
+  }
+
+  function resetIdle() {
+    if (idleTimer) {
+      clearTimeout(idleTimer);
+      idleTimer = 0;
+    }
+    cardHidden = false;
+  }
+
+  function keepMapDetails(forceButtons) {
+    wrapAdjustInfoBlock();
+    bindKeyDismiss();
+    if (forceButtons) armKeys();
+    else if (!livePlane()) {
+      releaseTrack();
+    } else {
+      keepIsolate();
+      LATCH_KEYS.forEach((id) => {
+        if (!userOff[id]) clickGal(id, true);
+      });
     }
     setExtensiveLabels();
-    expandFullCard();
-    window.setTimeout(expandFullCard, 200);
-    const p = window.SelectedPlane;
-    if (p && window.OLMap && window.ol) {
+    if (Date.now() < keepKOffUntil) trackLabelsOff();
+    bindViewZoom();
+    const p = livePlane();
+    if (p && window.OLMap && window.ol && !stillZooming()) {
       try {
         const view = OLMap.getView();
-        if (p.position && ol.proj) view.setCenter(ol.proj.fromLonLat(p.position));
         const alt = numOrNull(p.alt_baro != null ? p.alt_baro : p.altitude);
-        view.setZoom(followZoom(alt));
+        const want = followZoom(alt);
+        const z = Number(view.getZoom());
+        if (!userOff.F && p.position && ol.proj) {
+          view.setCenter(ol.proj.fromLonLat(p.position));
+        }
+        if (!userOff.F && (!Number.isFinite(z) || z >= want - 0.2)) {
+          view.setZoom(want);
+        }
       } catch {
         /* ignore */
       }
     }
+  }
+
+  function isolateAndFollow() {
+    dropped = false;
+    keepMapDetails(true);
+    resetIdle();
+    if (!cardHidden) {
+      expandFullCard();
+      window.setTimeout(expandFullCard, 200);
+    }
+  }
+
+  function applyCardHidden() {
+    const box = document.getElementById("selected_infoblock");
+    if (!box) return;
+    if (cardHidden) {
+      box.classList.add("gearup-card-hidden");
+      box.style.setProperty("display", "none", "important");
+      return;
+    }
+    box.classList.remove("gearup-card-hidden");
+    box.style.removeProperty("display");
   }
 
   function prefixGlobeUrl(url) {
@@ -546,56 +1039,72 @@
   }
 
   function watch() {
-    hideMapZoom();
+    hideChrome();
     wrapAjax();
     wrapAdjustInfoBlock();
     maybePostLive();
-    const open = overlayOpen();
-    const data = plane();
+    const live = livePlane();
+    const data = live ? readPlane(live) : null;
     const hex = (data && data.hex) || "";
     const airline = (data && data.airline) || "";
-    if (open !== lastOpen) {
-      lastOpen = open;
-      if (!open) {
+    if (!live) {
+      if (!dropped || galOn(galBtn("I")) || galOn(galBtn("F"))) releaseTrack();
+      if (lastHex) {
         lastHex = "";
+        lastOpen = false;
         lastAirline = "";
-        lastShift = 0;
+        cardHidden = false;
         stopSlideTrack();
-        post({ reason: "chrome", overlayShift: 0 });
-        cancelDeselect();
-        deselectTimer = window.setTimeout(() => {
-          deselectTimer = 0;
-          post({ reason: "deselect" });
-        }, 80);
-        return;
+        if (idleTimer) {
+          clearTimeout(idleTimer);
+          idleTimer = 0;
+        }
+        post({ reason: "deselect" });
+        if (overlayOpen()) postChrome(true);
+        else post({ reason: "chrome", overlayShift: 0, cardOpen: false });
       }
-      cancelDeselect();
-      stripFieldHelp();
-      isolateAndFollow();
-      lastShift = overlayShift();
-      if (data) {
-        post(Object.assign({ reason: "select", overlayShift: lastShift }, data));
-      } else {
-        post({ reason: "chrome", overlayShift: lastShift });
-      }
-      lastHex = hex;
-      lastAirline = airline;
-      startSlideTrack(1400);
       return;
     }
-    if (open && hex && hex !== lastHex) {
+    dropped = false;
+    rememberHeld(data);
+    if (hex && hex !== lastHex) {
+      cardHidden = false;
       lastHex = hex;
       lastAirline = airline;
+      applyCardHidden();
       stripFieldHelp();
       isolateAndFollow();
+      lastOpen = overlayOpen();
       lastShift = overlayShift();
-      post(Object.assign({ reason: "select", overlayShift: lastShift }, data));
+      post(
+        Object.assign(
+          { reason: "select", overlayShift: lastShift, cardOpen: overlayOpen() },
+          data
+        )
+      );
+      startSlideTrack(1800);
       return;
     }
-    if (open && hex && airline && airline !== lastAirline) {
+    keepMapDetails(false);
+    applyCardHidden();
+    const open = overlayOpen();
+    lastOpen = open;
+    if (cardHidden) {
+      lastShift = 0;
+      postChrome(true);
+      return;
+    }
+    foldStyle();
+    expandFullCard();
+    if (open && airline && airline !== lastAirline) {
       lastAirline = airline;
       lastShift = overlayShift();
-      post(Object.assign({ reason: "select", overlayShift: lastShift }, data));
+      post(
+        Object.assign(
+          { reason: "select", overlayShift: lastShift, cardOpen: true },
+          data
+        )
+      );
     }
     if (open) {
       syncFoldPhoto();
@@ -849,13 +1358,242 @@
     tick();
   }
 
+  function dropSelection() {
+    releaseTrack();
+    cardHidden = false;
+    applyCardHidden();
+    lastHex = "";
+    lastOpen = false;
+    lastAirline = "";
+    if (idleTimer) {
+      clearTimeout(idleTimer);
+      idleTimer = 0;
+    }
+    post({ reason: "deselect" });
+    if (overlayOpen()) postChrome(true);
+    else post({ reason: "chrome", overlayShift: 0, cardOpen: false });
+  }
+
+  function pickHeld(held) {
+    if (!held) return;
+    const hex = String(held.hex || "")
+      .replace(/^~/, "")
+      .toLowerCase();
+    const opts = { follow: true, noDeselect: true };
+    try {
+      if (hex && typeof selectPlaneByHex === "function") {
+        try {
+          selectPlaneByHex(hex, opts);
+        } catch {
+          try {
+            selectPlaneByHex(hex.toUpperCase(), opts);
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    try {
+      const planes = (window.g && window.g.planes) || {};
+      const p = planes[hex] || planes[hex.toUpperCase()];
+      if (p && typeof p.select === "function") p.select();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function restoreHeld() {
+    if (!lastHeld || Date.now() - lastHeldAt > 62000) {
+      post({ reason: "restore-failed" });
+      return false;
+    }
+    dropped = false;
+    cardHidden = false;
+    pickHeld(lastHeld);
+    applyCardHidden();
+    armKeys();
+    resetIdle();
+    setTimeout(() => {
+      dropped = false;
+      if (plane()) {
+        watch();
+        return;
+      }
+      post({ reason: "restore-failed", hex: lastHeld.hex, reg: lastHeld.reg });
+    }, 500);
+    return true;
+  }
+  window.__gearupRestore = restoreHeld;
+
+  function cancelCheck() {
+    if (checkTimer) {
+      clearTimeout(checkTimer);
+      checkTimer = 0;
+    }
+  }
+
+  function considerTap() {
+    if (stillZooming() || gesture) return;
+    const before = planeId(lastHeld);
+    if (!before && !livePlane() && !dropped) return;
+    let tries = 0;
+    const check = () => {
+      checkTimer = 0;
+      tries += 1;
+      const live = livePlane();
+      const now = live ? readPlane(live) : null;
+      const nowId = planeId(now);
+      if (nowId && nowId !== before) {
+        dropped = false;
+        rememberHeld(now);
+        isolateAndFollow();
+        return;
+      }
+      if (nowId) {
+        rememberHeld(now);
+        postChrome(true);
+        return;
+      }
+      if (stillZooming() || gesture) return;
+      if (tries < 2) {
+        checkTimer = setTimeout(check, 80);
+        return;
+      }
+      if (before || !dropped || galOn(galBtn("I")) || galOn(galBtn("F"))) {
+        dropSelection();
+      }
+    };
+    checkTimer = setTimeout(check, 80);
+  }
+
+  function isOwnChrome(t) {
+    if (!t || !t.closest) return false;
+    if (t.closest("#L,#O,#M,#P,#I,#F,#selected_infoblock,#ui2_banner")) {
+      return true;
+    }
+    if (t.closest('button,a,input,textarea,select,[role="button"]')) return true;
+    return false;
+  }
+
+  function nearEl(el, x, y, pad) {
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    if (!r || r.width < 2 || r.height < 2) return false;
+    return x >= r.left - pad && x <= r.right + pad && y >= r.top - pad && y <= r.bottom + pad;
+  }
+
+  function inKeepFollowZone(ev) {
+    const x = ev.clientX;
+    const y = ev.clientY;
+    if (x < 148 && y < 164) return true;
+    return ["L", "O", "M", "P", "I", "F"].some((id) =>
+      nearEl(document.getElementById(id), x, y, 26)
+    );
+  }
+
+  function onPointerDown(ev) {
+    const t = ev && ev.target;
+    if (t && t.closest && t.closest('input, textarea, select, [contenteditable="true"]')) {
+      return;
+    }
+    const ae = document.activeElement;
+    if (
+      ae &&
+      ae !== t &&
+      ae.blur &&
+      ae.matches &&
+      ae.matches('input, textarea, select, [contenteditable="true"]')
+    ) {
+      ae.blur();
+    }
+    const box = document.getElementById("selected_infoblock");
+    if (box && t && box.contains(t)) {
+      resetIdle();
+      return;
+    }
+    if (isOwnChrome(t) || inKeepFollowZone(ev)) return;
+    pointers += 1;
+    if (pointers === 1) {
+      gesture = false;
+      tapPending = true;
+      tapStartX = ev.clientX;
+      tapStartY = ev.clientY;
+      tapStartAt = Date.now();
+    } else {
+      gesture = true;
+      tapPending = false;
+      cancelCheck();
+      markZoom();
+    }
+  }
+
+  function onPointerMove(ev) {
+    if (!tapPending || gesture) return;
+    const dx = ev.clientX - tapStartX;
+    const dy = ev.clientY - tapStartY;
+    if (dx * dx + dy * dy > TAP_PX * TAP_PX) {
+      gesture = true;
+      tapPending = false;
+      cancelCheck();
+    }
+  }
+
+  function onPointerUp() {
+    if (pointers > 0) pointers -= 1;
+    if (pointers > 0) {
+      gesture = true;
+      tapPending = false;
+      cancelCheck();
+      return;
+    }
+    const held = Date.now() - tapStartAt;
+    const wasTap = tapPending && !gesture && !stillZooming() && held <= TAP_MS;
+    tapPending = false;
+    gesture = false;
+    if (wasTap) considerTap();
+  }
+
+  function onPointerCancel() {
+    if (pointers > 0) pointers -= 1;
+    gesture = true;
+    tapPending = false;
+    cancelCheck();
+    if (pointers <= 0) {
+      pointers = 0;
+      gesture = false;
+    }
+  }
+
   foldStyle();
   foldOpen();
   watch();
   scheduleFindFit();
   scheduleFindCount();
   window.setInterval(watch, 400);
+  let sizeSoon = 0;
+  function sizeMapSoon() {
+    if (sizeSoon) return;
+    sizeSoon = window.setTimeout(() => {
+      sizeSoon = 0;
+      sizeMap();
+    }, 40);
+  }
   window.addEventListener("resize", () => {
+    sizeMapSoon();
     if (overlayOpen()) postChrome();
   });
+  window.addEventListener("message", (event) => {
+    if (!event || !event.data || event.data.source !== "gearup-parent") return;
+    if (event.data.reason === "resize") sizeMapSoon();
+    if (event.data.reason === "restore") restoreHeld();
+  });
+  document.addEventListener("pointerdown", onPointerDown, true);
+  document.addEventListener("pointermove", onPointerMove, { capture: true, passive: true });
+  document.addEventListener("pointerup", onPointerUp, true);
+  document.addEventListener("pointercancel", onPointerCancel, true);
+  document.addEventListener("wheel", markZoom, { capture: true, passive: true });
+  document.addEventListener("gesturestart", markZoom, { capture: true, passive: true });
+  document.addEventListener("gesturechange", markZoom, { capture: true, passive: true });
 })();

@@ -2,6 +2,18 @@
 
 Session history for rebuild. Older narrative also lives in `CURSOR_general_logs/ATIS_PWA/LOG.md`.
 
+## 2026-09-05 — version 2.0
+
+Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp`. Home **2.0**. SW `gearup-v422`. Live: https://gearup4u.netlify.app
+
+Do not reintroduce `navigator.clipboard.readText()` / `clipboard.read()` on focus, visibility, mount, or generic clicks. Safari’s Paste pill is clipboard consent; the first tap on any button becomes that consent click. Copy (`writeText`) is fine. Hextory ingest of a globe link is only from a real `paste` event (`clipboardData.getData`). ADS-B iframe `allow` is `clipboard-write; fullscreen` — no `clipboard-read`.
+
+I and F follow live `SelectedPlane` only. A leftover details card must not re-arm isolate/follow. On deselect they drop immediately so other traffic shows. L/O/P stay. Card stays left; chrome sits to its right from the card’s real width. Do not deselect just because a later map tap looks like a miss while a plane is still selected.
+
+Do not peek the clipboard. Do not add PWA alerts (no TOBT CHANGE / ADS-B CHANGE / ATIS banners on the web client). Factory pins stay: EHAM, EDFH, KMIA, SKBO, HKJK, FAOR, UBBB, RKSI, VHHH, OMDW, HECA (EDFH/HECA no D-ATIS). First-visit Hextory seed is `a0dac5` N154TS, `8961b4` A6-COM, `48411c` P4-787, `76cd16` 9V-SHV plus PH-CKA/B/C and PH-MPS. Do not overwrite `atis.hextory` or `atis.pins` for a pilot who already edited them.
+
+Hard refresh / kill the home-screen PWA once for `gearup-v422`.
+
 ## 2026-09-04 — version 1.9 (last-card space)
 
 Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp` `3fbb604`. Still **1.9**. SW `gearup-v405`. Netlify `6a9aa2fa7238e5f4aea14e8b`. Live: https://gearup4u.netlify.app

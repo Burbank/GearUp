@@ -140,6 +140,14 @@ assert.ok(diff.summary.includes("TOBT 14:25Z (was 14:10Z)"));
 assert.ok(diff.summary.includes("STAND D62 (was D51)"));
 assert.ok(diff.summary.includes("REG PH-BHC (was PH-BHA)"));
 assert.strictEqual(diffCdmWatch(watch, watch), null);
+assert.strictEqual(
+  diffCdmWatch(watch, { callsign: "KL1361", fields: { TOBT: "14:10" } }),
+  null
+);
+assert.strictEqual(
+  diffCdmWatch({ callsign: "KL1361", fields: {} }, watch),
+  null
+);
 assert.deepStrictEqual(diffCdmWatch(watch, { callsign: "KL871", fields: {} }).reset, true);
 
 const zeroArmed = shouldNotifyTobtZero({

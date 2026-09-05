@@ -138,6 +138,7 @@
   const hextoryOverlay = document.getElementById("hextory-overlay");
   const hextoryHelpDialog = document.getElementById("hextory-help-dialog");
   const boardPinAdsb = document.getElementById("board-pin-adsb");
+  const boardPinHextory = document.getElementById("board-pin-hextory");
   const adsbHelpDialog = document.getElementById("adsb-help-dialog");
   const adsbHelpClose = document.getElementById("adsb-help-close");
   const adsbFindBtn = document.getElementById("adsb-find");
@@ -244,6 +245,7 @@
   let boardFocusToken = 0;
   let boardFocusLast = "";
   let boardFocusLastOn = false;
+  let boardFocusMode = "registration";
   let boardFocusHeavy = false;
   let boardFocusEu = false;
   let boardFocusNoneu = false;
@@ -277,6 +279,7 @@
   let cdmPollTimer = 0;
   let cdmNotifyOn = false;
   let cdmWatchBaseline = null;
+  let cdmNotifyFinger = "";
   let cdmNotifyAt = 0;
   let cdmTobtTimer = 0;
   let cdmTobtWasPositive = false;
@@ -515,7 +518,6 @@
   function updateThirdTabLabel() {
     tabSlots.hidden = false;
     if (!shouldShowAmsCdm()) clearCdmWatch();
-    tabSlots.classList.remove("cdm-soon", "tab-cdm-flight");
     tabSlots.removeAttribute("title");
     const tag = adsbTabCode(selectedIcao());
     tabSlots.textContent = tag ? `${tag} ADS-B` : "ADS-B";
@@ -1085,6 +1087,11 @@
   function setTab(name) {
     if (currentTab === "board" && name !== "board") clearBoardFocus();
     currentTab = name;
+    document.documentElement.classList.toggle("adsb-wide", name === "adsb");
+    window.requestAnimationFrame(resizeAdsbFrame);
+    if (name === "adsb") {
+      window.setTimeout(resizeAdsbFrame, 120);
+    }
     if (name === "board") paintBoardClocks();
     syncBoardPinOverlay();
     for (const btn of tabButtons) {
@@ -1688,10 +1695,11 @@
       `airport=${encodeURIComponent(code)}`,
       "zoom=12",
       "enableLabels",
-      "extendedLabels=1",
+      "extendedLabels=2",
       "tableInView=1",
       "hideSideBar",
       "legacyUI",
+      "mobile",
     ];
     if (cap) q.splice(4, 0, `filterAltMax=${altMax}`);
     const query = q.join("&");
@@ -3324,7 +3332,6 @@
       tafIssued.hidden = true;
       tafRemain.textContent = "";
       hideWxBlocks();
-      renderSnowtamCard(code);
     }
     if (force) startBtnSweep(briefRefresh);
     briefRefresh.disabled = true;
@@ -3369,6 +3376,7 @@
       next2h: boardFocusNext2h,
       cancelledOnly: boardDir !== "A" && boardFocusCancelled,
       delayedOnly: boardDir === "A" && boardFocusDelayed,
+      focusMode: boardFocusMode || "registration",
     };
   }
 
@@ -3686,7 +3694,7 @@
   }
 
   function syncBoardFocusBtnLock() {
-    const lock = pinOverlayIsOpen();
+    const lock = pinOverlayIsOpen() && !!(boardPin && boardPin.dir === "D");
     if (boardFocusBtn) boardFocusBtn.disabled = lock;
     for (const btn of boardDirBtns) btn.disabled = lock;
     if (boardAdsbBtn) boardAdsbBtn.disabled = lock;
@@ -3745,6 +3753,7 @@
       boardFocusNext2h = false;
       boardFocusCancelled = false;
       boardFocusDelayed = false;
+      boardFocusMode = "registration";
       if (boardFocusInput) boardFocusInput.value = "";
     }
     closeBoardFocusDialog();
@@ -3923,6 +3932,15 @@
     return boardPin.row || null;
   }
 
+  function syncBoardPinTrack() {
+    if (!boardPinAdsb) return;
+    const row = (boardPin && boardPin.row) || {};
+    const hx = window.Hextory;
+    const live = !!(hx && hx.boardPinLive && hx.boardPinLive(row));
+    boardPinAdsb.disabled = !live;
+    boardPinAdsb.setAttribute("aria-disabled", live ? "false" : "true");
+  }
+
   function paintBoardPinChrome(row) {
     if (boardPinTitle) {
       boardPinTitle.textContent =
@@ -3940,11 +3958,27 @@
       boardPinSub.textContent = line;
       boardPinSub.hidden = !line;
     }
+    syncBoardPinTrack();
+  }
+
+  let pinLiveTimer = 0;
+
+  function startPinLiveWatch() {
+    if (pinLiveTimer) return;
+    pinLiveTimer = setInterval(() => {
+      if (!pinOverlayIsOpen()) {
+        clearInterval(pinLiveTimer);
+        pinLiveTimer = 0;
+        return;
+      }
+      syncBoardPinTrack();
+    }, 4000);
   }
 
   function refreshBoardPinExtras() {
     if (!boardPin) return;
     paintBoardPinChrome(resolvePinRow());
+    startPinLiveWatch();
   }
 
   function pinCdmDoc() {
@@ -4341,7 +4375,6 @@
       syncBoardFocusBtnLock();
     }
     if (boardPinClose && currentTab === "board") boardPinClose.focus();
-    hextoryFromPin(row);
     if (nextDir !== "D") {
       stopPinCdm();
       return;
@@ -4834,7 +4867,6 @@
 
   function paintCdmTab() {
     if (!shouldShowAmsCdm()) return;
-    if (cdmFlight && cdmFlight.callsign) maybeNotifyTobtZero();
     paintCdmTobtGo();
     syncCdmTobtTimer();
     syncCdmFlightChrome();
@@ -4875,7 +4907,10 @@
         cdmFlight = null;
         paintCdmTab();
       }
-      if (cdmNotifyOn) cdmWatchBaseline = null;
+      if (cdmNotifyOn) {
+        cdmWatchBaseline = null;
+        cdmNotifyFinger = "";
+      }
       return;
     }
     if (
@@ -5120,12 +5155,18 @@
     }
     if (!cdmWatchBaseline || cdmWatchBaseline.callsign !== watch.callsign) {
       cdmWatchBaseline = watch;
+      cdmNotifyFinger = "";
       return;
     }
-    const diff = api.diffCdmWatch(cdmWatchBaseline, watch);
-    cdmWatchBaseline = watch;
+    const merged = api.mergeCdmWatch
+      ? api.mergeCdmWatch(cdmWatchBaseline, watch)
+      : watch;
+    const diff = api.diffCdmWatch(cdmWatchBaseline, merged);
+    cdmWatchBaseline = merged;
     if (!diff || !diff.summary) return;
-    showCdmPopup(watch.callsign, diff.summary, { throttle: true });
+    if (diff.summary === cdmNotifyFinger) return;
+    cdmNotifyFinger = diff.summary;
+    showCdmPopup(merged.callsign, diff.summary, { throttle: true });
   }
 
   function watchedCdmClock() {
@@ -5552,14 +5593,11 @@
     document.documentElement.classList.toggle("adsb-plane-open", on);
     if (!on) {
       document.documentElement.style.setProperty("--adsb-plane-shift", "0px");
-      if (adsbAddBtn) adsbAddBtn.hidden = true;
-      hideAdsbFr24();
       return;
     }
     const n = Number(shiftPx);
-    if (Number.isFinite(n) && n > 4) {
-      document.documentElement.style.setProperty("--adsb-plane-shift", Math.round(n) + "px");
-    }
+    const px = Number.isFinite(n) && n > 4 ? n : 300;
+    document.documentElement.style.setProperty("--adsb-plane-shift", Math.round(px) + "px");
     syncAdsbFr24Dock();
   }
 
@@ -5636,18 +5674,23 @@
     paintAdsbReturnBtn();
   }
 
-  function returnAdsbSmart() {
-    if (adsbPlaneSelected) {
+  function askAdsbRestore() {
+    if (!adsbFrame || !adsbFrame.contentWindow) {
       returnAdsbToAirport();
       return;
     }
-    const back = normalizeIcao(adsbPrevIcao);
-    if (back.length === 4 && back !== selectedIcao()) {
-      adsbPrevIcao = "";
-      jumpAdsbToCity(back, { silent: true });
-      return;
+    try {
+      adsbFrame.contentWindow.postMessage(
+        { source: "gearup-parent", reason: "restore" },
+        window.location.origin
+      );
+    } catch {
+      returnAdsbToAirport();
     }
-    returnAdsbToAirport();
+  }
+
+  function returnAdsbSmart() {
+    askAdsbRestore();
   }
 
   function atisAlreadyLoaded(code) {
@@ -5711,6 +5754,21 @@
   let adsbFr24Info = null;
   let adsbPrevIcao = loadPrevIcao();
   let adsbPlaneSelected = false;
+  let adsbFr24Linger = 0;
+
+  function cancelAdsbFr24Linger() {
+    if (!adsbFr24Linger) return;
+    clearTimeout(adsbFr24Linger);
+    adsbFr24Linger = 0;
+  }
+
+  function hideAdsbFr24Soon() {
+    cancelAdsbFr24Linger();
+    adsbFr24Linger = setTimeout(() => {
+      adsbFr24Linger = 0;
+      hideAdsbFr24();
+    }, 5000);
+  }
 
   function hideAdsbFr24() {
     adsbFr24Token += 1;
@@ -5882,7 +5940,8 @@
     const ident = [reg && reg !== flight ? reg : "", type].filter(Boolean).join(" · ");
     const motion = formatFr24Motion(info, dock);
     const href = String((info && (info.liveUrl || info.historyUrl)) || "").trim();
-    if (!fr24HasCard(Object.assign({}, info, { flight }))) {
+    const useful = fr24HasCard(Object.assign({}, info, { flight }));
+    if (!useful && !(flight || reg || type || from || to || airline || motion)) {
       adsbFr24.hidden = true;
       return;
     }
@@ -5969,9 +6028,10 @@
       .toLowerCase()
       .replace(/^~/, "");
     if (!reg && !hex && !(select && (select.flight || select.type))) {
-      hideAdsbFr24();
+      hideAdsbFr24Soon();
       return;
     }
+    cancelAdsbFr24Linger();
     adsbFr24Reg = reg || hex;
     adsbPlaneSelected = true;
     paintAdsbReturnBtn();
@@ -6089,7 +6149,7 @@
       adsbFrame.hidden = false;
       adsbFrame.setAttribute(
         "allow",
-        "clipboard-write; clipboard-read; fullscreen"
+        "clipboard-write; fullscreen"
       );
     }
     setAdsbChrome(true);
@@ -6543,6 +6603,23 @@
   if (boardFocusBtn) {
     boardFocusBtn.addEventListener("click", () => openBoardFocusDialog());
   }
+  function applyBoardFocusPlaceholder() {
+    if (!boardFocusInput) return;
+    const placeholders = {
+      registration: "KL871, BCN, PH-EHD",
+      airline: "KLM · Martinair",
+      aircraft: "77W · B744 · A333",
+    };
+    boardFocusInput.placeholder = placeholders[boardFocusMode] || placeholders.registration;
+  }
+  document.querySelectorAll('input[name="board-focus-mode"]').forEach((el) => {
+    el.addEventListener("change", () => {
+      if (!el.checked) return;
+      boardFocusMode = el.value || "registration";
+      applyBoardFocusPlaceholder();
+    });
+  });
+  applyBoardFocusPlaceholder();
   if (boardFocusForm) {
     boardFocusForm.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -6660,12 +6737,28 @@
   if (boardPinClose) {
     boardPinClose.addEventListener("click", () => unpinBoardFlight());
   }
+  if (boardPinHextory) {
+    boardPinHextory.addEventListener("click", () => {
+      const row = (boardPin && boardPin.row) || {};
+      hextoryFromPin(row);
+    });
+  }
   if (boardPinAdsb) {
     boardPinAdsb.addEventListener("click", () => {
       const row = (boardPin && boardPin.row) || {};
       const hx = window.Hextory;
-      const entry = hx ? hx.addFromBoard(row) : null;
-      const url = hx && entry ? hx.followUrl(entry) : "";
+      const entry = {
+        hex: "",
+        reg: (row && row.reg) || (row && row.flight) || "",
+        type: (row && row.aircraft) || "",
+        airline: (row && row.airline) || "",
+        flight: (row && row.flight) || "",
+      };
+      if (boardPinAdsb.disabled) return;
+      const url =
+        (hx && hx.followForBoard && hx.followForBoard(row)) ||
+        (hx && hx.followUrl ? hx.followUrl(entry) : "");
+      if (!url) return;
       openAdsbFollow(url);
     });
   }
@@ -6678,6 +6771,15 @@
       },
       planeOverlay: setAdsbPlaneOverlay,
       liveFlight: showAdsbFr24,
+      restoreFailed: () => {
+        const back = normalizeIcao(adsbPrevIcao);
+        if (back.length === 4 && back !== selectedIcao()) {
+          adsbPrevIcao = "";
+          jumpAdsbToCity(back, { silent: true });
+          return;
+        }
+        returnAdsbToAirport();
+      },
       follow: (url, row) => {
         openAdsbFollow(url, row);
         if (row) showAdsbFr24(row);
@@ -6890,7 +6992,9 @@
       (worstwindDialog && !worstwindDialog.hidden) ||
       (cdmHelpDialog && !cdmHelpDialog.hidden) ||
       (adsbHelpDialog && !adsbHelpDialog.hidden) ||
-      (hextoryOverlay && !hextoryOverlay.hidden) ||
+      (hextoryOverlay &&
+        !hextoryOverlay.hidden &&
+        !hextoryOverlay.classList.contains("is-parked")) ||
       (hextoryHelpDialog && !hextoryHelpDialog.hidden) ||
       (boardFocusHelpDialog && !boardFocusHelpDialog.hidden) ||
       (boardFocusDialog && !boardFocusDialog.hidden) ||
@@ -6960,6 +7064,121 @@
     if (currentTab === "board") loadBoard({ force: true });
   }
 
+  function isTextEntry(el) {
+    return !!(
+      el &&
+      el.closest &&
+      el.closest('input, textarea, select, [contenteditable="true"]')
+    );
+  }
+
+  function isChromeControl(el) {
+    return !!(
+      el &&
+      el.closest &&
+      el.closest(
+        'button, .tab, .pin, .icon-btn, .select-airport, .cdm-reset, .adsb-help, [role="button"], .lookup > button, .theme-toggle button, .cdm-chrome button, .view-board .board-controls > button'
+      )
+    );
+  }
+
+  function isPinControl(el) {
+    return !!(el && el.closest && el.closest(".pin"));
+  }
+
+  function isAckSlider(el) {
+    return !!(el && el.closest && el.closest(".ack-gate, .ack-track, .ack-strip"));
+  }
+
+  function isTapChrome(el) {
+    return (
+      isChromeControl(el) &&
+      !isPinControl(el) &&
+      !isAckSlider(el) &&
+      !isTextEntry(el)
+    );
+  }
+
+  function clearNonFieldSelection() {
+    try {
+      const sel = window.getSelection();
+      if (!sel || !sel.rangeCount) return;
+      const node = sel.anchorNode;
+      const el = node && (node.nodeType === 1 ? node : node.parentElement);
+      if (el && isTextEntry(el)) return;
+      sel.removeAllRanges();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  document.addEventListener(
+    "selectstart",
+    (event) => {
+      if (isChromeControl(event.target) && !isTextEntry(event.target)) {
+        event.preventDefault();
+      }
+    },
+    true
+  );
+  document.addEventListener(
+    "contextmenu",
+    (event) => {
+      if (isChromeControl(event.target) && !isTextEntry(event.target)) {
+        event.preventDefault();
+      }
+    },
+    true
+  );
+  document.addEventListener(
+    "pointerdown",
+    (event) => {
+      const t = event.target;
+      if (isTextEntry(t)) return;
+      if (isChromeControl(t)) clearNonFieldSelection();
+      const ae = document.activeElement;
+      if (ae && ae !== t && ae.blur && ae.matches && isTextEntry(ae)) {
+        ae.blur();
+      }
+    },
+    true
+  );
+  let chromeTapX = 0;
+  let chromeTapY = 0;
+  document.addEventListener(
+    "touchstart",
+    (event) => {
+      if (!isTapChrome(event.target)) return;
+      clearNonFieldSelection();
+      const t = event.touches[0];
+      if (t) {
+        chromeTapX = t.clientX;
+        chromeTapY = t.clientY;
+      }
+      if (event.cancelable) event.preventDefault();
+    },
+    { capture: true, passive: false }
+  );
+  document.addEventListener(
+    "touchend",
+    (event) => {
+      if (!isTapChrome(event.target)) return;
+      const t = event.changedTouches[0];
+      if (t) {
+        const dx = t.clientX - chromeTapX;
+        const dy = t.clientY - chromeTapY;
+        if (dx * dx + dy * dy > 100) return;
+      }
+      if (event.cancelable) event.preventDefault();
+      const btn = event.target.closest(
+        'button, a, .tab, .icon-btn, .select-airport, .cdm-reset, .adsb-help, [role="button"]'
+      );
+      if (btn && !btn.disabled && !isPinControl(btn) && !isAckSlider(btn)) {
+        btn.click();
+      }
+    },
+    { capture: true, passive: false }
+  );
   document.addEventListener(
     "touchstart",
     (event) => {
@@ -7048,15 +7267,49 @@
     { passive: false, capture: true }
   );
 
+  document.addEventListener(
+    "paste",
+    (event) => {
+      if (!isTextEntry(event.target)) event.preventDefault();
+    },
+    true
+  );
+
+  function resizeAdsbFrame() {
+    const tabs = document.querySelector(".tabs");
+    if (tabs) {
+      document.documentElement.style.setProperty(
+        "--tab-bar-h",
+        `${Math.round(tabs.getBoundingClientRect().height)}px`
+      );
+    }
+    if (currentTab !== "adsb" || !adsbFrame || !adsbFrame.contentWindow) return;
+    try {
+      adsbFrame.contentWindow.postMessage(
+        { source: "gearup-parent", reason: "resize" },
+        window.location.origin
+      );
+    } catch {
+      /* iframe not ready */
+    }
+  }
+
+  window.addEventListener("orientationchange", () => {
+    document.documentElement.classList.toggle("adsb-wide", currentTab === "adsb");
+    window.setTimeout(resizeAdsbFrame, 80);
+  });
+  window.addEventListener("resize", resizeAdsbFrame);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener("resize", resizeAdsbFrame);
+    window.visualViewport.addEventListener("scroll", resizeAdsbFrame);
+  }
+
   window.addEventListener("hashchange", route);
 
   if ("serviceWorker" in navigator && location.protocol === "https:") {
     navigator.serviceWorker.register("/sw.js").catch(() => {});
   }
 
-  renderPins();
-  updateTabLabels();
-  updateSlotsTab();
   if (window.GearUpAirports) {
     window.GearUpAirports.load().then(() => {
       renderPins();
@@ -7089,6 +7342,7 @@
     });
   }
   route();
+  resizeAdsbFrame();
   startUtcClock();
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {

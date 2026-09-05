@@ -73,9 +73,26 @@
     return false;
   }
 
-  function matchFocus(row, query) {
+  function matchAirline(row, query) {
+    const q = compactFlight(query);
+    const name = compactFlight(row && row.airline);
+    if (!q) return false;
+    if (name && (name.includes(q) || q.includes(name))) return true;
+    return matchFlight(row && row.flight, q);
+  }
+
+  function matchAircraft(row, query) {
+    const q = compactFlight(query);
+    const type = compactFlight(row && row.aircraft);
+    if (!q || !type) return false;
+    return type.includes(q) || q.includes(type);
+  }
+
+  function matchFocus(row, query, mode) {
     const q = compactFlight(query);
     if (!q) return false;
+    if (mode === "airline") return matchAirline(row, query);
+    if (mode === "aircraft") return matchAircraft(row, query);
     if (matchFlight(row && row.flight, q)) return true;
     if (matchRoute(row, q)) return true;
     if (q.length >= 3 && destsOf(row).some((code) => code.includes(q) || q.includes(code))) {
@@ -501,7 +518,7 @@
   function visibleFlights(flights, focusQuery, opts) {
     let list = dropPaddedFlightDupes(filterBoardFlights(flights, opts));
     const kind = classifyQuery(focusQuery);
-    if (kind.q) list = list.filter((row) => matchFocus(row, kind.q));
+    if (kind.q) list = list.filter((row) => matchFocus(row, kind.q, opts && opts.focusMode));
     const cap = Number(opts && opts.limit);
     if (kind.q) {
       if (Number.isFinite(cap) && cap > 0) return list.slice(0, cap);
@@ -517,12 +534,58 @@
     return list.slice(0, limit);
   }
 
+  function amsterdamL(zulu, sortMs) {
+    const clock = String(zulu || "").trim();
+    if (!clock || clock === "——Z" || clock === "——") return "";
+    const bare = clock.replace(/Z$/i, "").trim();
+    const parts = bare.split(":");
+    if (parts.length < 2) return "";
+    const hour = Number(parts[0]);
+    const minute = Number(parts[1]);
+    if (
+      !Number.isInteger(hour) ||
+      !Number.isInteger(minute) ||
+      hour < 0 ||
+      hour > 23 ||
+      minute < 0 ||
+      minute > 59
+    ) {
+      return "";
+    }
+    const anchor = Number(sortMs) > 0 ? Number(sortMs) : Date.now();
+    const utc = new Date(anchor);
+    utc.setUTCHours(hour, minute, 0, 0);
+    let t = utc.getTime();
+    if (Number(sortMs) > 0) {
+      if (t - anchor > 12 * 3600 * 1000) t -= 86400 * 1000;
+      else if (anchor - t > 12 * 3600 * 1000) t += 86400 * 1000;
+    }
+    try {
+      return new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Europe/Amsterdam",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+      }).format(new Date(t));
+    } catch {
+      return "";
+    }
+  }
+
   function paintZulu(label, className) {
     const wrap = el("span", className || "");
     const raw = String(label || "——Z");
     const m = raw.match(/^(.*?)(Z)$/i);
     wrap.appendChild(document.createTextNode(m ? m[1] : raw));
     wrap.appendChild(el("span", "board-time-z", "Z"));
+    return wrap;
+  }
+
+  function paintLocal(clock) {
+    const wrap = el("span", "board-time-local");
+    wrap.appendChild(document.createTextNode(clock));
+    wrap.appendChild(el("span", "board-time-l", "L"));
+    wrap.setAttribute("aria-label", clock + " local");
     return wrap;
   }
 
@@ -594,8 +657,10 @@
           paintZulu(row.timeNewZ, "board-time-new")
         );
       } else {
-        time.append(paintZulu(row.timeZ || "——Z"));
+        time.append(paintZulu(row.timeZ || "——Z"), el("span", "board-time-gap"));
       }
+      const local = amsterdamL(row.timeNewZ || row.timeZ, row.sortMs);
+      if (local) time.append(paintLocal(local));
       const ident = el("span", "board-ident");
       ident.append(el("span", "board-flight", row.flight || ""));
       const airline = el("span", "board-airline", row.airline || "");
@@ -620,6 +685,7 @@
 
   return {
     LIST_MAX,
+    amsterdamL,
     bindRowLongPress,
     boardDayCaption,
     classifyQuery,
