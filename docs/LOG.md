@@ -2,6 +2,16 @@
 
 Session history for rebuild. Older narrative also lives in `CURSOR_general_logs/ATIS_PWA/LOG.md`.
 
+## 2026-09-05 — version 2.1
+
+Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp` `8036896`. Home **2.1**. SW `gearup-v470`. Netlify `6a9c556b244eff92c2df668d`. Live: https://gearup4u.netlify.app
+
+ATIS body starts a new line after each sentence (frequencies like `118.3` stay intact). WORST on the wind strip is dim like UNOFFICIAL ESTIMATE; the leftover left ATIS tag is gone. Spoken WIND degrees stay magnetic (METAR groups still convert). Paint path no longer does a second runway collect when both ops are tagged, and METAR-infer reuses `chooseWindSource` instead of a second wind pass.
+
+PWA GAL four-corners fullscreens `.slots-wrap` so the FR24 dock stays visible. Return chip is Heroicons `arrow-uturn-down`. Open-in-browser chip is `arrow-top-right-on-square`. Help / open / return chips sit at 0.7 opacity. Collapsed left details card hides everything below the photo. `app.css?v=380`, `app.js?v=331`, `hl.js?v=226`. Hard refresh / kill the home-screen PWA once for `gearup-v470`.
+
+Factory pins unchanged. Clipboard, I/F, and leftover-card rules from 2.0 still apply. Native iOS is a separate repo (installed **1.78**); this ship is PWA only.
+
 ## 2026-09-05 — version 2.0
 
 Shipped to Netlify `gearup4u` and GitHub `Burbank/GearUp` `880a85b`. Home **2.0**. SW `gearup-v422`. Netlify `6a9b69ac16717550da99648a`. Live: https://gearup4u.netlify.app
